@@ -1,0 +1,13 @@
+# Ignore the virtual environment
+venv/
+
+# Ignore heavy dataset files
+data/
+*.parquet
+
+# Ignore DeBERTa model checkpoints
+deberta_results/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
