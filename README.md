@@ -1,207 +1,345 @@
-# Research Paper Analysis: Phishing Email Detection with BERT-CNN-GRU + Mountain Gazelle Optimizer
+# Base Paper Review and Research Foundation
 
-**Paper:** *Improving phishing email detection performance through deep learning with adaptive optimization* (Scientific Reports, 2025, 15:36724)
-**Proposed model name:** **BCG-MHeadAttention-MGO** (BERT + CNN + GRU + Multi-Head Attention, tuned by MGO)
+## Phishing Email Detection Using BERT, CNN, GRU, Multi-Head Attention, and MGO
 
-Items marked *(inference)* are my own deductions and are not stated in the paper.
+This document records the reference paper selected as the foundation for our research on phishing-email detection. It summarizes the paper's methodology, experimental results, contributions, and limitations, and explains how its findings informed the direction of our proposed work.
+
+> **Important:** The paper discussed below is the **base paper** for our research. The observations in this document are based on our reading and analysis of the paper. Statements marked **(inference)** are interpretations made from the paper's figures, tables, or descriptions and are not explicitly stated by the authors.
 
 ---
 
-## 1. Dataset Breakdown
+## 1. Base Paper Identification
 
-### Dataset name and source
-- **Name:** Phishing Emails dataset (Kaggle, `subhajournal/phishingemails`).
-- **Source:** Public Kaggle repository, a single dataset.
-- **Labels:** Binary, **"phishing"** vs **"safe"**. In the confusion matrix, 0 = safe (negative) and 1 = phishing (positive).
+**Title:** *Improving phishing email detection performance through deep learning with adaptive optimization*  
+**Journal:** *Scientific Reports*  
+**Publication year:** 2025  
+**Article:** 15:36724  
+**Reference model name used in this review:** **BCG-MHeadAttention-MGO**
 
-### Size and class distribution
+The base paper proposes a hybrid deep-learning model that combines:
 
-| Property | Value |
+- BERT for contextual language representation;
+- Multi-Head Attention for learning relationships between features;
+- a one-dimensional CNN for local phrase and n-gram extraction;
+- a Bidirectional GRU for sequential modelling; and
+- the Mountain Gazelle Optimizer (MGO) for hyperparameter tuning.
+
+The paper is relevant to our research because it demonstrates how transformer-based embeddings can be combined with convolutional and recurrent layers for phishing-email classification. It also provides a useful starting point for identifying limitations that can be addressed in a more reproducible and robust system.
+
+---
+
+## 2. Why This Paper Was Selected as the Base Paper
+
+We selected this paper as the foundation for our research for the following reasons:
+
+1. **It addresses a current cybersecurity problem.** Phishing emails continue to evolve and often evade traditional rule-based, signature-based, and blocklist-based detectors.
+2. **It uses contextual language modelling.** BERT can capture the meaning and context of email text more effectively than traditional TF-IDF, n-gram, or static-word-embedding approaches.
+3. **It combines complementary neural architectures.** CNN, attention, and GRU layers are intended to capture local patterns, long-range relationships, and sequential dependencies respectively.
+4. **It investigates automated optimization.** MGO is used to tune selected model hyperparameters instead of relying only on manual experimentation.
+5. **It provides multiple comparison points.** The authors compare BERT with GloVe, MGO with other metaheuristic optimizers, and the proposed model with several deep-learning baselines.
+6. **It exposes meaningful research opportunities.** The paper does not fully address cross-dataset generalization, adversarial or obfuscated emails, explainability, computational cost, or reproducibility. These limitations helped shape our research motivation.
+
+Our work therefore treats the paper as a **technical starting point and critical reference**, rather than accepting all of its claims without verification.
+
+---
+
+## 3. Dataset and Input Analysis
+
+### 3.1 Dataset
+
+The base paper uses the public Kaggle **Phishing Emails** dataset (`subhajournal/phishingemails`). The dataset contains approximately **18,650 email records** and uses binary labels:
+
+- **safe** email; and
+- **phishing** email.
+
+The reported class distribution is approximately:
+
+| Property | Reported or inferred value |
+|---|---:|
+| Total records | 18,650 |
+| Safe emails | Approximately 61% |
+| Phishing emails | Approximately 39% |
+| Empty-body records | Removed during preprocessing |
+
+The paper does not clearly report the exact train, validation, and test split proportions, the random seed, stratification procedure, maximum sequence length, or duplicate-removal procedure.
+
+### 3.2 Input features
+
+The paper mentions textual content, sender-related features, and email metadata. However, the architecture diagram presents **Email Text** as the actual model input. Based on the described pipeline, the implemented system appears to be primarily **text-based**:
+
+- **Email text:** tokenized and processed by BERT;
+- **Label:** used as the binary classification target; and
+- **Sender and metadata fields:** mentioned in the paper but not clearly incorporated into the described model.
+
+This distinction is important because a text-only system does not directly use potentially useful phishing indicators such as URLs, sender reputation, attachment information, email headers, HTML structure, or authentication results.
+
+### 3.3 Test-set observation
+
+The confusion matrix reports TN = 346, FP = 14, FN = 3, and TP = 230, which gives a total of **593 test examples**. This is approximately 3.2% of the full dataset **(inference)**. The corresponding inferred class counts are 360 safe emails and 233 phishing emails.
+
+Because the paper does not clearly state the split procedure, this test-set interpretation should be treated cautiously.
+
+---
+
+## 4. Base-Paper Architecture
+
+The proposed pipeline can be summarized as:
+
+```text
+Email Text
+    ↓
+BERT tokenizer and BERT representation
+    ↓
+Batch normalization and reshaping
+    ↓
+Multi-Head Attention
+    ↓
+1D CNN and pooling
+    ↓
+Bidirectional GRU
+    ↓
+Dropout and fully connected layer
+    ↓
+Sigmoid output
+    ↓
+Phishing / Safe
+```
+
+### 4.1 BERT
+
+BERT is used to generate contextual representations of email text. Unlike static embeddings, BERT produces representations that depend on the surrounding words and sentence context. The paper describes BERT as a 768-dimensional embedding model **(inference: likely BERT-base)**.
+
+The paper refers to the pooled BERT output. This creates an architectural question: a pooled output is a single vector representing the sequence, whereas CNNs, attention layers, and GRUs generally benefit from token-level sequence representations. If the pooled vector is reshaped before being passed to sequence-oriented layers, those layers may not be operating on a true token sequence **(inference)**.
+
+### 4.2 Multi-Head Attention
+
+Multi-Head Attention is used to learn relationships among different feature subspaces. The general scaled dot-product attention operation is described as:
+
+```text
+Attention(Q, K, V) = softmax(QKᵀ / √dₖ)V
+```
+
+The paper presents attention as a mechanism for capturing dependencies that may be distant from one another in the email representation.
+
+### 4.3 CNN
+
+The one-dimensional CNN is intended to identify local patterns, short phrases, and n-gram-like features associated with phishing language. Convolution is followed by pooling to reduce the feature representation.
+
+### 4.4 Bidirectional GRU
+
+The Bidirectional GRU is used to model sequential dependencies in both directions. The paper discusses update and reset gates to control how information is retained and updated over time.
+
+### 4.5 Classification layer
+
+The final layers apply dropout for regularization, use dense layers for projection, and produce a phishing probability through a sigmoid activation. Binary cross-entropy is used as the loss function, with binary accuracy as the training metric.
+
+---
+
+## 5. Mountain Gazelle Optimizer
+
+The paper uses the Mountain Gazelle Optimizer to search for model hyperparameters. The parameters reported as being tuned are:
+
+- number of GRU units;
+- dropout rate; and
+- learning rate.
+
+The MGO fitness function minimizes validation loss. The paper describes four main behaviours:
+
+| MGO behaviour | Intended role |
 |---|---|
-| Total samples | **18,650** |
-| Safe emails | ~**61%** |
-| Phishing emails | ~**39%** |
-| Preprocessing removal | Emails with an **empty body** are dropped |
-| Test set (inferred) | **593 emails** (346 + 14 + 3 + 230), about 3.2% of the data *(inference)* |
-| Test class mix (inferred) | 360 safe / 233 phishing, about 60.7% / 39.3%, consistent with the 61/39 split *(inference)* |
+| Solitary territorial males | Exploitation around the current best solution |
+| Maternity herds | Updating candidates using best and random solutions |
+| Bachelor male herds | Competitive local search |
+| Migration for food | Global exploration across the search bounds |
 
-### Features and attributes
-- The paper says the data contains "textual content, features related to sender addresses, and extra metadata regarding the email structure." The sentence is grammatically broken and **no column list is given**.
-- **What the model actually uses:** Fig. 2 shows only **"Email Text"** as input, so the pipeline is **text-only**. Sender and metadata fields are not shown being used.
-- **Role of the columns:**
-  - **Email text:** tokenized by the BERT tokenizer and fed to the pipeline for training and inference.
-  - **Label (phishing/safe):** the supervision target for binary cross-entropy and for all evaluation metrics.
-  - **Sender and metadata features:** mentioned but not used in any described stage.
-- **Not reported:** train/validation/test split ratio, random seed, stratification, max sequence length, and any duplicate handling.
+The competing optimizers are GWO, WOA, SSA, AVOA, GA, PSO, and PUMA. Each is reported with a population size of 10 and 50 iterations.
+
+A major computational implication is that a population of 10 over 50 iterations may require approximately **500 model training and validation cycles for one optimizer** **(inference)**. Repeating this process for multiple optimizers could be expensive, yet the paper does not provide detailed training-time, GPU-hour, or energy measurements.
 
 ---
 
-## 2. Models & Algorithms
+## 6. Experimental Findings Reported by the Base Paper
 
-### A. Proposed architecture components
+The paper reports the following main findings:
 
-| Component | Role |
+### 6.1 Embedding comparison
+
+BERT is reported to outperform GloVe embeddings with dimensions 50, 100, 200, and 300. The paper reports approximately:
+
+- BERT accuracy: **0.9722**;
+- GloVe-300 accuracy: **0.9612**; and
+- BERT F1-score: **0.9643**, compared with approximately **0.9450** for GloVe-300.
+
+This supports the use of contextual embeddings as a foundation for our research.
+
+### 6.2 Regularization ablation
+
+The paper reports that combining L2 regularization with dropout performs better than removing these mechanisms. The reported accuracy with both forms of regularization is approximately 0.9722, compared with approximately 0.9595 without dropout.
+
+### 6.3 Optimizer comparison
+
+MGO is reported to outperform GWO, WOA, SSA, AVOA, GA, PSO, and PUMA. The reported MGO accuracy is approximately 0.9722, while PUMA is reported at approximately 0.9544.
+
+### 6.4 Baseline comparison
+
+The proposed model is compared with CNN, LSTM, BLSTM, GRU, CLSTM, RCNN, ServeNet, and CARL-Net. The paper reports that the proposed hybrid model achieves higher performance than these baselines on the selected dataset.
+
+### 6.5 Confusion matrix
+
+The reported confusion matrix contains:
+
+| | Actual safe | Actual phishing |
+|---|---:|---:|
+| Predicted safe | TN = 346 | FN = 3 |
+| Predicted phishing | FP = 14 | TP = 230 |
+
+This shows that the system identifies most phishing examples, but it also incorrectly classifies 14 legitimate emails as phishing. The false-positive rate among safe emails is approximately **3.9%** **(inference)**, while the false-negative rate among phishing emails is approximately **1.3%** **(inference)**.
+
+For an email-security system, false positives are operationally important because they can block legitimate communication. Therefore, accuracy alone is not sufficient for evaluating the practical usefulness of the detector.
+
+---
+
+## 7. Points Noted During Our Critical Reading
+
+The following observations were recorded while studying the base paper.
+
+### 7.1 Reporting inconsistencies
+
+Several reported values do not appear to be fully consistent:
+
+- The abstract and conclusion report accuracy of approximately 96.8%, whereas several tables report 0.9722.
+- Recomputing accuracy from the confusion matrix gives `(346 + 230) / 593 = 0.9713`, not 0.9722.
+- The confusion matrix gives precision of approximately 0.9426 and recall of approximately 0.9871, while some narrative statements suggest precision above 0.95.
+- Some text refers to tables that appear to be incorrectly numbered.
+- Certain metric values appear repeated across unrelated comparison tables.
+- The paper describes fast convergence, but the loss curve appears to continue decreasing near the end of the displayed training period.
+
+These issues do not invalidate the overall research direction, but they make the exact performance claims difficult to reproduce.
+
+### 7.2 Incomplete experimental protocol
+
+The following details are not clearly specified:
+
+- train, validation, and test split ratios;
+- random seeds and repeated-run procedure;
+- duplicate detection and removal;
+- BERT sequence length;
+- whether BERT is frozen or fine-tuned;
+- batch size;
+- CNN filter counts and kernel sizes;
+- number of attention heads;
+- optimizer search ranges;
+- final selected hyperparameter values; and
+- the precise statistical test used to calculate p-values.
+
+These omissions motivate us to place greater emphasis on reproducibility in our own research.
+
+### 7.3 Generalization limitations
+
+The evaluation uses one public dataset. There is no clearly reported:
+
+- cross-dataset evaluation;
+- out-of-distribution testing;
+- temporal validation using newer emails;
+- adversarial or obfuscation testing; or
+- evaluation on AI-generated phishing emails.
+
+Consequently, the reported results demonstrate performance on the selected dataset but do not establish that the model will generalize to all future phishing campaigns.
+
+### 7.4 Baseline fairness
+
+The baseline models do not appear to use the same BERT representation, attention mechanism, and optimization process. Therefore, the performance improvement may result from several changes at once:
+
+1. the embedding method;
+2. the hybrid architecture; and
+3. MGO-based hyperparameter tuning.
+
+The base paper does not clearly isolate the contribution of MGO by comparing the complete BERT-attention-CNN-GRU architecture with and without MGO. This is an important consideration for our experimental design.
+
+### 7.5 Missing deployment analysis
+
+The paper describes the system as suitable for real-time deployment, but it does not report:
+
+- inference latency;
+- throughput;
+- memory usage;
+- parameter count;
+- model size;
+- energy consumption; or
+- the cost of repeating metaheuristic tuning.
+
+These measurements are necessary before making practical deployment claims.
+
+### 7.6 Explainability and security robustness
+
+The base paper does not provide a detailed explanation of why individual emails are classified as phishing. It also does not evaluate robustness against:
+
+- obfuscated text;
+- misspellings and character substitutions;
+- URL manipulation;
+- HTML-based evasion;
+- adversarial wording; or
+- AI-generated phishing emails.
+
+These areas represent important opportunities for extending the base approach.
+
+---
+
+## 8. Research Gaps Derived from the Base Paper
+
+Our reading of the paper identifies the following gaps:
+
+| Observed limitation | Research opportunity |
 |---|---|
-| **BERT** (768-dim, pooled output) | Contextual embeddings. Bidirectional transformer, pre-trained with masked LM and next-sentence prediction |
-| **Batch Normalization** | Stabilizes activations after reshaping |
-| **Multi-Head Attention** | Captures relationships between distant tokens in parallel subspaces |
-| **1D CNN** | Extracts local n-gram and short-phrase patterns, followed by pooling |
-| **Bidirectional GRU** | Models sequential dependencies in both directions |
-| **Dropout → Dense (FC) → Sigmoid** | Regularization, projection, and binary probability output |
-| **Mountain Gazelle Optimizer (MGO)** | Metaheuristic hyperparameter tuner |
-
-### B. Metaheuristic competitors (replacing MGO in the same pipeline)
-**GWO, WOA, SSA, AVOA, GA, PSO, PUMA**, all run with **population = 10 and iterations = 50**.
-
-### C. Deep-learning baselines
-**CNN, LSTM, BLSTM, GRU, CLSTM, RCNN, ServeNet, CARL-Net.** Their parameters were set "to the values reported in their respective base works."
-
-### D. Embedding variants (ablation)
-**GloVe** at dim 50, 100, 200, 300, versus **BERT** at dim 768.
-
-### Implementation and usage details
-- **Loss:** binary cross-entropy. **Metric:** binary accuracy.
-- **Tuned hyperparameters (via MGO):** **GRU units, dropout rate, learning rate.**
-- **MGO fitness:** minimize **validation loss**.
-- **Training length:** about **10 epochs** shown in Fig. 3.
-- **Software and hardware:** Python 3.8, TensorFlow 2.8, Keras, NumPy, Pandas on Google Colab Pro (Tesla T4, 32 GB RAM).
-- **Not specified:** optimizer type, batch size, hyperparameter search ranges, final selected values, CNN filter counts and kernel sizes, number of attention heads, and whether BERT is frozen or fine-tuned. The text says fine-tuning helps, but the contributions say MGO tunes "the BERT model."
+| Single-dataset evaluation | Validate on multiple datasets and, where possible, a temporally separated test set |
+| Unclear split and randomization procedure | Define fixed, stratified splits and publish the experimental protocol |
+| No repeated experiments | Report mean, standard deviation, and confidence intervals over multiple runs |
+| Text-only input | Investigate the value of URLs, headers, sender information, HTML, and metadata |
+| No adversarial testing | Evaluate obfuscated, paraphrased, and adversarial phishing emails |
+| No LLM-generated phishing evaluation | Test performance against synthetic and human-written phishing samples |
+| Limited interpretability | Add explainability methods such as attention analysis or SHAP-style feature attribution |
+| No latency or resource accounting | Measure model size, memory, latency, throughput, and tuning cost |
+| MGO contribution not isolated | Compare the full architecture with and without MGO under identical conditions |
+| Unclear architecture around pooled BERT output | Compare pooled-output and token-level BERT representations |
+| Possible duplicate leakage | Detect and remove duplicate or near-duplicate emails before splitting |
 
 ---
 
-## 3. Methodology & System Architecture
+## 9. How the Base Paper Informs Our Proposed Research
 
-### Core approach
-Combine **contextual embeddings (BERT)**, **attention**, **local feature extraction (CNN)**, and **sequence modeling (BiGRU)** into one classifier. Then automate hyperparameter selection with **MGO** instead of manual tuning.
+The base paper provides the central technical motivation for using BERT and hybrid neural architectures in phishing detection. However, our research should improve the evaluation and reporting process in the following ways:
 
-### System architecture (two nested loops, per Fig. 2)
-- **Outer loop (MGO):** generate a hyperparameter set, train and evaluate the network, update the population, and repeat until the final iteration. At the end it selects the best hyperparameters found across all iterations.
-- **Inner model:** Email Text → BERT → Multi-Head Attention → CNN → GRU → FC → Sigmoid → Phishing/Safe.
+1. **Reproducible preprocessing:** clearly document cleaning, tokenization, sequence length, duplicate handling, and data splits.
+2. **Fair comparisons:** keep the dataset split, training budget, and evaluation procedure consistent across all models.
+3. **Component ablation:** separately measure the contributions of BERT, attention, CNN, GRU, regularization, and MGO.
+4. **Robust evaluation:** include precision, recall, F1-score, confusion matrices, ROC-AUC, and false-positive analysis rather than relying only on accuracy.
+5. **Repeated runs:** report variability across multiple random seeds.
+6. **Generalization testing:** evaluate on an additional dataset or a temporally separated sample when available.
+7. **Deployment measurements:** report inference latency, model size, and memory usage.
+8. **Security-focused analysis:** test against obfuscated, adversarial, and AI-generated phishing content.
+9. **Interpretability:** identify the words, phrases, URLs, or metadata that influence predictions.
 
-### Stage-by-stage pipeline
-
-1. **Data ingestion and cleaning:** load the 18,650 Kaggle emails and remove empty-body rows.
-2. **Tokenization:** the BERT tokenizer converts raw text into token sequences.
-3. **Contextual embedding:** the pre-trained BERT produces a **pooled output**, a condensed 768-dim representation of the whole sequence.
-   - Input representation (Eq. 1): `Input = TokenEmbedding + SegmentEmbedding + PositionEmbedding`
-   - Self-attention (Eq. 2): `Attention(Q,K,V) = softmax(QKᵀ / √d_k) · V`
-4. **Reshape + Batch Normalization:** the output is reshaped for the convolutional layers and normalized.
-5. **Multi-head attention (Eq. 7):** the same scaled dot-product formula is applied per head, with linear projections of Q, K, V. Head outputs are concatenated and linearly transformed.
-6. **1D CNN (Eq. 3):** `f(x) = σ(Σᵢ wᵢ·xᵢ + b)`, with ReLU activation and max pooling.
-7. **Bidirectional GRU (Eqs. 4–6):**
-   - Update gate: `z_t = σ(W_z x_t + U_z h_{t−1} + b_z)`
-   - Reset gate: `r_t = σ(W_r x_t + U_r h_{t−1} + b_r)`
-   - Hidden state: `h_t = (1−z_t)⊙h_{t−1} + z_t⊙tanh(W_h x_t + U_h(r_t⊙h_{t−1}) + b_h)`
-8. **Dropout:** applied to the GRU output.
-9. **Dense layers:** map features to the output space.
-10. **Sigmoid classification:** outputs a phishing probability, trained with binary cross-entropy.
-11. **Evaluation:** Accuracy, Precision, Recall and F1 (Eqs. 16–19), plus p-value significance tables.
-
-### MGO mechanics (four behaviors)
-
-| Strategy | Equation | Meaning |
-|---|---|---|
-| **Solitary territorial males** | `TSM = male_gazelle − \|(r_i1·BH − r_i2·X(t))·F\| · Cof_r` (Eq. 8) | Exploits around the best solution |
-| **Maternity herds** | `MH = (NH + Cof_{1,r}) + (r_i3·male − r_i4·X_rand)·Cof_{1,r}` (Eq. 12) | Strengthens candidates using the best and a random solution |
-| **Bachelor male herds** | `BMH = (X(t) − D) + (r_i5·male − r_i6·BH)·Cof_r`, with `D = (\|X(t)\|+\|male\|)(2r₆−1)` (Eqs. 13–14) | Competitive local search |
-| **Migration for food** | `MSF = (ub − lb)·r₇ + lb` (Eq. 15) | Random global exploration across the bounds |
-
-- **Supporting terms:** `F = N₁(D)·exp(2 − iter·(2/Maxiter))` (Eq. 9). `Cof_i` has four cases (Eq. 10). `a = −1 + Iter·(−1/Maxiter)` (Eq. 11).
-- **Role:** MGO balances **exploration vs. exploitation** while searching the hyperparameter space.
+The base paper therefore serves two roles in our work: it provides a promising architecture to investigate, and it highlights the methodological standards that our proposed system should strengthen.
 
 ---
 
-## 4. Gaps Addressed & Solved
+## 10. Overall Assessment of the Base Paper
 
-| Gap in prior work | How this paper addresses it |
-|---|---|
-| Rule, signature, and blocklist detectors miss evolving, disguised phishing | Uses learned **contextual language representations** (BERT) |
-| Older NLP features (TF-IDF, n-grams, word embeddings) lack deep context | Uses **BERT** (768-dim), which beats **GloVe** (50–300 dim) in Table 2: accuracy 0.9722 vs 0.9612 |
-| Single-mechanism models (CNN-only or LSTM-only) capture limited patterns | **Hybrid** of attention + CNN (local) + BiGRU (sequential) |
-| Manual hyperparameter tuning is slow and suboptimal | **MGO automates** tuning of GRU units, dropout, and learning rate |
-| Metaheuristic choice is unjustified | Benchmarks 8 optimizers with statistical tests (Tables 4–8) |
-| Overfitting concerns | **Ablation** (Table 3) shows L2 + dropout help: accuracy 0.9722 with both vs 0.9595 without dropout |
+The main contribution of the base paper is the integration of BERT, Multi-Head Attention, CNN, Bidirectional GRU, and MGO into a single phishing-email classification pipeline. The reported experiments suggest that the hybrid model performs better than the selected GloVe variants, metaheuristic alternatives, and conventional deep-learning baselines on the chosen dataset.
 
-**Gaps named in the literature review but *not* actually solved:**
-- Failure on **new or unseen phishing tactics**.
-- **AI/LLM-generated phishing** (GPT-4o-style emails).
-- **Human overconfidence**.
-- **Explainability**, which is listed as future work.
+At the same time, the strongest conclusions should be interpreted carefully. The paper's results are based on one dataset, and important implementation details are not reported. Numeric inconsistencies, the absence of repeated experiments, unclear statistical procedures, missing latency measurements, and the lack of robustness testing limit the strength of claims regarding state-of-the-art performance, generalization, and real-time deployment.
+
+Our research uses this paper as a **base paper**, while also treating its limitations as motivation for a more transparent and rigorous investigation. The goal is not merely to reproduce the reported accuracy, but to determine which components genuinely improve phishing detection and whether the resulting system remains reliable when evaluated under realistic and changing conditions.
 
 ---
 
-## 5. Paper Limitations
+## 11. Base-Paper Reference Summary
 
-### Reporting inconsistencies
-- **Abstract vs. results:** the abstract and conclusion give *accuracy 96.8%, precision 97.2%, recall 95.4%, F1 96.3%*. Tables 2–4 and 9 and the confusion matrix give **accuracy 0.9722, precision 0.9426, recall 0.9871, F1 0.9643**. The conclusion's "97.2% precision, 95.4% recall" does not match any table.
-- **Accuracy recompute:** from the confusion matrix, (346+230)/593 = **0.9713**, not 0.9722. Precision (230/244 = 0.9426), recall (230/233 = 0.9871), and F1 match.
-- **Narrative vs. table:** the text says accuracy "exceeding 0.975" and precision and F1 "above 0.95." Table 9 shows precision **0.9426**.
-- **Loss:** the text says loss at epoch 9 is "less than 0.6," but Fig. 3 shows about 0.7.
-- **Training accuracy:** the text says it rises to "over 92%," but the figure shows about 94%.
-- **Misreferences:** "Table 8" is cited where Table 9 is meant. CARL-Net and ServeNet are said to have an "almost perfect recall of 0.9871," which is MGO's value.
-- **Repeated values:** identical metrics appear across unrelated tables. PSO accuracy equals GloVe-50 (0.9477), AVOA equals GloVe-100 (0.9510), and PUMA equals GloVe-200 (0.9544). LSTM and CLSTM share identical accuracy and precision. This may be coincidence, but it warrants verification.
+In summary, the reference paper proposes:
 
-### Methodological limitations
-- **Single dataset**, although the text refers to "different datasets." There is no cross-dataset or out-of-distribution test.
-- **Small, unspecified test set** (about 593 emails *(inference)*). There is no k-fold CV, no repeated runs, no confidence intervals, and no seeds.
-- **Unnamed statistical test.** The p-values (1e-9 to 1e-25) are extremely small, with no explanation of how the samples were obtained.
-- **Questionable "state-of-the-art" claim:**
-  - Baselines are generic or web-service models. ServeNet and CARL-Net are web-service classifiers.
-  - The paper's own cited works report higher figures (THEMIS 99.848% accuracy, HELPHED F1 0.9942) but are not compared experimentally.
-- **Unfair baseline design:** baselines lack BERT and attention, so the gains mix **architecture, embeddings, and tuning**. There is no ablation of BERT+attention+CNN+GRU **without MGO**, so MGO's isolated contribution is unproven. Baselines use fixed literature settings, while the proposed model gets 10×50 optimization.
-- **Architectural concern *(inference)*:** BERT's *pooled* output is a single vector. Reshaping it for attention, CNN and GRU means these layers may not process a true token-level sequence, which weakens the stated justification for sequence modeling.
-- **Unsupported claims:**
-  - "Reduces false positives by 2.5%" has no supporting computation.
-  - "Fast convergence" conflicts with loss still decreasing at epoch 10.
-  - "Real-time deployment" has no latency test.
-  - "Perfect generalization" is overstated.
-- **Error profile:** 14 false positives out of 360 safe emails is a **3.9% false-positive rate** (blocking legitimate mail), versus 3 false negatives (1.3%). The paper calls this balanced.
-- **Text-only input:** no headers, URLs, attachments, or sender reputation.
-- **No robustness testing:** no adversarial, obfuscated, or LLM-generated phishing.
-- **No explainability analysis** and **no class-imbalance handling** (the 61/39 split is only mild).
-- **Reproducibility:** no code availability statement, no hyperparameter ranges, no final tuned values, and no train/val/test split.
-- **Possible data leakage:** duplicate handling is not discussed (a general risk with Kaggle email corpora).
+```text
+BERT → Multi-Head Attention → 1D CNN → Bidirectional GRU
+→ Dropout → Dense Layer → Sigmoid Classifier
+```
 
----
-
-## 6. Resource Gap Analysis
-
-| Resource area | Reported / implied | Gap |
-|---|---|---|
-| **Hardware** | Colab Pro, Tesla T4 GPU, 32 GB RAM | Modest, but long tuning runs are likely |
-| **Model size** | BERT with 768-dim output (BERT-base class *(inference)*, about 110M parameters) | **No parameter count, memory, or model size reported** |
-| **Optimization cost** | MGO with population 10 × 50 iterations ≈ up to **~500 full train/validate cycles** *(inference)*, repeated for 8 optimizers | **No training time or GPU-hours reported** |
-| **Inference latency** | Claimed "suitable for real-time deployment" | **No latency or throughput measurement** |
-| **Edge deployment** | Listed as future work (compressed models) | Current model is likely too heavy for edge devices *(inference)* |
-| **Data access** | Public Kaggle data | Easy to obtain, but code and split files are not provided |
-| **Labeled data dependence** | Fully supervised | Authors flag this and propose few-shot and unsupervised domain adaptation as future work |
-| **Deployment bottlenecks** | Not discussed | Model drift, retraining cost when tactics evolve, and re-running MGO per new dataset |
-
-The key resource gap is the **missing compute and latency accounting**. The accuracy gains are reported without any cost-benefit evidence against lighter baselines.
-
----
-
-## 7. Comprehensive Author Contribution Summary
-
-### End-to-end walkthrough
-
-1. **Problem framing:** phishing is increasingly sophisticated, and rule-based or single-model detectors struggle.
-2. **Literature survey:** reviewed 12 works (Table 1) spanning NLP/ML surveys, human overconfidence, XAI platforms, undersampling ensembles, curated datasets, LLM-generated phishing, RCNN+attention (THEMIS), persuasion cues, and hybrid ensembles (HELPHED).
-3. **Design:** proposed **BERT → Multi-Head Attention → 1D CNN → BiGRU → Dense → Sigmoid**, with **MGO** tuning GRU units, dropout, and learning rate against validation loss.
-4. **Implementation:** TensorFlow/Keras on Colab Pro (T4), trained with binary cross-entropy for about 10 epochs on the Kaggle dataset (18,650 emails).
-5. **Evaluation:**
-   - **Convergence (Fig. 3):** loss falls from about 1.9 to about 0.7, and validation accuracy stays at about 95–97%.
-   - **Confusion matrix (Fig. 4):** TN 346, FP 14, FN 3, TP 230.
-   - **Embeddings (Table 2):** BERT-768 (F1 0.9643) beats GloVe-300 (F1 0.9450).
-   - **Regularization ablation (Table 3):** L2 plus dropout is best.
-   - **Metaheuristics (Table 4, Fig. 5):** MGO beats GWO, WOA, SSA, AVOA, GA, PSO, and PUMA. Accuracy 0.9722 vs PUMA 0.9544.
-   - **Significance tests (Tables 5–8):** MGO's advantage is significant on all four metrics.
-   - **Deep-learning baselines (Table 9, Fig. 6):** the proposed model beats CNN, LSTM, BLSTM, GRU, CLSTM, RCNN, ServeNet, and CARL-Net. The best baseline, CARL-Net, reaches accuracy 0.9376 and F1 0.9199.
-6. **Conclusions:**
-   - The hybrid architecture plus adaptive optimization yields robust detection.
-   - The authors claim fast convergence, good generalization, and real-time suitability.
-   - **Future work:** few-shot learning, unsupervised domain adaptation, explainability, and compressed edge models.
-
-### Net assessment
-- The paper's **real contribution** is an engineering integration of BERT, attention, CNN and GRU with MGO tuning, showing consistent gains over the authors' own baselines on one dataset.
-- The **main weaknesses** are the numeric inconsistencies, the single dataset, the lack of repeated runs, the missing cost and latency data, and unsupported SOTA and real-time claims.
+with MGO used to tune selected hyperparameters. We adopted this work as the conceptual and architectural foundation of our research because it combines modern language representations with local and sequential feature extraction. Our analysis also identified reproducibility, generalization, explainability, robustness, and resource-efficiency issues that should be addressed in the next stage of the project.
