@@ -11,3 +11,10 @@ deberta_results/
 # Ignore Python cache files
 __pycache__/
 *.pyc
+
+# Ignore Node.js and Next.js builds
+node_modules/
+.next/
+dist/
+out/
+

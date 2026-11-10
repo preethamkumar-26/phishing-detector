@@ -1,0 +1,12 @@
+{
+  "name": "phishing-detector-root",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "npm --prefix phishguard-ai run dev",
+    "build": "npm --prefix phishguard-ai run build",
+    "start": "npm --prefix phishguard-ai run start",
+    "lint": "npm --prefix phishguard-ai run lint"
+  }
+}
+
