@@ -1,4 +1,4 @@
-# Phishing Email Detection Using AI/ML
+# Phishing Email Detection Using AI/ML #
 
 > **A research project exploring reliable, explainable, and generalizable phishing-email detection using modern machine-learning and deep-learning methods.**
 >
