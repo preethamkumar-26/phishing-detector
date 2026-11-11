@@ -19,25 +19,25 @@ export function StatCard({
   value,
   subtitle,
   icon: Icon,
-  iconColor = "text-[#8B5CF6]",
+  iconColor = "text-[var(--primary-accent)]",
   iconBg = "bg-violet-500/10 border-violet-500/20",
   trend,
   isPositive,
 }: StatCardProps) {
   return (
-    <Card className="relative overflow-hidden border-[#273449] hover:border-slate-600 transition-colors">
-      <CardContent className="p-5">
+    <Card className="relative overflow-hidden border-[var(--border-color)] hover:border-[var(--primary-accent)] transition-colors">
+      <CardContent className="p-6">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">
             <div className="flex items-center gap-1.5">
-              <span className="text-xs font-medium text-[#9CA3AF] tracking-wide">
+              <span className="text-[13px] font-medium text-[var(--text-muted)] tracking-wide">
                 {title}
               </span>
               <span className="text-[9px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400/90 border border-amber-500/20">
                 Demo
               </span>
             </div>
-            <div className="text-2xl md:text-3xl font-extrabold text-[#F3F4F6] tracking-tight">
+            <div className="text-2xl md:text-3xl font-extrabold text-[var(--text-primary)] tracking-tight">
               {value}
             </div>
           </div>
@@ -52,7 +52,7 @@ export function StatCard({
         </div>
 
         {subtitle && (
-          <div className="mt-3 pt-3 border-t border-[#273449]/60 flex items-center justify-between text-xs text-[#9CA3AF]">
+          <div className="mt-3 pt-3 border-t border-[var(--border-color)]/60 flex items-center justify-between text-[13px] text-[var(--text-muted)]">
             <span>{subtitle}</span>
             {trend && (
               <span
@@ -70,4 +70,3 @@ export function StatCard({
     </Card>
   );
 }
-

@@ -15,7 +15,7 @@ export function ThreatDistributionChart() {
   const total = DEMO_THREAT_DISTRIBUTION.reduce((acc, curr) => acc + curr.value, 0);
 
   return (
-    <Card className="h-full flex flex-col border-[#273449]">
+    <Card className="h-full flex flex-col border-[var(--border-color)]">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
@@ -47,7 +47,7 @@ export function ThreatDistributionChart() {
                   dataKey="value"
                 >
                   {DEMO_THREAT_DISTRIBUTION.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} stroke="#101729" strokeWidth={2} />
+                    <Cell key={`cell-${index}`} fill={entry.color} stroke="var(--bg-surface)" strokeWidth={2} />
                   ))}
                 </Pie>
                 <Tooltip
@@ -56,9 +56,9 @@ export function ThreatDistributionChart() {
                       const data = payload[0].payload;
                       const pct = ((data.value / total) * 100).toFixed(1);
                       return (
-                        <div className="rounded-xl bg-[#151E31] border border-[#273449] p-2.5 shadow-xl text-xs">
-                          <div className="font-bold text-[#F3F4F6]">{data.name}</div>
-                          <div className="text-[#9CA3AF] mt-0.5">
+                        <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-2.5 shadow-xl text-xs">
+                          <div className="font-bold text-[var(--text-primary)]">{data.name}</div>
+                          <div className="text-[var(--text-muted)] mt-0.5">
                             {data.value.toLocaleString()} emails ({pct}%)
                           </div>
                         </div>
@@ -70,49 +70,48 @@ export function ThreatDistributionChart() {
               </PieChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full w-full flex items-center justify-center text-xs text-[#9CA3AF]">
+            <div className="h-full w-full flex items-center justify-center text-xs text-[var(--text-muted)]">
               Loading chart...
             </div>
           )}
 
           {/* Central count badge */}
           <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-            <span className="text-xl font-extrabold text-[#F3F4F6]">{total.toLocaleString()}</span>
-            <span className="text-[10px] uppercase text-[#9CA3AF] tracking-wider">Evaluated</span>
+            <span className="text-xl font-extrabold text-[var(--text-primary)]">{total.toLocaleString()}</span>
+            <span className="text-[10px] uppercase text-[var(--text-muted)] tracking-wider">Evaluated</span>
           </div>
         </div>
 
         {/* Custom Legend */}
-        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[#273449]/70 text-xs">
-          <div className="p-2 rounded-xl bg-[#1B2740]/40 border border-[#273449]/40 text-center">
+        <div className="grid grid-cols-3 gap-2 pt-3 border-t border-[var(--border-color)]/70 text-xs">
+          <div className="p-2 rounded-xl bg-[var(--bg-surface)]/40 border border-[var(--border-color)]/40 text-center">
             <div className="flex items-center justify-center gap-1.5 text-red-400 font-semibold text-[11px]">
               <span className="w-2 h-2 rounded-full bg-red-400" />
               Phishing
             </div>
-            <div className="text-sm font-bold text-[#F3F4F6] mt-0.5">384</div>
-            <div className="text-[10px] text-[#9CA3AF]">26.9%</div>
+            <div className="text-sm font-bold text-[var(--text-primary)] mt-0.5">384</div>
+            <div className="text-[10px] text-[var(--text-muted)]">26.9%</div>
           </div>
 
-          <div className="p-2 rounded-xl bg-[#1B2740]/40 border border-[#273449]/40 text-center">
+          <div className="p-2 rounded-xl bg-[var(--bg-surface)]/40 border border-[var(--border-color)]/40 text-center">
             <div className="flex items-center justify-center gap-1.5 text-emerald-400 font-semibold text-[11px]">
               <span className="w-2 h-2 rounded-full bg-emerald-400" />
               Safe
             </div>
-            <div className="text-sm font-bold text-[#F3F4F6] mt-0.5">972</div>
-            <div className="text-[10px] text-[#9CA3AF]">68.1%</div>
+            <div className="text-sm font-bold text-[var(--text-primary)] mt-0.5">972</div>
+            <div className="text-[10px] text-[var(--text-muted)]">68.1%</div>
           </div>
 
-          <div className="p-2 rounded-xl bg-[#1B2740]/40 border border-[#273449]/40 text-center">
+          <div className="p-2 rounded-xl bg-[var(--bg-surface)]/40 border border-[var(--border-color)]/40 text-center">
             <div className="flex items-center justify-center gap-1.5 text-amber-400 font-semibold text-[11px]">
               <span className="w-2 h-2 rounded-full bg-amber-400" />
               Review
             </div>
-            <div className="text-sm font-bold text-[#F3F4F6] mt-0.5">72</div>
-            <div className="text-[10px] text-[#9CA3AF]">5.0%</div>
+            <div className="text-sm font-bold text-[var(--text-primary)] mt-0.5">72</div>
+            <div className="text-[10px] text-[var(--text-muted)]">5.0%</div>
           </div>
         </div>
       </CardContent>
     </Card>
   );
 }
-

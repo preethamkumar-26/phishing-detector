@@ -19,7 +19,7 @@ export function Badge({
     warning: "bg-amber-500/15 text-amber-400 border border-amber-500/30",
     accent: "bg-violet-500/15 text-violet-300 border border-violet-500/30",
     neutral: "bg-slate-800 text-slate-300 border border-slate-700",
-    outline: "border border-[#273449] text-slate-300 bg-transparent",
+    outline: "border border-[var(--border-color)] text-slate-300 bg-transparent",
   };
 
   const sizeStyles = {

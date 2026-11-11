@@ -112,8 +112,8 @@ export function EmailInputPanel({
   const charCount = body.length;
 
   return (
-    <Card className="h-full flex flex-col border-[#273449]">
-      <CardHeader className="pb-3 border-b border-[#273449]">
+    <Card className="h-full flex flex-col border-[var(--border-color)]">
+      <CardHeader className="pb-3 border-b border-[var(--border-color)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>
             <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -128,14 +128,14 @@ export function EmailInputPanel({
           </div>
 
           {/* Mode Switch Tabs */}
-          <div className="inline-flex items-center p-1 bg-[#101729] rounded-xl border border-[#273449]">
+          <div className="inline-flex items-center p-1 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)]">
             <button
               type="button"
               onClick={() => setMode("paste")}
               className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 ${
                 mode === "paste"
-                  ? "bg-[#8B5CF6] text-white shadow-sm"
-                  : "text-[#9CA3AF] hover:text-[#F3F4F6]"
+                  ? "bg-[var(--primary-accent)] text-white shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
@@ -146,8 +146,8 @@ export function EmailInputPanel({
               onClick={() => setMode("upload")}
               className={`px-3 py-1 text-xs font-medium rounded-lg transition-all flex items-center gap-1.5 ${
                 mode === "upload"
-                  ? "bg-[#8B5CF6] text-white shadow-sm"
-                  : "text-[#9CA3AF] hover:text-[#F3F4F6]"
+                  ? "bg-[var(--primary-accent)] text-white shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
               }`}
             >
               <UploadCloud className="w-3.5 h-3.5" />
@@ -159,9 +159,9 @@ export function EmailInputPanel({
 
       <CardContent className="flex-1 flex flex-col p-5 space-y-4">
         {/* Sample Load Buttons Bar */}
-        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[#101729]/80 border border-[#273449]">
-          <span className="text-[11px] font-semibold text-[#9CA3AF] flex items-center gap-1">
-            <Sparkles className="w-3 h-3 text-[#8B5CF6]" />
+        <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-[var(--bg-surface)]/80 border border-[var(--border-color)]">
+          <span className="text-[11px] font-semibold text-[var(--text-muted)] flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-[var(--primary-accent)]" />
             Quick Test Samples:
           </span>
           <div className="flex items-center gap-2">
@@ -191,7 +191,7 @@ export function EmailInputPanel({
                 variant="ghost"
                 size="sm"
                 onClick={handleClear}
-                className="text-xs h-7 px-2 text-[#9CA3AF] hover:text-white"
+                className="text-xs h-7 px-2 text-[var(--text-muted)] hover:text-white"
                 title="Clear all fields"
               >
                 <RotateCcw className="w-3 h-3" />
@@ -211,17 +211,17 @@ export function EmailInputPanel({
               onDrop={handleFileDrop}
               className={`p-6 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center text-center transition-all ${
                 isDragging
-                  ? "border-[#8B5CF6] bg-[#8B5CF6]/10"
-                  : "border-[#273449] bg-[#101729]/60 hover:border-slate-500"
+                  ? "border-[var(--primary-accent)] bg-[var(--primary-accent)]/10"
+                  : "border-[var(--border-color)] bg-[var(--bg-surface)]/60 hover:border-slate-500"
               }`}
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#1B2740] border border-[#273449] flex items-center justify-center mb-3 text-[#8B5CF6]">
+              <div className="w-12 h-12 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center mb-3 text-[var(--primary-accent)]">
                 <FileUp className="w-6 h-6" />
               </div>
-              <p className="text-sm font-semibold text-[#F3F4F6]">
+              <p className="text-sm font-semibold text-[var(--text-primary)]">
                 Drag and drop your email file here
               </p>
-              <p className="text-xs text-[#9CA3AF] mt-1">
+              <p className="text-xs text-[var(--text-muted)] mt-1">
                 Supports <span className="text-slate-300 font-mono">.txt</span> and{" "}
                 <span className="text-slate-300 font-mono">.eml</span> files up to 5MB
               </p>
@@ -233,7 +233,7 @@ export function EmailInputPanel({
                   onChange={handleFileInputChange}
                   className="hidden"
                 />
-                <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-[#1B2740] hover:bg-[#233354] text-[#F3F4F6] border border-[#273449] transition-colors">
+                <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--bg-surface)] hover:bg-[#233354] text-[var(--text-primary)] border border-[var(--border-color)] transition-colors">
                   <UploadCloud className="w-4 h-4" />
                   Browse Files
                 </span>
@@ -241,12 +241,12 @@ export function EmailInputPanel({
             </div>
 
             {uploadedFile && (
-              <div className="flex items-center justify-between p-3 rounded-xl bg-[#1B2740]/60 border border-[#273449]">
+              <div className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-surface)]/60 border border-[var(--border-color)]">
                 <div className="flex items-center gap-2.5 overflow-hidden">
-                  <FileCode className="w-4 h-4 text-[#8B5CF6] shrink-0" />
+                  <FileCode className="w-4 h-4 text-[var(--primary-accent)] shrink-0" />
                   <div className="truncate text-xs">
-                    <span className="font-medium text-[#F3F4F6]">{uploadedFile.name}</span>
-                    <span className="text-[#9CA3AF] ml-2 text-[10px]">
+                    <span className="font-medium text-[var(--text-primary)]">{uploadedFile.name}</span>
+                    <span className="text-[var(--text-muted)] ml-2 text-[10px]">
                       ({(uploadedFile.size / 1024).toFixed(1)} KB)
                     </span>
                   </div>
@@ -254,7 +254,7 @@ export function EmailInputPanel({
                 <button
                   type="button"
                   onClick={() => setUploadedFile(null)}
-                  className="p-1 text-[#9CA3AF] hover:text-white rounded"
+                  className="p-1 text-[var(--text-muted)] hover:text-white rounded"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -266,7 +266,7 @@ export function EmailInputPanel({
         {/* Optional Subject & Sender inputs */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1">
               Email Subject (Optional)
             </label>
             <input
@@ -274,11 +274,11 @@ export function EmailInputPanel({
               placeholder="e.g. URGENT: Action required..."
               value={subject}
               onChange={(e) => onSubjectChange(e.target.value)}
-              className="w-full h-9 px-3 text-xs bg-[#101729] text-[#F3F4F6] placeholder-[#9CA3AF]/60 rounded-xl border border-[#273449] focus:outline-none focus:border-[#8B5CF6]"
+              className="w-full h-9 px-3 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder-[var(--text-muted)]/60 rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
             />
           </div>
           <div>
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#9CA3AF] mb-1">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)] mb-1">
               Sender Address (Optional)
             </label>
             <input
@@ -286,7 +286,7 @@ export function EmailInputPanel({
               placeholder="e.g. security-alert@external-verify.com"
               value={sender}
               onChange={(e) => onSenderChange(e.target.value)}
-              className="w-full h-9 px-3 text-xs bg-[#101729] text-[#F3F4F6] placeholder-[#9CA3AF]/60 rounded-xl border border-[#273449] focus:outline-none focus:border-[#8B5CF6]"
+              className="w-full h-9 px-3 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder-[var(--text-muted)]/60 rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
             />
           </div>
         </div>
@@ -294,10 +294,10 @@ export function EmailInputPanel({
         {/* Email Body Textarea */}
         <div className="flex-1 flex flex-col space-y-1">
           <div className="flex items-center justify-between">
-            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[#9CA3AF]">
+            <label className="block text-[11px] font-semibold uppercase tracking-wider text-[var(--text-muted)]">
               Email Body Content <span className="text-red-400">*</span>
             </label>
-            <div className="text-[11px] text-[#9CA3AF]">
+            <div className="text-[11px] text-[var(--text-muted)]">
               <span>{wordCount} words</span> • <span>{charCount} chars</span>
             </div>
           </div>
@@ -307,13 +307,13 @@ export function EmailInputPanel({
             placeholder="Paste the email content here for analysis…"
             value={body}
             onChange={(e) => onBodyChange(e.target.value)}
-            className="w-full flex-1 min-h-[220px] p-3.5 text-xs font-mono leading-relaxed bg-[#101729] text-[#F3F4F6] placeholder-[#9CA3AF]/60 rounded-xl border border-[#273449] focus:outline-none focus:border-[#8B5CF6] resize-none"
+            className="w-full flex-1 min-h-[220px] p-3.5 text-xs font-mono leading-relaxed bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder-[var(--text-muted)]/60 rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)] resize-none"
           />
         </div>
 
         {/* Privacy Note & Primary Action */}
         <div className="space-y-3 pt-2">
-          <div className="flex items-start gap-2 p-2.5 rounded-xl bg-[#101729]/60 border border-[#273449]/60 text-[11px] text-[#9CA3AF]">
+          <div className="flex items-start gap-2 p-2.5 rounded-xl bg-[var(--bg-surface)]/60 border border-[var(--border-color)]/60 text-[11px] text-[var(--text-muted)]">
             <AlertCircle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
             <span>
               <strong>Privacy Notice:</strong> Do not paste real passwords, confidential access tokens or sensitive personally identifiable information into this demo environment.

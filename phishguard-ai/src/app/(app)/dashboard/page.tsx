@@ -34,21 +34,21 @@ export default function DashboardPage() {
       {/* Dashboard Page Header */}
       <PageHeader
         title="Dashboard"
-        description="Real-time threat monitoring and heuristic neural inference telemetry."
+        description="Here’s a clear view of recent scans, emerging threats, and activity across your inbox."
       >
         <div className="flex items-center gap-2">
           {/* Optional date range selector */}
-          <div className="relative hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[#151E31] rounded-xl border border-[#273449] text-xs text-[#9CA3AF]">
+          <div className="relative hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-muted)]">
             <Calendar className="w-3.5 h-3.5 text-slate-400" />
             <select
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
-              className="bg-transparent text-[#F3F4F6] focus:outline-none cursor-pointer"
+              className="bg-transparent text-[var(--text-primary)] focus:outline-none cursor-pointer"
             >
-              <option value="Today" className="bg-[#151E31]">Today</option>
-              <option value="Last 7 days" className="bg-[#151E31]">Last 7 days</option>
-              <option value="Last 14 days" className="bg-[#151E31]">Last 14 days</option>
-              <option value="Last 30 days" className="bg-[#151E31]">Last 30 days</option>
+              <option value="Today" className="bg-[var(--bg-surface)]">Today</option>
+              <option value="Last 7 days" className="bg-[var(--bg-surface)]">Last 7 days</option>
+              <option value="Last 14 days" className="bg-[var(--bg-surface)]">Last 14 days</option>
+              <option value="Last 30 days" className="bg-[var(--bg-surface)]">Last 30 days</option>
             </select>
           </div>
 
@@ -131,4 +131,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

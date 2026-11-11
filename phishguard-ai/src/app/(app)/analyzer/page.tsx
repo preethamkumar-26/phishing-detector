@@ -63,7 +63,7 @@ function AnalyzerContent() {
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             Model Ready
           </span>
-          <span className="text-xs text-[#9CA3AF] bg-[#151E31] px-2.5 py-1 rounded-xl border border-[#273449] font-mono hidden sm:inline-block">
+          <span className="text-xs text-[var(--text-muted)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-xl border border-[var(--border-color)] font-mono hidden sm:inline-block">
             BERT-MHA-CNN-GRU-v0.1
           </span>
         </div>
@@ -101,7 +101,7 @@ function AnalyzerContent() {
 
 export default function AnalyzerPage() {
   return (
-    <Suspense fallback={<div className="p-8 text-center text-xs text-[#9CA3AF]">Loading analyzer...</div>}>
+    <Suspense fallback={<div className="p-8 text-center text-xs text-[var(--text-muted)]">Loading analyzer...</div>}>
       <AnalyzerContent />
     </Suspense>
   );

@@ -28,7 +28,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
         onClick={() => onOpenChange(false)}
         aria-hidden="true"
       />
-      <div className="relative z-10 w-full max-w-lg rounded-2xl border border-[#273449] bg-[#151E31] p-6 shadow-2xl shadow-black/60 overflow-hidden">
+      <div className="relative z-10 w-full max-w-lg max-h-[calc(100vh-2rem)] overflow-y-auto rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)] p-6 shadow-2xl shadow-black/60">
         {children}
       </div>
     </div>
@@ -37,7 +37,7 @@ export function Dialog({ open, onOpenChange, children }: DialogProps) {
 
 export function DialogHeader({ className, children }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("flex flex-col space-y-1.5 pb-4 border-b border-[#273449]", className)}>
+    <div className={cn("flex flex-col space-y-1.5 pb-4 border-b border-[var(--border-color)]", className)}>
       {children}
     </div>
   );
@@ -45,7 +45,7 @@ export function DialogHeader({ className, children }: React.HTMLAttributes<HTMLD
 
 export function DialogTitle({ className, children }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h3 className={cn("text-lg font-semibold text-[#F3F4F6] flex items-center justify-between", className)}>
+    <h3 className={cn("text-lg font-semibold text-[var(--text-primary)] flex items-center justify-between", className)}>
       {children}
     </h3>
   );
@@ -53,7 +53,7 @@ export function DialogTitle({ className, children }: React.HTMLAttributes<HTMLHe
 
 export function DialogDescription({ className, children }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn("text-sm text-[#9CA3AF]", className)}>
+    <p className={cn("text-sm text-[var(--text-muted)]", className)}>
       {children}
     </p>
   );
@@ -61,7 +61,7 @@ export function DialogDescription({ className, children }: React.HTMLAttributes<
 
 export function DialogFooter({ className, children }: React.HTMLAttributes<HTMLDivElement>) {
   return (
-    <div className={cn("mt-6 flex items-center justify-end gap-2 pt-4 border-t border-[#273449]", className)}>
+    <div className={cn("mt-6 flex items-center justify-end gap-2 pt-4 border-t border-[var(--border-color)]", className)}>
       {children}
     </div>
   );
@@ -71,11 +71,10 @@ export function DialogClose({ onClose }: { onClose: () => void }) {
   return (
     <button
       onClick={onClose}
-      className="p-1 rounded-lg text-[#9CA3AF] hover:text-white hover:bg-[#1B2740] transition-colors"
+      className="p-1 rounded-lg text-[var(--text-muted)] hover:text-white hover:bg-[var(--bg-surface)] transition-colors"
       aria-label="Close"
     >
       <X className="w-5 h-5" />
     </button>
   );
 }
-

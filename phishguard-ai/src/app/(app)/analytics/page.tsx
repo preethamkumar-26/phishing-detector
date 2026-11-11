@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
         title="Model Performance & Evaluation"
         description="Comprehensive evaluation metrics, ROC-AUC trajectories, loss curves, and comparative architecture benchmarks."
       >
-        <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-xl border border-[#273449] font-mono">
+        <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-xl border border-[var(--border-color)] font-mono">
           Optimizer: Mountain Gazelle (MGO)
         </span>
       </PageHeader>
@@ -108,11 +108,11 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Confusion Matrix Interactive Visual Widget */}
         <div className="lg:col-span-5">
-          <Card className="h-full border-[#273449]">
+          <Card className="h-full border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <CardTitle className="text-base font-bold flex items-center justify-between">
                 <span>Confusion Matrix (Test Split)</span>
-                <span className="text-[10px] font-mono text-[#9CA3AF]">
+                <span className="text-[10px] font-mono text-[var(--text-muted)]">
                   N = {totalCM.toLocaleString()}
                 </span>
               </CardTitle>
@@ -127,10 +127,10 @@ export default function AnalyticsPage() {
                   <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
                     True Positive (TP)
                   </div>
-                  <div className="text-2xl font-black text-[#F3F4F6] font-mono mt-1">
+                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
                     {cm.truePositive.toLocaleString()}
                   </div>
-                  <div className="text-[11px] text-[#9CA3AF] mt-0.5">
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                     Phishing correctly flagged
                   </div>
                 </div>
@@ -140,10 +140,10 @@ export default function AnalyticsPage() {
                   <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">
                     False Positive (FP)
                   </div>
-                  <div className="text-2xl font-black text-[#F3F4F6] font-mono mt-1">
+                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
                     {cm.falsePositive.toLocaleString()}
                   </div>
-                  <div className="text-[11px] text-[#9CA3AF] mt-0.5">
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                     Legitimate flagged as threat
                   </div>
                 </div>
@@ -153,10 +153,10 @@ export default function AnalyticsPage() {
                   <div className="text-[10px] uppercase font-bold text-red-400 tracking-wider">
                     False Negative (FN)
                   </div>
-                  <div className="text-2xl font-black text-[#F3F4F6] font-mono mt-1">
+                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
                     {cm.falseNegative.toLocaleString()}
                   </div>
-                  <div className="text-[11px] text-[#9CA3AF] mt-0.5">
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                     Missed phishing emails
                   </div>
                 </div>
@@ -166,19 +166,19 @@ export default function AnalyticsPage() {
                   <div className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
                     True Negative (TN)
                   </div>
-                  <div className="text-2xl font-black text-[#F3F4F6] font-mono mt-1">
+                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
                     {cm.trueNegative.toLocaleString()}
                   </div>
-                  <div className="text-[11px] text-[#9CA3AF] mt-0.5">
+                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
                     Legitimate correctly passed
                   </div>
                 </div>
               </div>
 
-              <div className="p-3 bg-[#101729] rounded-xl border border-[#273449] text-xs text-[#9CA3AF] space-y-1">
+              <div className="p-3 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-muted)] space-y-1">
                 <div className="flex justify-between">
                   <span>Specificity:</span>
-                  <span className="font-mono text-[#F3F4F6] font-bold">
+                  <span className="font-mono text-[var(--text-primary)] font-bold">
                     {((cm.trueNegative / (cm.trueNegative + cm.falsePositive)) * 100).toFixed(2)}%
                   </span>
                 </div>
@@ -195,7 +195,7 @@ export default function AnalyticsPage() {
 
         {/* Training & Validation Loss Chart */}
         <div className="lg:col-span-7">
-          <Card className="h-full border-[#273449]">
+          <Card className="h-full border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -213,15 +213,15 @@ export default function AnalyticsPage() {
                 {mounted ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={DEMO_LOSS_CURVES} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="#273449" vertical={false} opacity={0.5} />
-                      <XAxis dataKey="epoch" stroke="#9CA3AF" fontSize={11} />
-                      <YAxis stroke="#9CA3AF" fontSize={11} domain={[0, 0.7]} />
+                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} opacity={0.5} />
+                      <XAxis dataKey="epoch" stroke="var(--text-muted)" fontSize={11} />
+                      <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 0.7]} />
                       <Tooltip
                         content={({ active, payload, label }) => {
                           if (active && payload && payload.length) {
                             return (
-                              <div className="rounded-xl bg-[#151E31] border border-[#273449] p-3 shadow-xl text-xs space-y-1">
-                                <div className="font-bold text-[#F3F4F6]">Epoch {label}</div>
+                              <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 shadow-xl text-xs space-y-1">
+                                <div className="font-bold text-[var(--text-primary)]">Epoch {label}</div>
                                 <div className="text-violet-400">
                                   Train Loss: {payload[0]?.value}
                                 </div>
@@ -239,7 +239,7 @@ export default function AnalyticsPage() {
                         type="monotone"
                         dataKey="trainLoss"
                         name="Training Loss"
-                        stroke="#8B5CF6"
+                        stroke="var(--primary-accent)"
                         strokeWidth={2}
                         dot={{ r: 3 }}
                       />
@@ -254,7 +254,7 @@ export default function AnalyticsPage() {
                     </LineChart>
                   </ResponsiveContainer>
                 ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-[#9CA3AF]">
+                  <div className="h-full flex items-center justify-center text-xs text-[var(--text-muted)]">
                     Loading convergence plot...
                   </div>
                 )}
@@ -265,7 +265,7 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Model Comparison Table */}
-      <Card className="border-[#273449]">
+      <Card className="border-[var(--border-color)]">
         <CardHeader className="p-5 pb-3">
           <CardTitle className="text-base font-bold">
             Architecture Comparison & Ablation Study
@@ -278,7 +278,7 @@ export default function AnalyticsPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-[#273449] bg-[#101729]/60 text-[#9CA3AF] uppercase text-[10px] tracking-wider">
+                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]/60 text-[var(--text-muted)] uppercase text-[10px] tracking-wider">
                   <th className="py-3 px-5 font-semibold">Model Architecture</th>
                   <th className="py-3 px-4 font-semibold">Type</th>
                   <th className="py-3 px-4 font-semibold">Accuracy</th>
@@ -288,26 +288,26 @@ export default function AnalyticsPage() {
                   <th className="py-3 px-4 font-semibold">Role</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#273449]/60">
+              <tbody className="divide-y divide-[var(--border-color)]/60">
                 {DEMO_MODEL_COMPARISON.map((m, idx) => (
                   <tr
                     key={idx}
-                    className={`hover:bg-[#1B2740]/40 transition-colors ${
-                      m.status.includes("Champion") ? "bg-[#8B5CF6]/5" : ""
+                    className={`hover:bg-[var(--bg-surface)]/40 transition-colors ${
+                      m.status.includes("Champion") ? "bg-[var(--primary-accent)]/5" : ""
                     }`}
                   >
-                    <td className="py-3.5 px-5 font-semibold text-[#F3F4F6]">
+                    <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
                       {m.model}
                     </td>
-                    <td className="py-3.5 px-4 text-[#9CA3AF]">{m.type}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-[#F3F4F6]">
+                    <td className="py-3.5 px-4 text-[var(--text-muted)]">{m.type}</td>
+                    <td className="py-3.5 px-4 font-mono font-bold text-[var(--text-primary)]">
                       {m.accuracy}%
                     </td>
                     <td className="py-3.5 px-4 font-mono font-bold text-violet-300">
                       {m.f1Score}%
                     </td>
-                    <td className="py-3.5 px-4 font-mono text-[#9CA3AF]">{m.latency}</td>
-                    <td className="py-3.5 px-4 font-mono text-[#9CA3AF]">{m.parameters}</td>
+                    <td className="py-3.5 px-4 font-mono text-[var(--text-muted)]">{m.latency}</td>
+                    <td className="py-3.5 px-4 font-mono text-[var(--text-muted)]">{m.parameters}</td>
                     <td className="py-3.5 px-4">
                       {m.status.includes("Champion") ? (
                         <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40">
@@ -328,48 +328,48 @@ export default function AnalyticsPage() {
       </Card>
 
       {/* Dataset & Experiment Metadata Card */}
-      <Card className="border-[#273449] bg-[#101729]/60">
-        <CardHeader className="p-5 pb-3 border-b border-[#273449]">
+      <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]/60">
+        <CardHeader className="p-5 pb-3 border-b border-[var(--border-color)]">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Database className="w-4 h-4 text-[#8B5CF6]" />
+            <Database className="w-4 h-4 text-[var(--primary-accent)]" />
             Dataset Split & Reproducibility Metadata
           </CardTitle>
         </CardHeader>
         <CardContent className="p-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-xs">
             <div>
-              <span className="text-[#9CA3AF] text-[10px] uppercase font-bold block">Dataset Corpus</span>
-              <span className="text-[#F3F4F6] font-medium mt-0.5 block truncate" title={DEMO_RESEARCH_METRICS.dataset}>
+              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Dataset Corpus</span>
+              <span className="text-[var(--text-primary)] font-medium mt-0.5 block truncate" title={DEMO_RESEARCH_METRICS.dataset}>
                 Kaggle + Enron
               </span>
             </div>
             <div>
-              <span className="text-[#9CA3AF] text-[10px] uppercase font-bold block">Total Samples</span>
-              <span className="text-[#F3F4F6] font-mono font-medium mt-0.5 block">
+              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Total Samples</span>
+              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
                 {DEMO_RESEARCH_METRICS.totalSamples.toLocaleString()}
               </span>
             </div>
             <div>
-              <span className="text-[#9CA3AF] text-[10px] uppercase font-bold block">Train / Val / Test</span>
-              <span className="text-[#F3F4F6] font-mono font-medium mt-0.5 block">
+              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Train / Val / Test</span>
+              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
                 70 / 15 / 15
               </span>
             </div>
             <div>
-              <span className="text-[#9CA3AF] text-[10px] uppercase font-bold block">Random Seed</span>
-              <span className="text-[#F3F4F6] font-mono font-medium mt-0.5 block">
+              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Random Seed</span>
+              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
                 {DEMO_RESEARCH_METRICS.randomSeed}
               </span>
             </div>
             <div>
-              <span className="text-[#9CA3AF] text-[10px] uppercase font-bold block">Base Transformer</span>
-              <span className="text-[#F3F4F6] font-mono font-medium mt-0.5 block">
+              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Base Transformer</span>
+              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
                 {DEMO_RESEARCH_METRICS.backbone}
               </span>
             </div>
             <div>
-              <span className="text-[#9CA3AF] text-[10px] uppercase font-bold block">Max Sequence</span>
-              <span className="text-[#F3F4F6] font-mono font-medium mt-0.5 block">
+              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Max Sequence</span>
+              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
                 {DEMO_RESEARCH_METRICS.sequenceLength} tokens
               </span>
             </div>
@@ -379,4 +379,3 @@ export default function AnalyticsPage() {
     </div>
   );
 }
-

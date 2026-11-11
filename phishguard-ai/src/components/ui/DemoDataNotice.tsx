@@ -17,7 +17,7 @@ export function DemoDataNotice({
     return (
       <span
         className={cn(
-          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wider uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30",
+          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold tracking-wider uppercase bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30",
           className
         )}
       >
@@ -31,11 +31,11 @@ export function DemoDataNotice({
     return (
       <div
         className={cn(
-          "flex items-center gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs shadow-sm",
+          "flex items-center gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-sm leading-relaxed shadow-sm",
           className
         )}
       >
-        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+        <AlertCircle className="w-4 h-4 text-amber-700 dark:text-amber-400 shrink-0" />
         <div className="flex-1 font-medium">{message}</div>
       </div>
     );
@@ -44,7 +44,7 @@ export function DemoDataNotice({
   return (
     <div
       className={cn(
-        "inline-flex items-center gap-1.5 text-xs text-[#9CA3AF] bg-[#101729] px-2.5 py-1 rounded-lg border border-[#273449]",
+        "inline-flex items-center gap-1.5 text-sm text-[var(--text-muted)] bg-[var(--bg-surface)] px-3 py-1.5 rounded-lg border border-[var(--border-color)]",
         className
       )}
     >
@@ -53,4 +53,3 @@ export function DemoDataNotice({
     </div>
   );
 }
-

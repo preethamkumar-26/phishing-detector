@@ -43,8 +43,8 @@ export function AnalysisResultsPanel({
   };
 
   return (
-    <Card className="h-full flex flex-col border-[#273449]">
-      <CardHeader className="pb-3 border-b border-[#273449]">
+    <Card className="h-full flex flex-col border-[var(--border-color)]">
+      <CardHeader className="pb-3 border-b border-[var(--border-color)]">
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -58,7 +58,7 @@ export function AnalysisResultsPanel({
             </CardDescription>
           </div>
           {result && (
-            <span className="text-[11px] font-mono text-[#9CA3AF]">
+            <span className="text-[11px] font-mono text-[var(--text-muted)]">
               ID: {result.scanId}
             </span>
           )}
@@ -70,23 +70,23 @@ export function AnalysisResultsPanel({
         {isLoading && (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-5 animate-in fade-in">
             <div className="relative">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#8B5CF6] to-[#3B82F6] flex items-center justify-center text-white shadow-xl shadow-violet-900/40 animate-pulse">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--primary-accent)] to-[var(--primary-accent)] flex items-center justify-center text-white shadow-xl shadow-violet-900/40 animate-pulse">
                 <Cpu className="w-8 h-8 animate-spin" />
               </div>
-              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 ring-4 ring-[#151E31]" />
+              <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-emerald-500 ring-4 ring-[var(--bg-surface)]" />
             </div>
 
             <div className="space-y-1.5">
-              <h3 className="text-base font-bold text-[#F3F4F6]">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">
                 Analyzing Email Content…
               </h3>
-              <p className="text-xs text-[#9CA3AF] max-w-xs">
+              <p className="text-xs text-[var(--text-muted)] max-w-xs">
                 Executing BERT tokenizer, Multi-Head Attention matrix, and 1D-CNN / Bi-GRU feature extractor
               </p>
             </div>
 
             {/* Neural pipeline step badges */}
-            <div className="w-full max-w-xs space-y-2 text-left bg-[#101729] p-3 rounded-xl border border-[#273449] text-[11px]">
+            <div className="w-full max-w-xs space-y-2 text-left bg-[var(--bg-surface)] p-3 rounded-xl border border-[var(--border-color)] text-[11px]">
               <div className="flex items-center gap-2 text-violet-400 font-medium">
                 <span className="w-2 h-2 rounded-full bg-violet-400 animate-ping" />
                 <span>1. BERT Contextual Representations</span>
@@ -110,21 +110,21 @@ export function AnalysisResultsPanel({
         {/* State 2: Empty State */}
         {!isLoading && !result && (
           <div className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-[#1B2740] border border-[#273449] flex items-center justify-center text-[#9CA3AF]">
-              <FileSearch className="w-8 h-8 text-[#8B5CF6]/70" />
+            <div className="w-16 h-16 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex items-center justify-center text-[var(--text-muted)]">
+              <FileSearch className="w-8 h-8 text-[var(--primary-accent)]/70" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-base font-bold text-[#F3F4F6]">
+              <h3 className="text-base font-bold text-[var(--text-primary)]">
                 Your analysis will appear here
               </h3>
-              <p className="text-xs text-[#9CA3AF] max-w-sm leading-relaxed">
+              <p className="text-xs text-[var(--text-muted)] max-w-sm leading-relaxed">
                 Paste email content or upload an email file on the left, then click{" "}
-                <span className="text-[#8B5CF6] font-semibold">Analyze Email</span> to view the model classification and flagged indicators.
+                <span className="text-[var(--primary-accent)] font-semibold">Analyze Email</span> to view the model classification and flagged indicators.
               </p>
             </div>
             <div className="pt-2">
-              <span className="inline-flex items-center gap-1.5 text-[11px] text-[#9CA3AF] bg-[#101729] px-3 py-1.5 rounded-xl border border-[#273449]">
-                <Layers className="w-3.5 h-3.5 text-[#8B5CF6]" />
+              <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] bg-[var(--bg-surface)] px-3 py-1.5 rounded-xl border border-[var(--border-color)]">
+                <Layers className="w-3.5 h-3.5 text-[var(--primary-accent)]" />
                 BERT + Attention + CNN/GRU Pipeline Ready
               </span>
             </div>
@@ -182,33 +182,33 @@ export function AnalysisResultsPanel({
             </div>
 
             {/* Summary */}
-            <div className="p-3.5 rounded-xl bg-[#101729] border border-[#273449] text-xs leading-relaxed space-y-1">
-              <span className="font-semibold text-[#F3F4F6] block">Summary Assessment:</span>
-              <p className="text-[#9CA3AF]">{result.summary}</p>
+            <div className="p-3.5 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-xs leading-relaxed space-y-1">
+              <span className="font-semibold text-[var(--text-primary)] block">Summary Assessment:</span>
+              <p className="text-[var(--text-muted)]">{result.summary}</p>
             </div>
 
             {/* Evidence & Indicators List */}
             {result.evidence.length > 0 && (
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-xs">
-                  <span className="font-semibold text-[#F3F4F6] flex items-center gap-1.5">
+                  <span className="font-semibold text-[var(--text-primary)] flex items-center gap-1.5">
                     <AlertTriangle className="w-3.5 h-3.5 text-red-400" />
                     Flagged Linguistic & Contextual Indicators ({result.evidence.length})
                   </span>
-                  <span className="text-[10px] text-[#9CA3AF]">Illustrative clues</span>
+                  <span className="text-[10px] text-[var(--text-muted)]">Illustrative clues</span>
                 </div>
 
                 <div className="space-y-2">
                   {result.evidence.map((item, idx) => (
                     <div
                       key={idx}
-                      className="p-3 rounded-xl bg-[#1B2740]/60 border border-[#273449] flex items-start justify-between gap-3 text-xs"
+                      className="p-3 rounded-xl bg-[var(--bg-surface)]/60 border border-[var(--border-color)] flex items-start justify-between gap-3 text-xs"
                     >
                       <div className="space-y-0.5">
                         <span className="font-mono font-semibold text-red-300 bg-red-950/50 px-1.5 py-0.5 rounded border border-red-900/60 inline-block">
                           "{item.text}"
                         </span>
-                        <p className="text-[11px] text-[#9CA3AF]">{item.reason}</p>
+                        <p className="text-[11px] text-[var(--text-muted)]">{item.reason}</p>
                       </div>
                       <Badge
                         variant={item.severity === "critical" ? "threat" : "warning"}
@@ -225,10 +225,10 @@ export function AnalysisResultsPanel({
             {/* Highlighted Email Excerpt */}
             {result.body && (
               <div className="space-y-1.5">
-                <span className="text-xs font-semibold text-[#F3F4F6] block">
+                <span className="text-xs font-semibold text-[var(--text-primary)] block">
                   Highlighted Email Excerpt:
                 </span>
-                <div className="p-3 rounded-xl bg-[#101729] border border-[#273449] font-mono text-[11px] text-[#F3F4F6] max-h-36 overflow-y-auto leading-relaxed">
+                <div className="p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] font-mono text-[11px] text-[var(--text-primary)] max-h-36 overflow-y-auto leading-relaxed">
                   {result.body.split("\n").slice(0, 8).map((line, lidx) => (
                     <div key={lidx} className="mb-1">
                       {line.includes("URGENT") || line.includes("suspended") || line.includes("http") || line.includes("verify") ? (
@@ -245,7 +245,7 @@ export function AnalysisResultsPanel({
             )}
 
             {/* Model & Metadata chip */}
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#273449]/70 text-[11px] text-[#9CA3AF]">
+            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[var(--border-color)]/70 text-[11px] text-[var(--text-muted)]">
               <span>Inference Time: {result.processingTimeMs} ms</span>
               <span className="font-mono text-[10px] bg-slate-800 px-2 py-0.5 rounded">
                 Model: {result.modelVersion}
@@ -274,7 +274,7 @@ export function AnalysisResultsPanel({
                 variant="ghost"
                 size="md"
                 onClick={onClear}
-                className="w-full sm:w-auto text-[#9CA3AF] hover:text-white"
+                className="w-full sm:w-auto text-[var(--text-muted)] hover:text-white"
               >
                 <RotateCcw className="w-4 h-4 mr-1" />
                 Clear

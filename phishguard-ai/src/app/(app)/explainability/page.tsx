@@ -36,13 +36,13 @@ export default function ExplainabilityPage() {
         description="Linguistic feature attribution, attention distributions, and interpretability mechanisms."
       >
         {/* Explanation Method Selector */}
-        <div className="flex items-center gap-1 p-1 bg-[#151E31] rounded-xl border border-[#273449]">
+        <div className="flex items-center gap-1 p-1 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)]">
           <button
             onClick={() => setMethod("attention")}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
               method === "attention"
-                ? "bg-[#8B5CF6] text-white shadow-sm"
-                : "text-[#9CA3AF] hover:text-[#F3F4F6]"
+                ? "bg-[var(--primary-accent)] text-white shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
             Multi-Head Attention
@@ -51,8 +51,8 @@ export default function ExplainabilityPage() {
             onClick={() => setMethod("shap")}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
               method === "shap"
-                ? "bg-[#8B5CF6] text-white shadow-sm"
-                : "text-[#9CA3AF] hover:text-[#F3F4F6]"
+                ? "bg-[var(--primary-accent)] text-white shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
             SHAP Attribution
@@ -61,8 +61,8 @@ export default function ExplainabilityPage() {
             onClick={() => setMethod("lime")}
             className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
               method === "lime"
-                ? "bg-[#8B5CF6] text-white shadow-sm"
-                : "text-[#9CA3AF] hover:text-[#F3F4F6]"
+                ? "bg-[var(--primary-accent)] text-white shadow-sm"
+                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
             }`}
           >
             LIME Local
@@ -74,7 +74,7 @@ export default function ExplainabilityPage() {
         {/* Left 8 Cols: Token Heatmap & Feature Ranking */}
         <div className="lg:col-span-8 space-y-6">
           {/* Interactive Token Heatmap Panel */}
-          <Card className="border-[#273449]">
+          <Card className="border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
@@ -88,7 +88,7 @@ export default function ExplainabilityPage() {
                     Darker highlights indicate tokens with higher contribution toward the phishing classification. Click any token to inspect its weight.
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-2 text-[10px] text-[#9CA3AF]">
+                <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
                   <span>Low Weight</span>
                   <div className="w-16 h-2 rounded-full bg-gradient-to-r from-slate-700 via-violet-500 to-red-500" />
                   <span>High Impact</span>
@@ -97,7 +97,7 @@ export default function ExplainabilityPage() {
             </CardHeader>
 
             <CardContent className="p-5 pt-3 space-y-4">
-              <div className="p-4 rounded-xl bg-[#101729] border border-[#273449] font-mono text-xs leading-loose tracking-wide select-none">
+              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] font-mono text-xs leading-loose tracking-wide select-none">
                 {DEMO_EXPLAINABILITY_SAMPLE.tokens.map((item, idx) => {
                   const isSelected = selectedToken === item.token;
                   // Color intensity based on weight
@@ -126,10 +126,10 @@ export default function ExplainabilityPage() {
               </div>
 
               {selectedToken && (
-                <div className="p-3 rounded-xl bg-[#1B2740]/60 border border-[#273449] flex items-center justify-between text-xs">
+                <div className="p-3 rounded-xl bg-[var(--bg-surface)]/60 border border-[var(--border-color)] flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
-                    <span className="text-[#9CA3AF]">Selected Token:</span>
-                    <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded border border-[#273449]">
+                    <span className="text-[var(--text-muted)]">Selected Token:</span>
+                    <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded border border-[var(--border-color)]">
                       "{selectedToken}"
                     </span>
                   </div>
@@ -147,7 +147,7 @@ export default function ExplainabilityPage() {
           </Card>
 
           {/* Top Contributing Phrases Table */}
-          <Card className="border-[#273449]">
+          <Card className="border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <CardTitle className="text-base font-bold">
                 Ranked Feature Attributions
@@ -161,17 +161,17 @@ export default function ExplainabilityPage() {
                 {DEMO_EXPLAINABILITY_SAMPLE.topFeatures.map((feat, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded-xl bg-[#101729] border border-[#273449] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    className="p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="w-5 h-5 rounded-full bg-[#1B2740] flex items-center justify-center font-mono text-[10px] text-[#9CA3AF]">
+                      <span className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center font-mono text-[10px] text-[var(--text-muted)]">
                         {idx + 1}
                       </span>
                       <div>
                         <span className="font-mono font-bold text-red-300 text-sm">
                           "{feat.name}"
                         </span>
-                        <div className="text-[11px] text-[#9CA3AF] mt-0.5">{feat.type}</div>
+                        <div className="text-[11px] text-[var(--text-muted)] mt-0.5">{feat.type}</div>
                       </div>
                     </div>
 
@@ -197,13 +197,13 @@ export default function ExplainabilityPage() {
         {/* Right 4 Cols: Prediction Summary & Limitations Disclaimer */}
         <div className="lg:col-span-4 space-y-6">
           {/* Verdict Summary Card */}
-          <Card className="border-[#273449] bg-[#151E31]">
-            <CardHeader className="p-5 pb-3 border-b border-[#273449]">
+          <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]">
+            <CardHeader className="p-5 pb-3 border-b border-[var(--border-color)]">
               <CardTitle className="text-sm font-bold">Inference Summary</CardTitle>
             </CardHeader>
             <CardContent className="p-5 space-y-4 text-xs">
               <div className="space-y-1">
-                <span className="text-[#9CA3AF] uppercase text-[10px] font-semibold tracking-wider">
+                <span className="text-[var(--text-muted)] uppercase text-[10px] font-semibold tracking-wider">
                   Classification
                 </span>
                 <div>
@@ -212,42 +212,42 @@ export default function ExplainabilityPage() {
               </div>
 
               <div className="space-y-1">
-                <span className="text-[#9CA3AF] uppercase text-[10px] font-semibold tracking-wider">
+                <span className="text-[var(--text-muted)] uppercase text-[10px] font-semibold tracking-wider">
                   Model Confidence
                 </span>
-                <div className="text-2xl font-black text-[#F3F4F6] font-mono">
-                  96.4% <span className="text-xs text-[#9CA3AF] font-normal">(Demo)</span>
+                <div className="text-2xl font-black text-[var(--text-primary)] font-mono">
+                  96.4% <span className="text-xs text-[var(--text-muted)] font-normal">(Demo)</span>
                 </div>
               </div>
 
-              <div className="pt-3 border-t border-[#273449] space-y-2 text-[#9CA3AF]">
+              <div className="pt-3 border-t border-[var(--border-color)] space-y-2 text-[var(--text-muted)]">
                 <div className="flex justify-between">
                   <span>Explainer Model:</span>
-                  <span className="text-[#F3F4F6] font-medium">Integrated Gradients + MHA</span>
+                  <span className="text-[var(--text-primary)] font-medium">Integrated Gradients + MHA</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Baseline Target:</span>
-                  <span className="text-[#F3F4F6] font-medium">Legitimate Corpus Mean</span>
+                  <span className="text-[var(--text-primary)] font-medium">Legitimate Corpus Mean</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tokens Evaluated:</span>
-                  <span className="text-[#F3F4F6] font-mono">148 tokens</span>
+                  <span className="text-[var(--text-primary)] font-mono">148 tokens</span>
                 </div>
               </div>
             </CardContent>
           </Card>
 
           {/* Research Faithfulness Note */}
-          <Card className="border-[#273449] bg-[#101729]/80">
-            <CardContent className="p-5 space-y-3 text-xs leading-relaxed text-[#9CA3AF]">
-              <div className="flex items-center gap-2 font-bold text-[#F3F4F6]">
+          <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]/80">
+            <CardContent className="p-5 space-y-3 text-xs leading-relaxed text-[var(--text-muted)]">
+              <div className="flex items-center gap-2 font-bold text-[var(--text-primary)]">
                 <Info className="w-4 h-4 text-violet-400" />
                 Scientific Faithfulness Note
               </div>
               <p>
                 In empirical NLP literature, raw attention weights do not always correspond to causal model rationales. Attention maps reveal internal routing rather than guaranteed counterfactual necessity.
               </p>
-              <p className="text-[11px] text-[#9CA3AF]/80">
+              <p className="text-[11px] text-[var(--text-muted)]/80">
                 Future project phases will include systematic erasure tests and SHAP perturbation checks to validate explanation fidelity.
               </p>
             </CardContent>

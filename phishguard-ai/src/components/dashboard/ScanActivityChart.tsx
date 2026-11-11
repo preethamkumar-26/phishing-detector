@@ -20,7 +20,7 @@ export function ScanActivityChart() {
   }, []);
 
   return (
-    <Card className="h-full flex flex-col border-[#273449]">
+    <Card className="h-full flex flex-col border-[var(--border-color)]">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>
@@ -34,9 +34,9 @@ export function ScanActivityChart() {
               Daily email analysis volume and threat breakdown
             </CardDescription>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-[#9CA3AF]">
+          <div className="flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
             <span className="flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-[#8B5CF6]" />
+              <span className="w-2 h-2 rounded-full bg-[var(--primary-accent)]" />
               Total Scans
             </span>
             <span className="flex items-center gap-1">
@@ -54,34 +54,34 @@ export function ScanActivityChart() {
               <AreaChart data={DEMO_SCAN_ACTIVITY} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#8B5CF6" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#8B5CF6" stopOpacity={0.0} />
+                    <stop offset="5%" stopColor="var(--primary-accent)" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="var(--primary-accent)" stopOpacity={0.0} />
                   </linearGradient>
                   <linearGradient id="colorPhishing" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#EF4444" stopOpacity={0.4} />
                     <stop offset="95%" stopColor="#EF4444" stopOpacity={0.0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#273449" vertical={false} opacity={0.5} />
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} opacity={0.5} />
                 <XAxis
                   dataKey="date"
-                  stroke="#9CA3AF"
-                  fontSize={11}
+                  stroke="var(--text-muted)"
+                  fontSize={12}
                   tickLine={false}
-                  axisLine={{ stroke: "#273449" }}
+                  axisLine={{ stroke: "var(--border-color)" }}
                 />
                 <YAxis
-                  stroke="#9CA3AF"
-                  fontSize={11}
+                  stroke="var(--text-muted)"
+                  fontSize={12}
                   tickLine={false}
-                  axisLine={{ stroke: "#273449" }}
+                  axisLine={{ stroke: "var(--border-color)" }}
                 />
                 <Tooltip
                   content={({ active, payload, label }) => {
                     if (active && payload && payload.length) {
                       return (
-                        <div className="rounded-xl bg-[#151E31] border border-[#273449] p-3 shadow-2xl text-xs space-y-1">
-                          <div className="font-bold text-[#F3F4F6] pb-1 border-b border-[#273449]">
+                        <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 shadow-2xl text-xs space-y-1">
+                          <div className="font-bold text-[var(--text-primary)] pb-1 border-b border-[var(--border-color)]">
                             {label}
                           </div>
                           <div className="text-violet-400 font-medium flex justify-between gap-4">
@@ -101,7 +101,7 @@ export function ScanActivityChart() {
                 <Area
                   type="monotone"
                   dataKey="scans"
-                  stroke="#8B5CF6"
+                  stroke="var(--primary-accent)"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorTotal)"
@@ -117,7 +117,7 @@ export function ScanActivityChart() {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <div className="h-full w-full flex items-center justify-center text-xs text-[#9CA3AF]">
+            <div className="h-full w-full flex items-center justify-center text-xs text-[var(--text-muted)]">
               Loading activity...
             </div>
           )}
@@ -126,4 +126,3 @@ export function ScanActivityChart() {
     </Card>
   );
 }
-
