@@ -31,18 +31,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    const mediaQuery = window.matchMedia("(prefers-color-scheme: dark)");
-    const syncTheme = () => applyTheme(getStoredTheme() ?? (mediaQuery.matches ? "dark" : "light"));
+    const syncTheme = () => applyTheme(getStoredTheme() ?? "dark");
     const handleStorage = (event: StorageEvent) => {
       if (event.key === STORAGE_KEY || event.key === null) syncTheme();
     };
 
     syncTheme();
-    mediaQuery.addEventListener("change", syncTheme);
     window.addEventListener("storage", handleStorage);
 
     return () => {
-      mediaQuery.removeEventListener("change", syncTheme);
       window.removeEventListener("storage", handleStorage);
     };
   }, [applyTheme]);

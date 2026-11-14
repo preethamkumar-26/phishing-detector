@@ -17,9 +17,9 @@ export interface NavGroup {
 export const SIDEBAR_ITEMS = {
   primary: [
     {
-      title: "Scan File",
-      href: "/analyzer?mode=upload",
-      iconName: "FileUp",
+      title: "Home",
+      href: "/dashboard",
+      iconName: "Home",
     },
     {
       title: "New Scan",
@@ -27,6 +27,11 @@ export const SIDEBAR_ITEMS = {
       iconName: "ScanSearch",
       badge: "Model ON",
       badgeVariant: "success" as const,
+    },
+    {
+      title: "Scan File",
+      href: "/analyzer?mode=upload",
+      iconName: "FileUp",
     },
     {
       title: "Scan History",

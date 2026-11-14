@@ -4,11 +4,13 @@ import React, { useState, useMemo, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
+import { Card, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { ClassificationBadge, Badge } from "@/components/ui/Badge";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
+import { GlideSelect, GlideSelectOptionItem } from "@/components/ui/GlideSelect";
+import RubberSegment from "@/components/ui/RubberSegment";
 import { formatDateTime } from "@/lib/utils";
 import { ScanRecord } from "@/types/scan";
 import { getScanHistory, deleteScanRecord } from "@/services/scanService";
@@ -17,24 +19,38 @@ import {
   Download,
   Eye,
   Trash2,
-  Calendar,
   Sparkles,
   ChevronLeft,
   ChevronRight,
-  Filter,
-  ExternalLink,
-  ShieldAlert,
 } from "lucide-react";
+
+const HISTORY_DATE_OPTIONS: GlideSelectOptionItem[] = [
+  { value: "all", label: "All Dates", tag: "All" },
+  { value: "today", label: "Today", tag: "24h" },
+  { value: "week", label: "Past 7 Days", tag: "7d" },
+  { value: "month", label: "Past 30 Days", tag: "30d" },
+];
 
 function HistoryContent() {
   const searchParams = useSearchParams();
-  const initialQuery = searchParams.get("q") || "";
+  const qParam = searchParams.get("q") ?? "";
+  const scanIdParam = searchParams.get("scanId");
 
   const [scans, setScans] = useState<ScanRecord[]>(() => getScanHistory());
-  const [searchQuery, setSearchQuery] = useState(initialQuery);
+  const [internalQuery, setInternalQuery] = useState<string | null>(null);
+  const searchQuery = internalQuery !== null ? internalQuery : qParam;
+
   const [statusFilter, setStatusFilter] = useState<"all" | "phishing" | "safe" | "needs_review">("all");
   const [dateRange, setDateRange] = useState("all");
-  const [selectedScan, setSelectedScan] = useState<ScanRecord | null>(null);
+  const [modalDismissedId, setModalDismissedId] = useState<string | null>(null);
+  const [selectedScanOverride, setSelectedScanOverride] = useState<ScanRecord | null>(null);
+
+  const selectedScan = selectedScanOverride
+    ? selectedScanOverride
+    : scanIdParam && modalDismissedId !== scanIdParam
+    ? scans.find((s) => s.id === scanIdParam) || null
+    : null;
+
   const [currentPage, setCurrentPage] = useState(1);
   const [exportNotice, setExportNotice] = useState(false);
   const pageSize = 8;
@@ -64,7 +80,8 @@ function HistoryContent() {
     deleteScanRecord(id);
     setScans(getScanHistory());
     if (selectedScan?.id === id) {
-      setSelectedScan(null);
+      setSelectedScanOverride(null);
+      if (scanIdParam === id) setModalDismissedId(id);
     }
   };
 
@@ -88,7 +105,7 @@ function HistoryContent() {
             <Download className="w-3.5 h-3.5 mr-1" />
             Export Scans (Demo)
           </Button>
-          <Link href="/analyzer">
+          <Link href="/analyzer" prefetch={true}>
             <Button variant="primary" size="sm">
               New Scan
             </Button>
@@ -97,7 +114,7 @@ function HistoryContent() {
       </PageHeader>
 
       {/* Search and Filters Bar */}
-      <Card className="border-[var(--border-color)] p-4 bg-[var(--bg-surface)]">
+      <Card className="border-[var(--border-color)] p-4 bg-[var(--bg-surface)] overflow-visible relative z-10">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
           {/* Search Field */}
           <div className="relative flex-1 max-w-md">
@@ -107,54 +124,44 @@ function HistoryContent() {
               placeholder="Search by subject, sender, or scan ID..."
               value={searchQuery}
               onChange={(e) => {
-                setSearchQuery(e.target.value);
+                setInternalQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              className="w-full h-10 pl-9 pr-3 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
+              className="w-full h-10 pl-9 pr-3 text-xs bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
             />
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
-            {/* Status Tabs */}
-            <div className="flex items-center gap-1 p-1 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)]">
-              {(
-                [
-                  { id: "all", label: "All" },
-                  { id: "phishing", label: "Phishing" },
-                  { id: "safe", label: "Safe" },
-                  { id: "needs_review", label: "Review" },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => {
-                    setStatusFilter(tab.id);
-                    setCurrentPage(1);
-                  }}
-                  className={`px-3 py-1 text-xs font-medium rounded-lg transition-all ${
-                    statusFilter === tab.id
-                      ? "bg-[var(--primary-accent)] text-white shadow-sm"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+            {/* Status Segments via RubberSegment */}
+            <RubberSegment
+              items={[
+                { value: "all", label: "All Scans" },
+                { value: "phishing", label: "Phishing" },
+                { value: "safe", label: "Safe" },
+                { value: "needs_review", label: "Needs Review" },
+              ]}
+              value={statusFilter}
+              onChange={(val) => {
+                setStatusFilter(val as typeof statusFilter);
+                setCurrentPage(1);
+              }}
+              size="sm"
+              radius={10}
+              ariaLabel="Filter scan history by status"
+            />
 
-            {/* Date range UI selector */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-muted)]">
-              <Calendar className="w-3.5 h-3.5 text-slate-400" />
-              <select
+            {/* Date range UI selector via GlideSelect */}
+            <div className="flex items-center">
+              <GlideSelect
+                options={HISTORY_DATE_OPTIONS}
                 value={dateRange}
-                onChange={(e) => setDateRange(e.target.value)}
-                className="bg-transparent text-[var(--text-primary)] focus:outline-none cursor-pointer"
-              >
-                <option value="all" className="bg-[var(--bg-surface)]">All Dates</option>
-                <option value="today" className="bg-[var(--bg-surface)]">Today</option>
-                <option value="week" className="bg-[var(--bg-surface)]">Past 7 Days</option>
-                <option value="month" className="bg-[var(--bg-surface)]">Past 30 Days</option>
-              </select>
+                onChange={(val) => setDateRange(val)}
+                ariaLabel="Filter history by date range"
+                size="md"
+                align="right"
+                menuWidth={180}
+                radius={10}
+              />
             </div>
           </div>
         </div>
@@ -166,7 +173,7 @@ function HistoryContent() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]/60 text-[var(--text-muted)] uppercase text-[10px] tracking-wider">
+                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-elevated)]/60 text-[var(--text-muted)] uppercase text-[10px] tracking-wider">
                   <th className="py-3 px-5 font-semibold">Scan ID</th>
                   <th className="py-3 px-5 font-semibold">Email Subject & Sender</th>
                   <th className="py-3 px-4 font-semibold">Classification</th>
@@ -187,7 +194,7 @@ function HistoryContent() {
                   paginatedScans.map((scan) => (
                     <tr
                       key={scan.id}
-                      className="hover:bg-[var(--bg-surface)]/40 transition-colors group"
+                      className="hover:bg-[var(--bg-elevated)]/40 transition-colors group"
                     >
                       <td className="py-3.5 px-5 font-mono text-[11px] text-[var(--text-muted)]">
                         {scan.id}
@@ -221,14 +228,14 @@ function HistoryContent() {
                             variant="secondary"
                             size="sm"
                             className="h-7 text-xs px-2.5"
-                            onClick={() => setSelectedScan(scan)}
+                            onClick={() => setSelectedScanOverride(scan)}
                           >
                             <Eye className="w-3.5 h-3.5 mr-1" />
                             Detail
                           </Button>
                           <button
                             onClick={() => handleDelete(scan.id)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors"
                             title="Delete demo scan record"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -243,7 +250,7 @@ function HistoryContent() {
           </div>
 
           {/* Pagination bar */}
-          <div className="p-4 bg-[var(--bg-surface)]/60 border-t border-[var(--border-color)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
+          <div className="p-4 bg-[var(--bg-elevated)]/40 border-t border-[var(--border-color)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
             <div>
               Showing {filteredScans.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to{" "}
               {Math.min(currentPage * pageSize, filteredScans.length)} of {filteredScans.length} records
@@ -277,7 +284,15 @@ function HistoryContent() {
       </Card>
 
       {/* Side Detail Modal / Inspection View */}
-      <Dialog open={!!selectedScan} onOpenChange={(open) => !open && setSelectedScan(null)}>
+      <Dialog
+        open={!!selectedScan}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedScanOverride(null);
+            if (scanIdParam) setModalDismissedId(scanIdParam);
+          }
+        }}
+      >
         {selectedScan && (
           <>
             <DialogHeader>
@@ -296,7 +311,7 @@ function HistoryContent() {
             </DialogHeader>
 
             <div className="mt-4 space-y-4">
-              <div className="p-3 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] grid grid-cols-2 gap-2 text-xs">
+              <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] grid grid-cols-2 gap-2 text-xs">
                 <div>
                   <span className="text-[var(--text-muted)] text-[10px] block">Model Pipeline:</span>
                   <span className="text-[var(--text-primary)] font-mono">{selectedScan.modelVersion}</span>
@@ -311,7 +326,7 @@ function HistoryContent() {
                 <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
                   Extracted Body Text
                 </h4>
-                <div className="p-3 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
+                <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
                   {selectedScan.bodySnippet}
                 </div>
               </div>
@@ -325,10 +340,10 @@ function HistoryContent() {
                     {selectedScan.evidence.map((ev, idx) => (
                       <div
                         key={idx}
-                        className="p-2.5 rounded-lg bg-[var(--bg-surface)]/80 border border-[var(--border-color)] text-xs flex items-start justify-between gap-2"
+                        className="p-2.5 rounded-lg bg-[var(--bg-elevated)]/80 border border-[var(--border-color)] text-xs flex items-start justify-between gap-2"
                       >
                         <div>
-                          <span className="font-semibold text-red-300">"{ev.text}"</span>
+                          <span className="font-semibold text-red-700 dark:text-red-300">&ldquo;{ev.text}&rdquo;</span>
                           <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{ev.reason}</p>
                         </div>
                         <Badge variant="threat" size="sm">
@@ -342,13 +357,20 @@ function HistoryContent() {
             </div>
 
             <DialogFooter>
-              <Link href="/explainability">
+              <Link href="/explainability" prefetch={true}>
                 <Button variant="outline" size="sm">
                   <Sparkles className="w-3.5 h-3.5 mr-1 text-[var(--primary-accent)]" />
                   Open in Explainability
                 </Button>
               </Link>
-              <Button variant="primary" size="sm" onClick={() => setSelectedScan(null)}>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  setSelectedScanOverride(null);
+                  if (scanIdParam) setModalDismissedId(scanIdParam);
+                }}
+              >
                 Done
               </Button>
             </DialogFooter>
@@ -364,7 +386,7 @@ function HistoryContent() {
             Audit log export configuration.
           </DialogDescription>
         </DialogHeader>
-        <div className="py-4 text-xs text-[var(--text-muted)] bg-[var(--bg-surface)] p-3 rounded-xl border border-[var(--border-color)] space-y-2">
+        <div className="py-4 text-xs text-[var(--text-muted)] bg-[var(--bg-elevated)] p-3 rounded-xl border border-[var(--border-color)] space-y-2">
           <p>
             In production, this triggers an authenticated CSV or JSON streaming export of scan records, model predictions, and flagged token spans.
           </p>

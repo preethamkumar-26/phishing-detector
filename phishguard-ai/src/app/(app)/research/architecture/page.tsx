@@ -23,7 +23,7 @@ export default function ArchitecturePage() {
         {/* Step 1: Input & Tokenizer */}
         <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-violet-500/15 border border-violet-500/30 flex items-center justify-center text-[var(--primary-accent)] shrink-0 font-bold">
+            <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-[var(--primary-accent)] shrink-0 font-bold">
               1
             </div>
             <div>
@@ -35,14 +35,14 @@ export default function ArchitecturePage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-center text-slate-600">
-          <ArrowDown className="w-5 h-5 text-violet-400" />
+        <div className="flex justify-center text-[var(--text-muted)]">
+          <ArrowDown className="w-5 h-5 text-[var(--primary-accent)]" />
         </div>
 
         {/* Step 2: BERT Transformer Backbone */}
         <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-[var(--primary-accent)] shrink-0 font-bold">
+            <div className="w-12 h-12 rounded-xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-[var(--secondary-accent)] shrink-0 font-bold">
               2
             </div>
             <div>
@@ -54,14 +54,14 @@ export default function ArchitecturePage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-center text-slate-600">
-          <ArrowDown className="w-5 h-5 text-blue-400" />
+        <div className="flex justify-center text-[var(--text-muted)]">
+          <ArrowDown className="w-5 h-5 text-[var(--secondary-accent)]" />
         </div>
 
         {/* Step 3: Multi-Head Attention */}
         <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shrink-0 font-bold">
+            <div className="w-12 h-12 rounded-xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0 font-bold">
               3
             </div>
             <div>
@@ -73,14 +73,14 @@ export default function ArchitecturePage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-center text-slate-600">
-          <ArrowDown className="w-5 h-5 text-emerald-400" />
+        <div className="flex justify-center text-[var(--text-muted)]">
+          <ArrowDown className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
         </div>
 
         {/* Step 4: Hybrid CNN-1D & Bi-GRU */}
         <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0 font-bold">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400 shrink-0 font-bold">
               4
             </div>
             <div>
@@ -92,14 +92,14 @@ export default function ArchitecturePage() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-center text-slate-600">
-          <ArrowDown className="w-5 h-5 text-amber-400" />
+        <div className="flex justify-center text-[var(--text-muted)]">
+          <ArrowDown className="w-5 h-5 text-amber-600 dark:text-amber-400" />
         </div>
 
         {/* Step 5: Optimization & Classification */}
         <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]">
           <CardContent className="p-5 flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-400 shrink-0 font-bold">
+            <div className="w-12 h-12 rounded-xl bg-red-500/15 border border-red-500/30 flex items-center justify-center text-red-600 dark:text-red-400 shrink-0 font-bold">
               5
             </div>
             <div>

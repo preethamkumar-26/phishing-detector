@@ -84,7 +84,7 @@ export function ScanActivityChart() {
                           <div className="font-bold text-[var(--text-primary)] pb-1 border-b border-[var(--border-color)]">
                             {label}
                           </div>
-                          <div className="text-violet-400 font-medium flex justify-between gap-4">
+                          <div className="text-[var(--primary-accent)] font-medium flex justify-between gap-4">
                             <span>Total Volume:</span>
                             <span className="font-bold">{payload[0]?.value}</span>
                           </div>

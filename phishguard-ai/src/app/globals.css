@@ -3,47 +3,64 @@
 
 @theme inline {
   --color-bg-primary: var(--bg-primary);
+  --color-bg-sidebar: var(--bg-sidebar);
   --color-bg-surface: var(--bg-surface);
   --color-bg-elevated: var(--bg-elevated);
+  --color-bg-elevated-hover: var(--bg-elevated-hover);
   --color-primary-accent: var(--primary-accent);
   --color-primary-accent-hover: var(--primary-hover);
+  --color-secondary-accent: var(--secondary-accent);
   --color-text-primary: var(--text-primary);
   --color-text-on-accent: var(--text-on-accent);
   --color-text-muted: var(--text-muted);
   --color-border-color: var(--border-color);
+  --color-border-subtle: var(--border-subtle);
+  --font-sans: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
 @layer base {
   :root {
     --bg-primary: #F8FAFC;
+    --bg-sidebar: #FFFFFF;
     --bg-surface: #FFFFFF;
     --bg-elevated: #F1F5F9;
+    --bg-elevated-hover: #E2E8F0;
     --border-color: #E2E8F0;
+    --border-subtle: #F1F5F9;
     --text-primary: #0F172A;
-    --text-muted: #475569;
-    --primary-accent: #4F46E5;
-    --primary-hover: #4338CA;
-    --accent-glow: rgba(79, 70, 229, 0.15);
+    --text-muted: #64748B;
+    --primary-accent: #2563EB;
+    --primary-hover: #1D4ED8;
+    --secondary-accent: #4F46E5;
+    --accent-glow: rgba(37, 99, 235, 0.12);
     --text-on-accent: #FFFFFF;
-    --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.06);
-    --safe: #22C55E;
+    --shadow-card: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+    --safe: #10B981;
     --threat: #EF4444;
     --warning: #F59E0B;
     color-scheme: light;
   }
 
   .dark {
-    --bg-primary: #090D16;
-    --bg-surface: #111827;
-    --bg-elevated: #1E293B;
-    --border-color: #1F2937;
+    --bg-primary: #0B0F19;
+    --bg-sidebar: #101726;
+    --bg-surface: #141D2E;
+    --bg-elevated: #1B263B;
+    --bg-elevated-hover: #23324E;
+    --border-color: #24324A;
+    --border-subtle: #1A2538;
     --text-primary: #F8FAFC;
     --text-muted: #94A3B8;
-    --primary-accent: #6366F1;
-    --primary-hover: #818CF8;
-    --accent-glow: rgba(99, 102, 241, 0.25);
+    --primary-accent: #3B82F6;
+    --primary-hover: #2563EB;
+    --secondary-accent: #6366F1;
+    --accent-glow: rgba(59, 130, 246, 0.20);
     --text-on-accent: #FFFFFF;
-    --shadow-card: 0 12px 28px rgba(0, 0, 0, 0.24);
+    --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.35);
+    --safe: #10B981;
+    --threat: #EF4444;
+    --warning: #F59E0B;
     color-scheme: dark;
   }
 
@@ -73,7 +90,7 @@
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--primary-accent);
+    background: var(--secondary-accent);
   }
 }
 
@@ -83,6 +100,298 @@
   50% { opacity: 0.6; }
 }
 
+@keyframes pgBackdropIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pgBackdropOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes pgDialogIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes pgDialogOut {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.985);
+  }
+}
+
+@keyframes pgAuthStaggerIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pgModeToSignUp {
+  from {
+    opacity: 0;
+    transform: translate3d(10px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes pgModeToSignIn {
+  from {
+    opacity: 0;
+    transform: translate3d(-10px, 0, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+.pg-dialog-backdrop[data-state="open"] {
+  animation: pgBackdropIn 210ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pg-dialog-backdrop[data-state="closed"] {
+  animation: pgBackdropOut 165ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.pg-dialog-panel[data-state="open"] {
+  animation: pgDialogIn 230ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pg-dialog-panel[data-state="closed"] {
+  animation: pgDialogOut 165ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+.pg-auth-stagger-1 {
+  animation: pgAuthStaggerIn 210ms cubic-bezier(0.22, 1, 0.36, 1) 45ms both;
+}
+
+.pg-auth-stagger-2 {
+  animation: pgAuthStaggerIn 210ms cubic-bezier(0.22, 1, 0.36, 1) 70ms both;
+}
+
+.pg-auth-mode-signup {
+  animation: pgModeToSignUp 185ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.pg-auth-mode-signin {
+  animation: pgModeToSignIn 185ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-dialog-backdrop[data-state="open"],
+  .pg-dialog-panel[data-state="open"],
+  .pg-auth-stagger-1,
+  .pg-auth-stagger-2,
+  .pg-auth-mode-signup,
+  .pg-auth-mode-signin {
+    animation: pgBackdropIn 90ms ease-out both;
+  }
+
+  .pg-dialog-backdrop[data-state="closed"],
+  .pg-dialog-panel[data-state="closed"] {
+    animation: pgBackdropOut 90ms ease-in both;
+  }
+}
+
+
 .animate-pulse-subtle {
   animation: pulseSubtle 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* Landing Page Email Showcase Scanning Beam */
+@keyframes pgScanBeam {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.9;
+  }
+  85% {
+    opacity: 0.9;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+.pg-scan-beam {
+  animation: pgScanBeam 1.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-scan-beam {
+    animation: none !important;
+    display: none !important;
+  }
+}
+
+/* Aceternity-inspired Hover Sidebar Transitions */
+.pg-sidebar-transition {
+  transition: width 260ms cubic-bezier(0.22, 1, 0.36, 1),
+              box-shadow 260ms cubic-bezier(0.22, 1, 0.36, 1),
+              background-color 200ms ease;
+}
+
+.pg-sidebar-label-transition {
+  transition: opacity 180ms ease,
+              transform 200ms cubic-bezier(0.22, 1, 0.36, 1),
+              max-width 240ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.pg-sidebar-group-transition {
+  transition: max-height 220ms cubic-bezier(0.22, 1, 0.36, 1),
+              opacity 180ms ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-sidebar-transition,
+  .pg-sidebar-label-transition,
+  .pg-sidebar-group-transition {
+    transition: none !important;
+  }
+}
+
+/* Subtle non-blocking page entrance transition (130ms) */
+@keyframes pgPageEnter {
+  from {
+    opacity: 0.94;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.pg-page-enter {
+  animation: pgPageEnter 130ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-page-enter {
+    animation: none !important;
+  }
+}
+
+/* Email Analyzer Scanning Line Animation */
+.email-scan-viewport {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  container-type: size;
+}
+
+.email-scan-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  animation: email-scan-vertical-sweep 2.2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  will-change: transform;
+}
+
+.email-scan-afterglow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 54px;
+  background: linear-gradient(to top, rgba(37, 99, 235, 0.16) 0%, rgba(56, 189, 248, 0.05) 55%, transparent 100%);
+}
+
+.email-scan-glow {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 14px;
+  transform: translateY(50%);
+  background: radial-gradient(ellipse 80% 100% at 50% 50%, rgba(56, 189, 248, 0.35) 0%, rgba(37, 99, 235, 0.18) 55%, transparent 100%);
+  filter: blur(4px);
+}
+
+.email-scan-line {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: #0f172a; /* dark navy/blue core */
+  border-top: 1px solid rgba(56, 189, 248, 0.85); /* restrained cyan-blue edge */
+  border-bottom: 1px solid rgba(37, 99, 235, 0.6);
+  box-shadow:
+    0 0 6px 1px rgba(56, 189, 248, 0.75),
+    0 0 16px 3px rgba(37, 99, 235, 0.45);
+}
+
+@keyframes email-scan-vertical-sweep {
+  0% {
+    transform: translateY(-64px);
+    opacity: 0;
+  }
+  6% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(100cqh + 20px));
+    opacity: 0;
+  }
+}
+
+@supports not (container-type: size) {
+  @keyframes email-scan-vertical-sweep {
+    0% {
+      transform: translateY(-64px);
+      opacity: 0;
+    }
+    6% {
+      opacity: 1;
+    }
+    92% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(320px);
+      opacity: 0;
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .email-scan-track {
+    animation: none !important;
+    transform: none !important;
+    top: 50% !important;
+    opacity: 0.4 !important;
+  }
+}
+
+

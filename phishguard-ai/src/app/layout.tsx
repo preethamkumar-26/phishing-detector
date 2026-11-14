@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { DM_Sans, JetBrains_Mono } from "next/font/google";
+import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "@/components/auth/AuthProvider";
+import { AuthGateProvider } from "@/components/auth/AuthGateProvider";
 import { ThemeProvider } from "@/components/theme/ThemeProvider";
 import "./globals.css";
 
-const dmSans = DM_Sans({
+const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
-const jetBrainsMono = JetBrains_Mono({
+const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
 });
@@ -25,23 +26,24 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="h-full" suppressHydrationWarning>
+    <html lang="en" className="dark h-full" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{
             __html: `try {
   const savedTheme = localStorage.getItem("phishguard-theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  document.documentElement.classList.toggle("dark", savedTheme === "dark" || (savedTheme !== "light" && prefersDark));
+  document.documentElement.classList.toggle("dark", savedTheme !== "light");
 } catch {
-  document.documentElement.classList.toggle("dark", window.matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.classList.add("dark");
 }`,
           }}
         />
       </head>
-      <body className={`${dmSans.variable} ${jetBrainsMono.variable} min-h-full antialiased`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} min-h-full antialiased`}>
         <ThemeProvider>
-          <AuthProvider>{children}</AuthProvider>
+          <AuthProvider>
+            <AuthGateProvider>{children}</AuthGateProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

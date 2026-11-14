@@ -55,7 +55,7 @@ export default function AnalyticsPage() {
         title="Model Performance & Evaluation"
         description="Comprehensive evaluation metrics, ROC-AUC trajectories, loss curves, and comparative architecture benchmarks."
       >
-        <span className="text-xs bg-slate-800 text-slate-300 px-3 py-1.5 rounded-xl border border-[var(--border-color)] font-mono">
+        <span className="text-xs bg-[var(--bg-elevated)] text-[var(--text-muted)] px-3 py-1.5 rounded-xl border border-[var(--border-color)] font-mono">
           Optimizer: Mountain Gazelle (MGO)
         </span>
       </PageHeader>
@@ -67,7 +67,7 @@ export default function AnalyticsPage() {
           value={`${DEMO_RESEARCH_METRICS.accuracy}%`}
           subtitle="Overall correct predictions"
           icon={CheckCircle2}
-          iconColor="text-emerald-400"
+          iconColor="text-emerald-600 dark:text-emerald-400"
           iconBg="bg-emerald-500/10 border-emerald-500/20"
           trend="Target: >97.0%"
           isPositive={true}
@@ -77,7 +77,7 @@ export default function AnalyticsPage() {
           value={`${DEMO_RESEARCH_METRICS.precision}%`}
           subtitle="Low false positive rate"
           icon={TrendingUp}
-          iconColor="text-blue-400"
+          iconColor="text-[var(--secondary-accent)]"
           iconBg="bg-blue-500/10 border-blue-500/20"
           trend="FP: 45 samples"
           isPositive={true}
@@ -87,8 +87,8 @@ export default function AnalyticsPage() {
           value={`${DEMO_RESEARCH_METRICS.recall}%`}
           subtitle="Threat capture rate"
           icon={Zap}
-          iconColor="text-violet-400"
-          iconBg="bg-violet-500/10 border-violet-500/20"
+          iconColor="text-[var(--primary-accent)]"
+          iconBg="bg-blue-500/10 border-blue-500/20"
           trend="FN: 27 samples"
           isPositive={true}
         />
@@ -97,7 +97,7 @@ export default function AnalyticsPage() {
           value={`${DEMO_RESEARCH_METRICS.f1Score}%`}
           subtitle="Harmonic mean of P & R"
           icon={Cpu}
-          iconColor="text-amber-400"
+          iconColor="text-amber-600 dark:text-amber-400"
           iconBg="bg-amber-500/10 border-amber-500/20"
           trend="Champion metric"
           isPositive={true}
@@ -124,7 +124,7 @@ export default function AnalyticsPage() {
               <div className="grid grid-cols-2 gap-3 text-center">
                 {/* True Positive */}
                 <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30">
-                  <div className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider">
+                  <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 tracking-wider">
                     True Positive (TP)
                   </div>
                   <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
@@ -137,7 +137,7 @@ export default function AnalyticsPage() {
 
                 {/* False Positive */}
                 <div className="p-4 rounded-xl bg-amber-500/15 border border-amber-500/30">
-                  <div className="text-[10px] uppercase font-bold text-amber-400 tracking-wider">
+                  <div className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 tracking-wider">
                     False Positive (FP)
                   </div>
                   <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
@@ -150,7 +150,7 @@ export default function AnalyticsPage() {
 
                 {/* False Negative */}
                 <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/30">
-                  <div className="text-[10px] uppercase font-bold text-red-400 tracking-wider">
+                  <div className="text-[10px] uppercase font-bold text-red-700 dark:text-red-400 tracking-wider">
                     False Negative (FN)
                   </div>
                   <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
@@ -163,7 +163,7 @@ export default function AnalyticsPage() {
 
                 {/* True Negative */}
                 <div className="p-4 rounded-xl bg-blue-500/15 border border-blue-500/30">
-                  <div className="text-[10px] uppercase font-bold text-blue-400 tracking-wider">
+                  <div className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-400 tracking-wider">
                     True Negative (TN)
                   </div>
                   <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
@@ -175,7 +175,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="p-3 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-muted)] space-y-1">
+              <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-muted)] space-y-1">
                 <div className="flex justify-between">
                   <span>Specificity:</span>
                   <span className="font-mono text-[var(--text-primary)] font-bold">
@@ -184,7 +184,7 @@ export default function AnalyticsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span>False Alarm Rate:</span>
-                  <span className="font-mono text-amber-400 font-bold">
+                  <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">
                     {((cm.falsePositive / (cm.trueNegative + cm.falsePositive)) * 100).toFixed(2)}%
                   </span>
                 </div>
@@ -222,7 +222,7 @@ export default function AnalyticsPage() {
                             return (
                               <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 shadow-xl text-xs space-y-1">
                                 <div className="font-bold text-[var(--text-primary)]">Epoch {label}</div>
-                                <div className="text-violet-400">
+                                <div className="text-[var(--primary-accent)]">
                                   Train Loss: {payload[0]?.value}
                                 </div>
                                 <div className="text-emerald-400">
@@ -292,7 +292,7 @@ export default function AnalyticsPage() {
                 {DEMO_MODEL_COMPARISON.map((m, idx) => (
                   <tr
                     key={idx}
-                    className={`hover:bg-[var(--bg-surface)]/40 transition-colors ${
+                    className={`hover:bg-[var(--bg-elevated)]/40 transition-colors ${
                       m.status.includes("Champion") ? "bg-[var(--primary-accent)]/5" : ""
                     }`}
                   >
@@ -303,18 +303,18 @@ export default function AnalyticsPage() {
                     <td className="py-3.5 px-4 font-mono font-bold text-[var(--text-primary)]">
                       {m.accuracy}%
                     </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-violet-300">
+                    <td className="py-3.5 px-4 font-mono font-bold text-[var(--primary-accent)]">
                       {m.f1Score}%
                     </td>
                     <td className="py-3.5 px-4 font-mono text-[var(--text-muted)]">{m.latency}</td>
                     <td className="py-3.5 px-4 font-mono text-[var(--text-muted)]">{m.parameters}</td>
                     <td className="py-3.5 px-4">
                       {m.status.includes("Champion") ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/40">
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">
                           {m.status}
                         </span>
                       ) : (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-400">
+                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-color)]">
                           {m.status}
                         </span>
                       )}

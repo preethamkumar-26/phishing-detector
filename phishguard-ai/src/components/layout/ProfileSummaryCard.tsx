@@ -23,19 +23,19 @@ export function ProfileSummaryCard() {
     <>
       <div className="w-full xl:w-72 shrink-0 space-y-4">
         {/* Profile Card from Sketch */}
-        <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)] p-5 shadow-lg">
+        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] p-5 shadow-sm">
           <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               Account Profile
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+            <span className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
               Active
             </span>
           </div>
 
           <div className="pt-4 flex flex-col items-center text-center">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--primary-accent)] via-[#6366F1] to-[var(--primary-accent)] flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-violet-900/40 ring-4 ring-[var(--bg-surface)]">
+            <div className="w-16 h-16 rounded-xl bg-gradient-to-tr from-[var(--primary-accent)] via-[#6366F1] to-[var(--secondary-accent)] flex items-center justify-center text-white text-xl font-bold shadow-md shadow-blue-900/30 ring-4 ring-[var(--bg-elevated)]">
               {userInitials}
             </div>
 
@@ -47,7 +47,7 @@ export function ProfileSummaryCard() {
             <div className="w-full mt-4 pt-3 border-t border-[var(--border-color)]/70 space-y-2 text-left text-xs">
               <div className="flex items-center justify-between text-[var(--text-muted)]">
                 <span className="flex items-center gap-1.5">
-                  <Mail className="w-3.5 h-3.5 text-slate-400" /> Email
+                  <Mail className="w-3.5 h-3.5 text-[var(--text-muted)]" /> Email
                 </span>
                 <span className="text-[var(--text-primary)] font-mono text-[11px] truncate max-w-[140px]">
                   {user?.email}
@@ -55,7 +55,7 @@ export function ProfileSummaryCard() {
               </div>
               <div className="flex items-center justify-between text-[var(--text-muted)]">
                 <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-violet-400" /> Access Tier
+                  <ShieldCheck className="w-3.5 h-3.5 text-[var(--primary-accent)]" /> Access Tier
                 </span>
                 <span className="text-[var(--primary-accent)] font-medium text-[11px]">
                   Level 3 (Full Lab)
@@ -63,7 +63,7 @@ export function ProfileSummaryCard() {
               </div>
               <div className="flex items-center justify-between text-[var(--text-muted)]">
                 <span className="flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-blue-400" /> API Quota
+                  <KeyRound className="w-3.5 h-3.5 text-[var(--secondary-accent)]" /> API Quota
                 </span>
                 <span className="text-[var(--text-primary)] font-mono text-[11px]">
                   5,000 req/day
@@ -84,7 +84,7 @@ export function ProfileSummaryCard() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="w-full justify-center text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                className="w-full justify-center text-xs text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-500/10"
                 onClick={() => {
                   setSignOutError("");
                   setSignOutOpen(true);
@@ -98,10 +98,10 @@ export function ProfileSummaryCard() {
         </div>
 
         {/* Quick Model Info Widget */}
-        <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)]/80 p-4 space-y-2 text-xs">
+        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] p-4 space-y-2 text-xs shadow-sm">
           <div className="flex items-center justify-between font-semibold text-[var(--text-primary)]">
             <span>Inference Model</span>
-            <span className="text-[10px] bg-emerald-500/15 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
+            <span className="text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold">
               Model ON
             </span>
           </div>

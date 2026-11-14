@@ -3,21 +3,11 @@
 import React, { useState } from "react";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge, ClassificationBadge } from "@/components/ui/Badge";
+import { ClassificationBadge } from "@/components/ui/Badge";
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
+import RubberSegment from "@/components/ui/RubberSegment";
 import { DEMO_EXPLAINABILITY_SAMPLE } from "@/data/demo-data";
-import {
-  Sparkles,
-  Layers,
-  Info,
-  Sliders,
-  CheckCircle2,
-  AlertCircle,
-  HelpCircle,
-  ChevronRight,
-  TrendingUp,
-} from "lucide-react";
+import { Info } from "lucide-react";
 
 export default function ExplainabilityPage() {
   const [method, setMethod] = useState<"attention" | "shap" | "lime">("attention");
@@ -35,39 +25,19 @@ export default function ExplainabilityPage() {
         title="Explainable AI (XAI)"
         description="Linguistic feature attribution, attention distributions, and interpretability mechanisms."
       >
-        {/* Explanation Method Selector */}
-        <div className="flex items-center gap-1 p-1 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)]">
-          <button
-            onClick={() => setMethod("attention")}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              method === "attention"
-                ? "bg-[var(--primary-accent)] text-white shadow-sm"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            Multi-Head Attention
-          </button>
-          <button
-            onClick={() => setMethod("shap")}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              method === "shap"
-                ? "bg-[var(--primary-accent)] text-white shadow-sm"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            SHAP Attribution
-          </button>
-          <button
-            onClick={() => setMethod("lime")}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${
-              method === "lime"
-                ? "bg-[var(--primary-accent)] text-white shadow-sm"
-                : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            LIME Local
-          </button>
-        </div>
+        {/* Explanation Method Selector via RubberSegment */}
+        <RubberSegment
+          items={[
+            { value: "attention", label: "Multi-Head Attention" },
+            { value: "shap", label: "SHAP Attribution" },
+            { value: "lime", label: "LIME Local" },
+          ]}
+          value={method}
+          onChange={(val) => setMethod(val as "attention" | "shap" | "lime")}
+          size="sm"
+          radius={10}
+          ariaLabel="Select explanation method"
+        />
       </PageHeader>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -80,7 +50,7 @@ export default function ExplainabilityPage() {
                 <div>
                   <CardTitle className="text-base font-bold flex items-center gap-2">
                     <span>Token Importance Heatmap</span>
-                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                    <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20">
                       {method.toUpperCase()} weights
                     </span>
                   </CardTitle>
@@ -90,24 +60,24 @@ export default function ExplainabilityPage() {
                 </div>
                 <div className="flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
                   <span>Low Weight</span>
-                  <div className="w-16 h-2 rounded-full bg-gradient-to-r from-slate-700 via-violet-500 to-red-500" />
+                  <div className="w-16 h-2 rounded-full bg-gradient-to-r from-[var(--border-color)] via-blue-500 to-red-500" />
                   <span>High Impact</span>
                 </div>
               </div>
             </CardHeader>
 
             <CardContent className="p-5 pt-3 space-y-4">
-              <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] font-mono text-xs leading-loose tracking-wide select-none">
+              <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] font-mono text-xs leading-loose tracking-wide select-none">
                 {DEMO_EXPLAINABILITY_SAMPLE.tokens.map((item, idx) => {
                   const isSelected = selectedToken === item.token;
                   // Color intensity based on weight
-                  let bgClass = "bg-transparent text-slate-300";
+                  let bgClass = "bg-transparent text-[var(--text-primary)]";
                   if (item.weight > 0.8) {
-                    bgClass = "bg-red-500/35 text-red-100 border border-red-500/60";
+                    bgClass = "bg-red-500/25 dark:bg-red-500/35 text-red-900 dark:text-red-100 border border-red-500/60";
                   } else if (item.weight > 0.6) {
-                    bgClass = "bg-violet-500/30 text-violet-100 border border-violet-500/50";
+                    bgClass = "bg-blue-500/20 dark:bg-blue-500/30 text-blue-900 dark:text-blue-100 border border-blue-500/50";
                   } else if (item.weight > 0.3) {
-                    bgClass = "bg-slate-700/40 text-slate-200";
+                    bgClass = "bg-slate-200 dark:bg-slate-700/40 text-slate-800 dark:text-slate-200";
                   }
 
                   return (
@@ -115,7 +85,7 @@ export default function ExplainabilityPage() {
                       key={idx}
                       onClick={() => setSelectedToken(item.token)}
                       className={`inline-block mx-0.5 my-1 px-1.5 py-0.5 rounded cursor-pointer transition-all ${bgClass} ${
-                        isSelected ? "ring-2 ring-white scale-105 font-bold" : "hover:opacity-80"
+                        isSelected ? "ring-2 ring-[var(--primary-accent)] dark:ring-white scale-105 font-bold" : "hover:opacity-80"
                       }`}
                       title={`Weight: ${(item.weight * 100).toFixed(1)}%`}
                     >
@@ -126,14 +96,14 @@ export default function ExplainabilityPage() {
               </div>
 
               {selectedToken && (
-                <div className="p-3 rounded-xl bg-[var(--bg-surface)]/60 border border-[var(--border-color)] flex items-center justify-between text-xs">
+                <div className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
                     <span className="text-[var(--text-muted)]">Selected Token:</span>
-                    <span className="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded border border-[var(--border-color)]">
-                      "{selectedToken}"
+                    <span className="font-mono font-bold text-[var(--text-primary)] bg-[var(--bg-primary)] px-2 py-0.5 rounded border border-[var(--border-color)]">
+                      &ldquo;{selectedToken}&rdquo;
                     </span>
                   </div>
-                  <div className="flex items-center gap-2 text-violet-300 font-mono text-xs">
+                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-300 font-mono text-xs">
                     <span>Attribution score:</span>
                     <span className="font-bold">
                       {DEMO_EXPLAINABILITY_SAMPLE.tokens.find((t) => t.token === selectedToken)?.weight
@@ -161,15 +131,15 @@ export default function ExplainabilityPage() {
                 {DEMO_EXPLAINABILITY_SAMPLE.topFeatures.map((feat, idx) => (
                   <div
                     key={idx}
-                    className="p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                   >
                     <div className="flex items-center gap-3">
-                      <span className="w-5 h-5 rounded-full bg-[var(--bg-surface)] flex items-center justify-center font-mono text-[10px] text-[var(--text-muted)]">
+                      <span className="w-5 h-5 rounded-full bg-[var(--bg-primary)] border border-[var(--border-color)] flex items-center justify-center font-mono text-[10px] text-[var(--text-muted)]">
                         {idx + 1}
                       </span>
                       <div>
-                        <span className="font-mono font-bold text-red-300 text-sm">
-                          "{feat.name}"
+                        <span className="font-mono font-bold text-red-700 dark:text-red-300 text-sm">
+                          &ldquo;{feat.name}&rdquo;
                         </span>
                         <div className="text-[11px] text-[var(--text-muted)] mt-0.5">{feat.type}</div>
                       </div>
@@ -177,13 +147,13 @@ export default function ExplainabilityPage() {
 
                     <div className="flex items-center gap-4">
                       {/* Visual progress bar */}
-                      <div className="w-28 sm:w-36 h-2 bg-slate-800 rounded-full overflow-hidden">
+                      <div className="w-28 sm:w-36 h-2 bg-[var(--border-subtle)] rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-gradient-to-r from-violet-500 to-red-500 rounded-full"
+                          className="h-full bg-gradient-to-r from-blue-500 to-red-500 rounded-full"
                           style={{ width: `${feat.importance * 100}%` }}
                         />
                       </div>
-                      <span className="font-mono font-bold text-white w-12 text-right">
+                      <span className="font-mono font-bold text-[var(--text-primary)] w-12 text-right">
                         {(feat.importance * 100).toFixed(0)}%
                       </span>
                     </div>
@@ -241,7 +211,7 @@ export default function ExplainabilityPage() {
           <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]/80">
             <CardContent className="p-5 space-y-3 text-xs leading-relaxed text-[var(--text-muted)]">
               <div className="flex items-center gap-2 font-bold text-[var(--text-primary)]">
-                <Info className="w-4 h-4 text-violet-400" />
+                <Info className="w-4 h-4 text-[var(--primary-accent)]" />
                 Scientific Faithfulness Note
               </div>
               <p>

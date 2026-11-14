@@ -15,15 +15,15 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
 
     const variantStyles = {
       primary:
-        "bg-[var(--primary-accent)] hover:bg-[var(--primary-hover)] text-[var(--text-on-accent)] shadow-sm shadow-black/10 border border-[var(--text-on-accent)]/20 hover:-translate-y-px hover:shadow-md",
+        "bg-[var(--primary-accent)] hover:bg-[var(--primary-hover)] text-white shadow-sm shadow-black/15 border border-white/10 hover:-translate-y-px hover:shadow-md",
       secondary:
-        "bg-[var(--bg-surface)] hover:bg-[var(--bg-primary)] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-muted)]",
+        "bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated-hover)] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-muted)]",
       outline:
-        "bg-transparent hover:bg-[var(--bg-surface)] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-muted)]",
+        "bg-transparent hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-muted)]",
       ghost:
-        "bg-transparent hover:bg-[var(--bg-surface)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
+        "bg-transparent hover:bg-[var(--bg-elevated)] text-[var(--text-muted)] hover:text-[var(--text-primary)]",
       danger:
-        "bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/40",
+        "bg-red-500/15 hover:bg-red-500/25 text-red-700 dark:text-red-300 border border-red-500/35",
     };
 
     const sizeStyles = {

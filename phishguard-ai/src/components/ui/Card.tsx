@@ -9,7 +9,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-lg overflow-hidden",
+        "rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[box-shadow,border-color] duration-150 overflow-hidden",
         className
       )}
       {...props}
@@ -80,7 +80,7 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("p-4 border-t border-[var(--border-color)]/70 bg-[var(--bg-surface)]/50 flex items-center", className)}
+      className={cn("p-4 border-t border-[var(--border-color)]/70 bg-[var(--bg-elevated)]/40 flex items-center", className)}
       {...props}
     >
       {children}

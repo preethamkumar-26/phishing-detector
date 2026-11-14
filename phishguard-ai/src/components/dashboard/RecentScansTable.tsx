@@ -6,25 +6,21 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/com
 import { Button } from "@/components/ui/Button";
 import { ClassificationBadge, Badge } from "@/components/ui/Badge";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
-import { formatDateTime, truncate } from "@/lib/utils";
+import { formatDateTime } from "@/lib/utils";
 import { ScanRecord } from "@/types/scan";
 import { getScanHistory } from "@/services/scanService";
+import RubberSegment from "@/components/ui/RubberSegment";
 import {
   Search,
-  Filter,
   Eye,
   ScanSearch,
   FileUp,
-  ShieldCheck,
-  AlertTriangle,
-  Clock,
   Sparkles,
-  ExternalLink,
   ChevronRight,
 } from "lucide-react";
 
 export function RecentScansTable() {
-  const [scans, setScans] = useState<ScanRecord[]>(() => getScanHistory());
+  const [scans] = useState<ScanRecord[]>(() => getScanHistory());
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "phishing" | "safe" | "needs_review">("all");
   const [selectedScan, setSelectedScan] = useState<ScanRecord | null>(null);
@@ -56,14 +52,14 @@ export function RecentScansTable() {
                   Recent Email Scans & Workspace
                 </CardTitle>
                 {/* Status Chips required by sketch */}
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                   Model ON
                 </span>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 border border-[var(--border-color)]">
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-color)]">
                   Demo model v0.1
                 </span>
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
                   Demo / Not connected
                 </span>
               </div>
@@ -74,13 +70,13 @@ export function RecentScansTable() {
 
             {/* Quick Actions from Sketch */}
             <div className="flex items-center gap-2 shrink-0">
-              <Link href="/analyzer?mode=upload">
+              <Link href="/analyzer?mode=upload" prefetch={true}>
                 <Button variant="outline" size="sm">
                   <FileUp className="w-3.5 h-3.5" />
                   Scan File
                 </Button>
               </Link>
-              <Link href="/analyzer">
+              <Link href="/analyzer" prefetch={true}>
                 <Button variant="primary" size="sm">
                   <ScanSearch className="w-3.5 h-3.5" />
                   New Scan
@@ -98,32 +94,25 @@ export function RecentScansTable() {
                 placeholder="Filter by subject, sender or scan ID..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-9 pl-9 pr-3 text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
+                className="w-full h-9 pl-9 pr-3 text-xs bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
               />
             </div>
 
-            {/* Filter buttons */}
-            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
-              {(
-                [
-                  { id: "all", label: "All Scans" },
-                  { id: "phishing", label: "Phishing" },
-                  { id: "safe", label: "Safe" },
-                  { id: "needs_review", label: "Needs Review" },
-                ] as const
-              ).map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setStatusFilter(tab.id)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all whitespace-nowrap ${
-                    statusFilter === tab.id
-                      ? "bg-[var(--primary-accent)] text-white shadow-sm"
-                      : "text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-surface)]"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
+            {/* Filter buttons via RubberSegment */}
+            <div className="overflow-x-auto pb-1 sm:pb-0">
+              <RubberSegment
+                items={[
+                  { value: "all", label: "All Scans" },
+                  { value: "phishing", label: "Phishing" },
+                  { value: "safe", label: "Safe" },
+                  { value: "needs_review", label: "Needs Review" },
+                ]}
+                value={statusFilter}
+                onChange={(val) => setStatusFilter(val as typeof statusFilter)}
+                size="sm"
+                radius={10}
+                ariaLabel="Filter scans by classification"
+              />
             </div>
           </div>
         </CardHeader>
@@ -132,7 +121,7 @@ export function RecentScansTable() {
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]/60 text-[var(--text-muted)] uppercase text-[10px] tracking-wider">
+                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-elevated)]/60 text-[var(--text-muted)] uppercase text-[10px] tracking-wider">
                   <th className="py-3 px-5 font-semibold">Email Subject & Sender</th>
                   <th className="py-3 px-4 font-semibold">Classification</th>
                   <th className="py-3 px-4 font-semibold">Confidence</th>
@@ -151,7 +140,7 @@ export function RecentScansTable() {
                   filteredScans.slice(0, 7).map((scan) => (
                     <tr
                       key={scan.id}
-                      className="hover:bg-[var(--bg-surface)]/40 transition-colors group"
+                      className="hover:bg-[var(--bg-elevated)]/40 transition-colors group"
                     >
                       <td className="py-3 px-5 max-w-xs">
                         <div className="font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--primary-accent)] transition-colors">
@@ -191,12 +180,13 @@ export function RecentScansTable() {
             </table>
           </div>
 
-          <div className="p-3 px-5 bg-[var(--bg-surface)]/40 border-t border-[var(--border-color)]/60 flex items-center justify-between text-xs text-[var(--text-muted)]">
+          <div className="p-3 px-5 bg-[var(--bg-elevated)]/40 border-t border-[var(--border-color)]/60 flex items-center justify-between text-xs text-[var(--text-muted)]">
             <span>
               Showing {Math.min(7, filteredScans.length)} of {filteredScans.length} records
             </span>
             <Link
               href="/history"
+              prefetch={true}
               className="text-[var(--primary-accent)] hover:underline font-medium flex items-center gap-1"
             >
               View Full History ({scans.length} total)
@@ -224,7 +214,7 @@ export function RecentScansTable() {
             </DialogHeader>
 
             <div className="mt-4 space-y-4">
-              <div className="p-3 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] space-y-2 text-xs">
+              <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] space-y-2 text-xs">
                 <div className="flex justify-between text-[var(--text-muted)]">
                   <span>Evaluated Model:</span>
                   <span className="text-[var(--text-primary)] font-mono">{selectedScan.modelVersion}</span>
@@ -239,7 +229,7 @@ export function RecentScansTable() {
                 <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
                   Email Body Snippet
                 </h4>
-                <div className="p-3 bg-[var(--bg-surface)]/80 rounded-xl border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] whitespace-pre-wrap max-h-40 overflow-y-auto">
+                <div className="p-3 bg-[var(--bg-elevated)]/80 rounded-xl border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] whitespace-pre-wrap max-h-40 overflow-y-auto">
                   {selectedScan.bodySnippet}
                 </div>
               </div>
@@ -256,7 +246,7 @@ export function RecentScansTable() {
                         className="p-2.5 rounded-lg bg-red-500/10 border border-red-500/20 text-xs flex items-start justify-between gap-2"
                       >
                         <div>
-                          <span className="font-semibold text-red-300">"{ev.text}"</span>
+                          <span className="font-semibold text-red-700 dark:text-red-300">&ldquo;{ev.text}&rdquo;</span>
                           <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{ev.reason}</p>
                         </div>
                         <Badge variant="threat" size="sm">
@@ -270,7 +260,7 @@ export function RecentScansTable() {
             </div>
 
             <DialogFooter>
-              <Link href="/explainability">
+              <Link href="/explainability" prefetch={true}>
                 <Button variant="outline" size="sm">
                   <Sparkles className="w-3.5 h-3.5 mr-1 text-[var(--primary-accent)]" />
                   Open in Explainability

@@ -37,7 +37,12 @@ const AuthContext = createContext<AuthActions | null>(null);
 
 let snapshot = INITIAL_SNAPSHOT;
 let initialized = false;
+let lastManualSignOutAt = 0;
 const listeners = new Set<() => void>();
+
+export function wasManualSignOutRecently(): boolean {
+  return Date.now() - lastManualSignOutAt < 2000;
+}
 
 function notify() {
   listeners.forEach((listener) => listener());
@@ -109,6 +114,7 @@ function initialize() {
   refreshSnapshot();
   window.addEventListener("storage", (event) => {
     if (event.key === USERS_KEY || event.key === SESSION_KEY || event.key === null) {
+      lastManualSignOutAt = 0;
       refreshSnapshot();
     }
   });
@@ -186,6 +192,7 @@ async function register(name: string, email: string, password: string) {
 
     window.localStorage.setItem(USERS_KEY, JSON.stringify([...users, user]));
     window.localStorage.setItem(SESSION_KEY, normalizedEmail);
+    lastManualSignOutAt = 0;
     snapshot = {
       status: "authenticated",
       user: { name: user.name, email: user.email },
@@ -211,6 +218,7 @@ async function signIn(email: string, password: string) {
     }
 
     window.localStorage.setItem(SESSION_KEY, user.email);
+    lastManualSignOutAt = 0;
     snapshot = {
       status: "authenticated",
       user: { name: user.name, email: user.email },
@@ -223,6 +231,7 @@ async function signIn(email: string, password: string) {
 
 function signOut() {
   try {
+    lastManualSignOutAt = Date.now();
     window.localStorage.removeItem(SESSION_KEY);
     snapshot = { status: "unauthenticated", user: null };
     notify();

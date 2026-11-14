@@ -60,7 +60,7 @@ export default function AccountPage() {
           </CardHeader>
           <CardContent className="p-5 space-y-4">
             <div className="flex flex-col sm:flex-row items-center gap-5 pb-4 border-b border-[var(--border-color)]">
-              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--primary-accent)] via-[#6366F1] to-[var(--primary-accent)] flex items-center justify-center text-white text-xl font-bold shadow-lg shadow-violet-900/40">
+              <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[var(--primary-accent)] via-[#6366F1] to-[var(--secondary-accent)] flex items-center justify-center text-white text-xl font-bold shadow-md shadow-blue-900/30">
                 {userInitials}
               </div>
               <div className="text-center sm:text-left">
@@ -83,15 +83,15 @@ export default function AccountPage() {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-3 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] space-y-1">
+              <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] space-y-1">
                 <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">
                   Security Clearance
                 </span>
-                <span className="font-semibold text-emerald-400">
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400">
                   Full Model Inference & Log Inspection
                 </span>
               </div>
-              <div className="p-3 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] space-y-1">
+              <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] space-y-1">
                 <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">
                   Active Session Type
                 </span>
@@ -107,7 +107,7 @@ export default function AccountPage() {
         <Card className="border-[var(--border-color)]">
           <CardHeader className="p-5 pb-3">
             <CardTitle className="text-base font-bold flex items-center gap-2">
-              <KeyRound className="w-4 h-4 text-blue-400" />
+              <KeyRound className="w-4 h-4 text-[var(--secondary-accent)]" />
               API Key Management (Demo)
             </CardTitle>
             <CardDescription>
@@ -123,7 +123,7 @@ export default function AccountPage() {
                 type="password"
                 readOnly
                 value={demoApiKey}
-                className="w-full h-10 px-3 font-mono text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl border border-[var(--border-color)]"
+                className="w-full h-10 px-3 font-mono text-xs bg-[var(--bg-elevated)] text-[var(--text-primary)] rounded-xl border border-[var(--border-color)]"
               />
               <Button
                 variant="outline"
@@ -133,7 +133,7 @@ export default function AccountPage() {
               >
                 {copied ? (
                   <>
-                    <Check className="w-4 h-4 mr-1 text-emerald-400" /> Copied
+                    <Check className="w-4 h-4 mr-1 text-emerald-600 dark:text-emerald-400" /> Copied
                   </>
                 ) : (
                   <>
@@ -144,7 +144,7 @@ export default function AccountPage() {
             </div>
             {copyError && <p role="alert" className="text-[11px] text-red-500">{copyError}</p>}
             <p className="text-[11px] text-[var(--text-muted)]">
-              Pass this token in HTTP header: <code className="font-mono text-violet-300">Authorization: Bearer pg_live_...</code>
+              Pass this token in HTTP header: <code className="font-mono text-[var(--primary-accent)]">Authorization: Bearer pg_live_...</code>
             </p>
           </CardContent>
         </Card>

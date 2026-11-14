@@ -53,7 +53,7 @@ export default function SettingsPage() {
                 value={apiUrl}
                 onChange={(e) => setApiUrl(e.target.value)}
                 placeholder="http://localhost:8000/api/v1/predict"
-                className="w-full h-10 px-3 font-mono text-xs bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
+                className="w-full h-10 px-3 font-mono text-xs bg-[var(--bg-elevated)] text-[var(--text-primary)] rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
               />
               <p className="text-[11px] text-[var(--text-muted)] mt-1.5">
                 When the Python FastAPI service is launched, point this URL to your running instance to transition from demo heuristic to live inference.
@@ -77,7 +77,7 @@ export default function SettingsPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-[var(--text-primary)]">Classification Threshold (τ):</span>
-                <span className="font-mono font-bold text-violet-300 text-sm">
+                <span className="font-mono font-bold text-[var(--primary-accent)] text-sm">
                   {threshold.toFixed(2)}
                 </span>
               </div>
@@ -88,7 +88,7 @@ export default function SettingsPage() {
                 step="0.05"
                 value={threshold}
                 onChange={(e) => setThreshold(parseFloat(e.target.value))}
-                className="w-full h-2 bg-[var(--bg-surface)] rounded-lg appearance-none cursor-pointer accent-[var(--primary-accent)]"
+                className="w-full h-2 bg-[var(--bg-elevated)] rounded-lg appearance-none cursor-pointer accent-[var(--primary-accent)]"
               />
               <div className="flex justify-between text-[10px] text-[var(--text-muted)]">
                 <span>0.30 (High Sensitivity / More Warnings)</span>
@@ -103,7 +103,7 @@ export default function SettingsPage() {
         <Card className="border-[var(--border-color)]">
           <CardHeader className="p-5 pb-3">
             <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Bell className="w-4 h-4 text-amber-400" />
+              <Bell className="w-4 h-4 text-amber-600 dark:text-amber-400" />
               Notification & Alert Policies
             </CardTitle>
             <CardDescription>
@@ -111,7 +111,7 @@ export default function SettingsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="p-5 space-y-3 text-xs">
-            <label className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] cursor-pointer">
+            <label className="flex items-center justify-between p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] cursor-pointer">
               <div>
                 <span className="font-semibold text-[var(--text-primary)] block">
                   Notify on Critical Urgency Flags
@@ -124,7 +124,7 @@ export default function SettingsPage() {
                 type="checkbox"
                 checked={notifyOnPhishing}
                 onChange={(e) => setNotifyOnPhishing(e.target.checked)}
-                className="w-4 h-4 rounded border-slate-700 text-[var(--primary-accent)] focus:ring-[var(--primary-accent)] bg-slate-900"
+                className="w-4 h-4 rounded border-[var(--border-color)] text-[var(--primary-accent)] focus:ring-[var(--primary-accent)] bg-[var(--bg-primary)]"
               />
             </label>
           </CardContent>
@@ -132,7 +132,7 @@ export default function SettingsPage() {
 
         <div className="flex items-center justify-end gap-3 pt-2">
           {saved && (
-            <span className="text-xs text-emerald-400 font-medium flex items-center gap-1 animate-in fade-in">
+            <span className="text-xs text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1 animate-in fade-in">
               <Check className="w-4 h-4" /> Preferences saved!
             </span>
           )}

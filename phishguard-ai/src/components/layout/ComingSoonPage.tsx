@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
-import { Card, CardContent } from "@/components/ui/Card";
+import { Card } from "@/components/ui/Card";
 import { ArrowLeft, Clock, Sparkles } from "lucide-react";
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
 
@@ -35,7 +35,7 @@ export function ComingSoonPage({
         {/* Subtle glow */}
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-[var(--primary-accent)]/10 blur-3xl pointer-events-none rounded-full" />
 
-        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[var(--bg-surface)] border border-[var(--border-color)] mb-4 text-[var(--primary-accent)]">
+        <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-[var(--bg-elevated)] border border-[var(--border-color)] mb-4 text-[var(--primary-accent)]">
           <Clock className="w-7 h-7" />
         </div>
 
@@ -50,9 +50,9 @@ export function ComingSoonPage({
         </p>
 
         {plannedFeatures && plannedFeatures.length > 0 && (
-          <div className="max-w-md mx-auto text-left bg-[var(--bg-surface)]/70 rounded-xl p-5 border border-[var(--border-color)]/70 mb-8 space-y-2.5">
+          <div className="max-w-md mx-auto text-left bg-[var(--bg-sidebar)]/70 rounded-xl p-5 border border-[var(--border-color)]/70 mb-8 space-y-2.5">
             <div className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-wider flex items-center gap-1.5 mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-violet-400" />
+              <Sparkles className="w-3.5 h-3.5 text-[var(--primary-accent)]" />
               Planned Deliverables:
             </div>
             {plannedFeatures.map((feat, i) => (
@@ -65,13 +65,13 @@ export function ComingSoonPage({
         )}
 
         <div className="flex items-center justify-center gap-3">
-          <Link href={ctaHref}>
+          <Link href={ctaHref} prefetch={true}>
             <Button variant="primary">
               <ArrowLeft className="w-4 h-4 mr-1.5" />
               {ctaText}
             </Button>
           </Link>
-          <Link href="/analyzer">
+          <Link href="/analyzer" prefetch={true}>
             <Button variant="outline">Try Email Analyzer</Button>
           </Link>
         </div>

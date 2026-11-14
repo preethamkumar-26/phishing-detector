@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, Suspense } from "react";
+import React, { useState, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { EmailInputPanel } from "@/components/analyzer/EmailInputPanel";
@@ -8,7 +8,6 @@ import { AnalysisResultsPanel } from "@/components/analyzer/AnalysisResultsPanel
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
 import { analyzeEmail } from "@/services/scanService";
 import { ScanResult } from "@/types/scan";
-import { Cpu, ShieldCheck } from "lucide-react";
 
 function AnalyzerContent() {
   const searchParams = useSearchParams();
@@ -19,12 +18,15 @@ function AnalyzerContent() {
   const [body, setBody] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleAnalyze = async () => {
+    // Strict requirement: do not change anything if the input is null or empty
     if (!body.trim()) return;
 
     setIsLoading(true);
     setResult(null);
+    setError(null);
 
     try {
       const response = await analyzeEmail({
@@ -35,6 +37,7 @@ function AnalyzerContent() {
       setResult(response);
     } catch (err) {
       console.error("Scan error:", err);
+      setError("The analysis service could not process this email. Please verify your connection and try again.");
     } finally {
       setIsLoading(false);
     }
@@ -45,6 +48,7 @@ function AnalyzerContent() {
     setSender("");
     setBody("");
     setResult(null);
+    setError(null);
   };
 
   return (
@@ -92,6 +96,8 @@ function AnalyzerContent() {
             result={result}
             isLoading={isLoading}
             onClear={handleClear}
+            error={error}
+            onRetry={handleAnalyze}
           />
         </div>
       </div>

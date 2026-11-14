@@ -10,15 +10,21 @@ import { RecentScansTable } from "@/components/dashboard/RecentScansTable";
 import { ProfileSummaryCard } from "@/components/layout/ProfileSummaryCard";
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
 import { Button } from "@/components/ui/Button";
+import { GlideSelect, GlideSelectOptionItem } from "@/components/ui/GlideSelect";
 import {
   ScanSearch,
   Mail,
   ShieldAlert,
   ShieldCheck,
   AlertTriangle,
-  Calendar,
-  Sparkles,
 } from "lucide-react";
+
+const DASHBOARD_DATE_OPTIONS: GlideSelectOptionItem[] = [
+  { value: "Today", label: "Today", tag: "Live" },
+  { value: "Last 7 days", label: "Last 7 days", tag: "7d" },
+  { value: "Last 14 days", label: "Last 14 days", tag: "14d" },
+  { value: "Last 30 days", label: "Last 30 days", tag: "30d" },
+];
 
 export default function DashboardPage() {
   const [dateRange, setDateRange] = useState("Last 14 days");
@@ -37,22 +43,20 @@ export default function DashboardPage() {
         description="Here’s a clear view of recent scans, emerging threats, and activity across your inbox."
       >
         <div className="flex items-center gap-2">
-          {/* Optional date range selector */}
-          <div className="relative hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-muted)]">
-            <Calendar className="w-3.5 h-3.5 text-slate-400" />
-            <select
+          {/* Date range selector via GlideSelect */}
+          <div className="hidden sm:flex items-center">
+            <GlideSelect
+              options={DASHBOARD_DATE_OPTIONS}
               value={dateRange}
-              onChange={(e) => setDateRange(e.target.value)}
-              className="bg-transparent text-[var(--text-primary)] focus:outline-none cursor-pointer"
-            >
-              <option value="Today" className="bg-[var(--bg-surface)]">Today</option>
-              <option value="Last 7 days" className="bg-[var(--bg-surface)]">Last 7 days</option>
-              <option value="Last 14 days" className="bg-[var(--bg-surface)]">Last 14 days</option>
-              <option value="Last 30 days" className="bg-[var(--bg-surface)]">Last 30 days</option>
-            </select>
+              onChange={(val) => setDateRange(val)}
+              ariaLabel="Dashboard date range filter"
+              size="md"
+              menuWidth={180}
+              radius={10}
+            />
           </div>
 
-          <Link href="/analyzer">
+          <Link href="/analyzer" prefetch={true}>
             <Button variant="primary" size="md">
               <ScanSearch className="w-4 h-4 mr-1.5" />
               New Scan
@@ -72,8 +76,8 @@ export default function DashboardPage() {
               value="1,428"
               subtitle="All evaluated samples"
               icon={Mail}
-              iconColor="text-violet-400"
-              iconBg="bg-violet-500/10 border-violet-500/20"
+              iconColor="text-[var(--primary-accent)]"
+              iconBg="bg-blue-500/10 border-blue-500/20"
               trend="+12% this week"
               isPositive={true}
             />
