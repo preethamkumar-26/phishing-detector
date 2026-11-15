@@ -7,15 +7,24 @@ export interface CountUpNumberProps {
   duration?: number;
   delay?: number;
   className?: string;
+  /** Number of decimal places to display (default: 0 for integers) */
+  decimals?: number;
+  /** Suffix appended after the number (e.g. "%") */
+  suffix?: string;
   formatter?: (val: number) => string;
-}
-
-function defaultFormatter(val: number): string {
-  return Math.round(val).toLocaleString("en-US");
 }
 
 function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
+}
+
+function createFormatter(decimals: number, suffix: string): (val: number) => string {
+  return (val: number) => {
+    const fixed = decimals > 0
+      ? val.toFixed(decimals)
+      : Math.round(val).toLocaleString("en-US");
+    return `${fixed}${suffix}`;
+  };
 }
 
 export function CountUpNumber({
@@ -23,8 +32,12 @@ export function CountUpNumber({
   duration = 1050,
   delay = 0,
   className,
-  formatter = defaultFormatter,
+  decimals = 0,
+  suffix = "",
+  formatter,
 }: CountUpNumberProps) {
+  const resolvedFormatter = formatter ?? createFormatter(decimals, suffix);
+
   const target = typeof value === "number"
     ? value
     : Number(String(value).replace(/[^0-9.-]/g, ""));
@@ -34,9 +47,9 @@ export function CountUpNumber({
   const [displayValue, setDisplayValue] = useState<string>(() => {
     if (!isNumeric) return String(value);
     if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return formatter(target);
+      return resolvedFormatter(target);
     }
-    return "0";
+    return `${decimals > 0 ? (0).toFixed(decimals) : "0"}${suffix}`;
   });
 
   const prevTargetRef = useRef(target);
@@ -65,12 +78,12 @@ export function CountUpNumber({
         const easedProgress = easeOutCubic(progress);
         const current = startValue + (target - startValue) * easedProgress;
 
-        setDisplayValue(formatter(current));
+        setDisplayValue(resolvedFormatter(current));
 
         if (progress < 1) {
           rafId = requestAnimationFrame(step);
         } else {
-          setDisplayValue(formatter(target));
+          setDisplayValue(resolvedFormatter(target));
         }
       };
       rafId = requestAnimationFrame(step);
@@ -86,7 +99,7 @@ export function CountUpNumber({
       if (timeoutId) clearTimeout(timeoutId);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [target, isNumeric, duration, delay, formatter]);
+  }, [target, isNumeric, duration, delay, resolvedFormatter]);
 
   if (!isNumeric) {
     return <span className={className}>{value}</span>;

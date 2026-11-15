@@ -19,6 +19,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   // Auto-collapse sidebar on tablet screens (< 1024px)
   useEffect(() => {
+    try {
+      sessionStorage.setItem("phishguard-last-page", pathname);
+    } catch {}
+  }, [pathname]);
+
+  useEffect(() => {
     if (status === "unauthenticated") {
       const isManual = wasManualSignOutRecently();
       const search = typeof window !== "undefined" ? window.location.search : "";

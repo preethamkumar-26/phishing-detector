@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -45,11 +45,21 @@ export function LandingPage({ className = "" }: LandingPageProps) {
   const isLight = theme === "light";
   const [contactOpen, setContactOpen] = useState(false);
 
+  useEffect(() => {
+    try {
+      sessionStorage.setItem("phishguard-last-page", "landing");
+    } catch {}
+  }, []);
+
   const handleProtectedNav = (
     e: React.MouseEvent<HTMLElement>,
     destination: string,
     mode: "signIn" | "register" = "signIn"
   ) => {
+    // Mark navigation from landing page to dashboard for count-up animation
+    if (destination === "/dashboard") {
+      try { sessionStorage.setItem("phishguard-from-landing", "1"); } catch {}
+    }
     if (status === "authenticated") return;
     e.preventDefault();
     requireAuth(destination, { mode, triggerEl: e.currentTarget });
@@ -60,9 +70,15 @@ export function LandingPage({ className = "" }: LandingPageProps) {
     mode: "signIn" | "register"
   ) => {
     if (status === "authenticated") {
+      if (mode === "register") {
+        // Navigating to dashboard from landing page — set animation flag
+        try { sessionStorage.setItem("phishguard-from-landing", "1"); } catch {}
+      }
       router.push(mode === "signIn" ? "/account" : "/dashboard");
       return;
     }
+    // After auth completes, user lands on /dashboard from landing page
+    try { sessionStorage.setItem("phishguard-from-landing", "1"); } catch {}
     openAuthDialog({
       mode,
       destination: "/dashboard",

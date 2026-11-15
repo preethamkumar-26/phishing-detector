@@ -14,6 +14,10 @@ interface StatCardProps {
   isPositive?: boolean;
   animateCount?: boolean;
   staggerIndex?: number;
+  /** Number of decimal places for the count-up animation (default: 0) */
+  countUpDecimals?: number;
+  /** Suffix appended after the animated number (e.g. "%") */
+  countUpSuffix?: string;
 }
 
 export function StatCard({
@@ -27,6 +31,8 @@ export function StatCard({
   isPositive,
   animateCount = false,
   staggerIndex = 0,
+  countUpDecimals = 0,
+  countUpSuffix = "",
 }: StatCardProps) {
   return (
     <Card className="relative overflow-hidden border-[var(--border-color)] hover:border-[var(--primary-accent)]/50 transition-colors">
@@ -47,6 +53,8 @@ export function StatCard({
                   value={value}
                   delay={staggerIndex * 80}
                   duration={1050}
+                  decimals={countUpDecimals}
+                  suffix={countUpSuffix}
                 />
               ) : (
                 value

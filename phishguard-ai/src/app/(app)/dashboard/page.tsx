@@ -29,6 +29,30 @@ const DASHBOARD_DATE_OPTIONS: GlideSelectOptionItem[] = [
 export default function DashboardPage() {
   const [dateRange, setDateRange] = useState("Last 14 days");
 
+  // Only animate KPI count-up when arriving from the landing page
+  // Read sessionStorage in the lazy initializer to avoid setState-in-effect
+  const [shouldAnimate] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const fromLanding = sessionStorage.getItem("phishguard-from-landing");
+      const lastPage = sessionStorage.getItem("phishguard-last-page");
+      const isFromLanding =
+        fromLanding === "1" ||
+        lastPage === "landing" ||
+        lastPage === "/" ||
+        lastPage === "/landing";
+
+      if (isFromLanding) {
+        sessionStorage.removeItem("phishguard-from-landing");
+        sessionStorage.setItem("phishguard-last-page", "/dashboard");
+        return true;
+      }
+    } catch {
+      // sessionStorage unavailable
+    }
+    return false;
+  });
+
   return (
     <div className="space-y-6">
       {/* Demo Notice Banner */}
@@ -80,7 +104,7 @@ export default function DashboardPage() {
               iconBg="bg-blue-500/10 border-blue-500/20"
               trend="+12% this week"
               isPositive={true}
-              animateCount={true}
+              animateCount={shouldAnimate}
               staggerIndex={0}
             />
             <StatCard
@@ -91,7 +115,7 @@ export default function DashboardPage() {
               iconColor="text-red-400"
               iconBg="bg-red-500/10 border-red-500/20"
               trend="26.9% threat rate"
-              animateCount={true}
+              animateCount={shouldAnimate}
               staggerIndex={1}
             />
             <StatCard
@@ -103,7 +127,7 @@ export default function DashboardPage() {
               iconBg="bg-emerald-500/10 border-emerald-500/20"
               trend="68.1% of traffic"
               isPositive={true}
-              animateCount={true}
+              animateCount={shouldAnimate}
               staggerIndex={2}
             />
             <StatCard
@@ -114,7 +138,7 @@ export default function DashboardPage() {
               iconColor="text-amber-400"
               iconBg="bg-amber-500/10 border-amber-500/20"
               trend="5.0% queue"
-              animateCount={true}
+              animateCount={shouldAnimate}
               staggerIndex={3}
             />
           </div>

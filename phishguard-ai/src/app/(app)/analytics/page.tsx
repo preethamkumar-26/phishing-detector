@@ -37,8 +37,25 @@ import {
 
 export default function AnalyticsPage() {
   const [mounted, setMounted] = useState(false);
+
+  // Animate KPI count-up only on the FIRST visit to this page per session
+  // Read sessionStorage in the lazy initializer to avoid setState-in-effect
+  const [shouldAnimate] = useState(() => {
+    if (typeof window === "undefined") return false;
+    try {
+      const alreadyVisited = sessionStorage.getItem("phishguard-analytics-animated");
+      if (!alreadyVisited) {
+        sessionStorage.setItem("phishguard-analytics-animated", "1");
+        return true;
+      }
+    } catch {
+      // sessionStorage unavailable
+    }
+    return false;
+  });
+
   useEffect(() => {
-    setMounted(true);
+    setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect -- hydration guard: must start false on server, true after mount
   }, []);
 
   const cm = DEMO_CONFUSION_MATRIX;
@@ -71,6 +88,10 @@ export default function AnalyticsPage() {
           iconBg="bg-emerald-500/10 border-emerald-500/20"
           trend="Target: >97.0%"
           isPositive={true}
+          animateCount={shouldAnimate}
+          staggerIndex={0}
+          countUpDecimals={1}
+          countUpSuffix="%"
         />
         <StatCard
           title="Precision (Phishing)"
@@ -81,6 +102,10 @@ export default function AnalyticsPage() {
           iconBg="bg-blue-500/10 border-blue-500/20"
           trend="FP: 45 samples"
           isPositive={true}
+          animateCount={shouldAnimate}
+          staggerIndex={1}
+          countUpDecimals={1}
+          countUpSuffix="%"
         />
         <StatCard
           title="Recall (Sensitivity)"
@@ -91,6 +116,10 @@ export default function AnalyticsPage() {
           iconBg="bg-blue-500/10 border-blue-500/20"
           trend="FN: 27 samples"
           isPositive={true}
+          animateCount={shouldAnimate}
+          staggerIndex={2}
+          countUpDecimals={1}
+          countUpSuffix="%"
         />
         <StatCard
           title="Macro F1-Score"
@@ -101,6 +130,10 @@ export default function AnalyticsPage() {
           iconBg="bg-amber-500/10 border-amber-500/20"
           trend="Champion metric"
           isPositive={true}
+          animateCount={shouldAnimate}
+          staggerIndex={3}
+          countUpDecimals={1}
+          countUpSuffix="%"
         />
       </div>
 
