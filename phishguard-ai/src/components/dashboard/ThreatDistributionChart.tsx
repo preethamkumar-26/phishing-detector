@@ -1,21 +1,19 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from "recharts";
 import { DEMO_THREAT_DISTRIBUTION } from "@/data/demo-data";
-import { ShieldAlert, ShieldCheck, HelpCircle } from "lucide-react";
+
+const emptySubscribe = () => () => {};
 
 export function ThreatDistributionChart() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = React.useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   const total = DEMO_THREAT_DISTRIBUTION.reduce((acc, curr) => acc + curr.value, 0);
 
   return (
-    <Card className="h-full flex flex-col border-[var(--border-color)]">
+    <Card phase={2} className="h-full flex flex-col border-[var(--border-color)]">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>

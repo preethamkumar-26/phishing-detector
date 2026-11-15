@@ -43,7 +43,7 @@ export function RecentScansTable() {
 
   return (
     <>
-      <Card className="border-[var(--border-color)]">
+      <Card phase={4} className="border-[var(--border-color)]">
         <CardHeader className="p-5 pb-4">
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
             <div>

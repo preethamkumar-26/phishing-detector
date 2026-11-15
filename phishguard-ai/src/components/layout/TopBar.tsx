@@ -93,11 +93,15 @@ export function TopBar({
   const [signOutError, setSignOutError] = useState("");
 
   const userInitials = user?.name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() ?? "U";
+    ? user.name
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((part) => part[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "";
 
   const pageInfo = PAGE_TITLES[pathname] || {
     title: "PhishGuard AI",
@@ -507,9 +511,9 @@ export function TopBar({
                   <div className="flex items-start gap-3 p-2.5 rounded-xl bg-[var(--bg-elevated)]/40 text-xs">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
                     <div>
-                      <div className="font-semibold text-[var(--text-primary)]">MGO Checkpoint Ready</div>
+                      <div className="font-semibold text-[var(--text-primary)]">Validation Threshold Calibrated</div>
                       <div className="text-[11px] text-[var(--text-muted)]">
-                        BERT-CNN-GRU validation epoch 10 reached 97.4% accuracy.
+                        5-Branch Fusion + Custom Residual Network reached 97.4% accuracy (T=0.58).
                       </div>
                       <div className="text-[10px] text-[var(--text-muted)]/60 mt-1">1 hour ago</div>
                     </div>
@@ -539,7 +543,7 @@ export function TopBar({
               className="flex items-center gap-2.5 p-1 pl-1.5 pr-3 rounded-full bg-[var(--bg-surface)] hover:bg-[var(--bg-elevated)] border border-[var(--border-color)] hover:border-[var(--primary-accent)]/30 transition-all shadow-xs"
             >
               <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-[var(--primary-accent)] to-[var(--secondary-accent)] flex items-center justify-center text-white text-xs font-bold shadow-xs">
-                {userInitials}
+                {userInitials ? userInitials : <User className="w-3.5 h-3.5 text-white/90" />}
               </div>
               <div className="text-left hidden md:block">
                 <div className="text-xs font-semibold text-[var(--text-primary)] leading-none">

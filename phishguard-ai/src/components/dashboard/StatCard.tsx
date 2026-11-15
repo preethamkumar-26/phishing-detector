@@ -35,7 +35,10 @@ export function StatCard({
   countUpSuffix = "",
 }: StatCardProps) {
   return (
-    <Card className="relative overflow-hidden border-[var(--border-color)] hover:border-[var(--primary-accent)]/50 transition-colors">
+    <Card
+      phase={(((staggerIndex % 6) + 1) as 1 | 2 | 3 | 4 | 5 | 6)}
+      className="relative transition-colors"
+    >
       <CardContent className="p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-1">

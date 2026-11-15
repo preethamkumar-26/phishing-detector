@@ -1,8 +1,9 @@
 "use client";
 
 import React, { useState } from "react";
-import { User, LogOut, ShieldCheck, Mail, KeyRound, ExternalLink } from "lucide-react";
+import { User, LogOut, ShieldCheck, Mail, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
 import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth/AuthProvider";
@@ -13,35 +14,39 @@ export function ProfileSummaryCard() {
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [signOutError, setSignOutError] = useState("");
   const userInitials = user?.name
-    .split(/\s+/)
-    .map((part) => part[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase() ?? "U";
+    ? user.name
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((part) => part[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "";
 
   return (
     <>
       <div className="w-full xl:w-72 shrink-0 space-y-4">
         {/* Profile Card from Sketch */}
-        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] p-5 shadow-sm">
+        <Card phase={5} className="p-5 shadow-sm">
           <div className="flex items-center justify-between pb-3 border-b border-[var(--border-color)]">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)]">
               Account Profile
-            </span>
-            <span className="flex items-center gap-1 text-[10px] text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-medium">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400" />
-              Active
             </span>
           </div>
 
           <div className="pt-4 flex flex-col items-center text-center">
             <div className="w-16 h-16 rounded-xl bg-gradient-to-tr from-[var(--primary-accent)] via-[#6366F1] to-[var(--secondary-accent)] flex items-center justify-center text-white text-xl font-bold shadow-md shadow-blue-900/30 ring-4 ring-[var(--bg-elevated)]">
-              {userInitials}
+              {userInitials ? userInitials : <User className="w-8 h-8 text-white/90" />}
             </div>
 
             <div className="mt-3">
               <div className="text-sm font-bold text-[var(--text-primary)]">{user?.name}</div>
-              <div className="text-xs text-[var(--text-muted)]">Security Analyst & ML Researcher</div>
+              {user?.designation ? (
+                <div className="text-xs text-[var(--text-muted)]">
+                  {user.designation}
+                </div>
+              ) : null}
             </div>
 
             <div className="w-full mt-4 pt-3 border-t border-[var(--border-color)]/70 space-y-2 text-left text-xs">
@@ -55,18 +60,18 @@ export function ProfileSummaryCard() {
               </div>
               <div className="flex items-center justify-between text-[var(--text-muted)]">
                 <span className="flex items-center gap-1.5">
-                  <ShieldCheck className="w-3.5 h-3.5 text-[var(--primary-accent)]" /> Access Tier
+                  <ShieldCheck className="w-3.5 h-3.5 text-[var(--primary-accent)]" /> Plan Tier
                 </span>
                 <span className="text-[var(--primary-accent)] font-medium text-[11px]">
-                  Level 3 (Full Lab)
+                  Research Prototype
                 </span>
               </div>
               <div className="flex items-center justify-between text-[var(--text-muted)]">
                 <span className="flex items-center gap-1.5">
-                  <KeyRound className="w-3.5 h-3.5 text-[var(--secondary-accent)]" /> API Quota
+                  <KeyRound className="w-3.5 h-3.5 text-[var(--secondary-accent)]" /> API Limits
                 </span>
-                <span className="text-[var(--text-primary)] font-mono text-[11px]">
-                  5,000 req/day
+                <span className="text-[var(--text-primary)] text-[11px]">
+                  Non-metered
                 </span>
               </div>
             </div>
@@ -95,10 +100,10 @@ export function ProfileSummaryCard() {
               </Button>
             </div>
           </div>
-        </div>
+        </Card>
 
         {/* Quick Model Info Widget */}
-        <div className="rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] p-4 space-y-2 text-xs shadow-sm">
+        <Card phase={6} className="p-4 space-y-2 text-xs shadow-sm">
           <div className="flex items-center justify-between font-semibold text-[var(--text-primary)]">
             <span>Inference Model</span>
             <span className="text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full font-bold">
@@ -106,13 +111,13 @@ export function ProfileSummaryCard() {
             </span>
           </div>
           <div className="text-[11px] text-[var(--text-muted)]">
-            BERT-Base + Multi-Head Attention + CNN-1D + Bi-GRU tuned via Mountain Gazelle Optimizer (MGO).
+            5-Branch Feature Fusion (836-d) + Custom Residual Network &amp; Validation-Tuned Thresholding.
           </div>
           <div className="pt-2 text-[10px] text-[var(--text-muted)]/70 flex items-center justify-between">
             <span>Latency: ~42ms</span>
             <span>Seed: 42</span>
           </div>
-        </div>
+        </Card>
       </div>
 
       <Dialog open={signOutOpen} onOpenChange={setSignOutOpen}>

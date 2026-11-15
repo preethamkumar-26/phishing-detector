@@ -54,7 +54,7 @@ function AnalyzerContent() {
   return (
     <div className="space-y-6">
       <DemoDataNotice
-        message="Prototype Analyzer Notice — Results are generated via heuristic simulation to model the planned BERT-Attention-CNN-GRU backend."
+        message="Prototype Analyzer Notice — Results are generated via heuristic simulation to model the planned PhishGuard AI 5-branch fusion and custom residual representation pipeline."
         variant="banner"
       />
 
@@ -68,7 +68,7 @@ function AnalyzerContent() {
             Model Ready
           </span>
           <span className="text-xs text-[var(--text-muted)] bg-[var(--bg-surface)] px-2.5 py-1 rounded-xl border border-[var(--border-color)] font-mono hidden sm:inline-block">
-            BERT-MHA-CNN-GRU-v0.1
+            PhishGuard-5BF-ResNet-v1.0
           </span>
         </div>
       </PageHeader>

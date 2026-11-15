@@ -31,6 +31,7 @@ import FoldText from "@/components/ui/FoldText";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { isAllowedInternalRoute } from "@/lib/authGate";
+import { markFromLanding, recordPathTransition } from "@/lib/navTracker";
 import { AnimatedEmailShowcase } from "@/components/marketing/AnimatedEmailShowcase";
 
 export interface LandingPageProps {
@@ -46,9 +47,8 @@ export function LandingPage({ className = "" }: LandingPageProps) {
   const [contactOpen, setContactOpen] = useState(false);
 
   useEffect(() => {
-    try {
-      sessionStorage.setItem("phishguard-last-page", "landing");
-    } catch {}
+    recordPathTransition("/");
+    markFromLanding();
   }, []);
 
   const handleProtectedNav = (
@@ -58,7 +58,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
   ) => {
     // Mark navigation from landing page to dashboard for count-up animation
     if (destination === "/dashboard") {
-      try { sessionStorage.setItem("phishguard-from-landing", "1"); } catch {}
+      markFromLanding();
     }
     if (status === "authenticated") return;
     e.preventDefault();
@@ -69,16 +69,11 @@ export function LandingPage({ className = "" }: LandingPageProps) {
     e: React.MouseEvent<HTMLElement>,
     mode: "signIn" | "register"
   ) => {
+    markFromLanding();
     if (status === "authenticated") {
-      if (mode === "register") {
-        // Navigating to dashboard from landing page — set animation flag
-        try { sessionStorage.setItem("phishguard-from-landing", "1"); } catch {}
-      }
       router.push(mode === "signIn" ? "/account" : "/dashboard");
       return;
     }
-    // After auth completes, user lands on /dashboard from landing page
-    try { sessionStorage.setItem("phishguard-from-landing", "1"); } catch {}
     openAuthDialog({
       mode,
       destination: "/dashboard",
@@ -239,7 +234,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
           </h1>
 
           <p className="mt-6 text-base sm:text-lg text-[var(--text-muted)] max-w-2xl mx-auto leading-relaxed">
-            An explainable AI-based email analysis experience powered by hybrid BERT contextual representations, Multi-Head Attention mapping, and 1D-CNN/Bi-GRU sequence models.
+            An explainable AI email security platform featuring 5-branch feature extraction, 836-dimensional feature fusion, a custom residual representation network built from scratch, and validation-calibrated decision thresholding.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -290,10 +285,10 @@ export function LandingPage({ className = "" }: LandingPageProps) {
                 <BrainCircuit className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">
-                Contextual Text Representation
+                Multi-Branch Feature Extraction
               </h3>
               <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                Utilizes BERT&rsquo;s deep contextual token embeddings combined with 1D-CNN local n-gram filters and Bi-GRU sequential modeling to detect evolving social engineering tactics.
+                Extracts 5 parallel feature streams from incoming emails: Text representations (768-d), Financial indicators (18-d), Security cues (19-d), URL/domain signals (20-d), and Email metadata (11-d).
               </p>
             </Card>
 
@@ -302,10 +297,10 @@ export function LandingPage({ className = "" }: LandingPageProps) {
                 <Eye className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">
-                Explainable Detection Insights
+                Custom Residual Representation
               </h3>
               <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                Provides Multi-Head Attention mapping and token importance scoring to reveal exactly which phrases, urgency cues, or credential requests triggered the security verdict.
+                Concatenates all 5 streams into an 836-d fused vector processed by a custom feature interaction network built from scratch—featuring residual skip connections without BERT, CNN, GRU, or attention.
               </p>
             </Card>
 
@@ -314,10 +309,10 @@ export function LandingPage({ className = "" }: LandingPageProps) {
                 <Layers className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">
-                Evaluation & Research Transparency
+                Calibrated Decision &amp; Explainability
               </h3>
               <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                Benchmark tracking across multiple datasets (Kaggle Phishing, Enron, Nazario) with rigorous validation splits and hyperparameter tuning via Mountain Gazelle Optimization.
+                Delivers high-precision verdicts using a validation-tuned threshold rule (P_phish &ge; T) coupled with three explainability pillars: feature ablation, rule-based text evidence, and human-readable reasoning.
               </p>
             </Card>
           </div>
@@ -383,35 +378,35 @@ export function LandingPage({ className = "" }: LandingPageProps) {
             Research Architecture
           </Badge>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)] mb-4">
-            Multi-Scale Neural Architecture Pipeline
+            Five-Branch Neural Architecture Pipeline
           </h2>
           <p className="text-sm text-[var(--text-muted)] leading-relaxed max-w-xl mx-auto mb-10">
-            A cohesive hybrid pipeline designed to combine transformer contextual semantics with convolution n-grams and recurrent sequence memory.
+            End-to-end architecture combining multi-modal feature extraction, 836-dimensional concatenation, custom residual learning, and validation-tuned threshold classification.
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-[var(--primary-accent)] block mb-1">Step 1</span>
-              <div className="font-bold text-sm text-[var(--text-primary)]">BERT Backbone</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">Contextual Token Embeddings</div>
+              <div className="font-bold text-sm text-[var(--text-primary)]">5 Feature Branches</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">Text, Finance, Security, URL, Meta</div>
             </div>
 
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-[var(--secondary-accent)] block mb-1">Step 2</span>
-              <div className="font-bold text-sm text-[var(--text-primary)]">Multi-Head Attention</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">Feature Relationships</div>
+              <div className="font-bold text-sm text-[var(--text-primary)]">Feature Fusion</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">Concatenation (836-d Vector)</div>
             </div>
 
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block mb-1">Step 3</span>
-              <div className="font-bold text-sm text-[var(--text-primary)]">1D-CNN + Bi-GRU</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">N-Gram & Sequence Modeling</div>
+              <div className="font-bold text-sm text-[var(--text-primary)]">Custom ResNet</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">Skip Connections &amp; LayerNorm</div>
             </div>
 
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 block mb-1">Step 4</span>
-              <div className="font-bold text-sm text-[var(--text-primary)]">Classifier Output</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">Tuned via MGO Optimizer</div>
+              <div className="font-bold text-sm text-[var(--text-primary)]">Decision Head</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">Validation Threshold (P &ge; T)</div>
             </div>
           </div>
         </div>

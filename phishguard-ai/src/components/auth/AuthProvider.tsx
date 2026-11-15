@@ -9,6 +9,7 @@ import {
 export interface AuthUser {
   name: string;
   email: string;
+  designation?: string;
 }
 
 interface StoredUser extends AuthUser {
@@ -76,6 +77,7 @@ function readUsers(): StoredUser[] {
     return {
       name: user.name,
       email: user.email,
+      designation: typeof (user as Record<string, unknown>).designation === "string" ? ((user as Record<string, unknown>).designation as string) : undefined,
       salt: user.salt,
       passwordHash: user.passwordHash,
     };
@@ -92,8 +94,22 @@ function refreshSnapshot() {
     if (user) {
       snapshot = {
         status: "authenticated",
-        user: { name: user.name, email: user.email },
+        user: { name: user.name, email: user.email, designation: user.designation },
       };
+      // Sync session to backend cookie
+      try {
+        fetch("/api/account/sync", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "sync",
+            email: user.email,
+            name: user.name,
+            salt: user.salt,
+            passwordHash: user.passwordHash,
+          }),
+        }).catch(() => {});
+      } catch {}
     } else {
       if (email) window.localStorage.removeItem(SESSION_KEY);
       snapshot = { status: "unauthenticated", user: null };
@@ -198,6 +214,21 @@ async function register(name: string, email: string, password: string) {
       user: { name: user.name, email: user.email },
     };
     notify();
+
+    // Sync to backend SQLite database
+    try {
+      fetch("/api/account/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "register",
+          name: user.name,
+          email: user.email,
+          salt: user.salt,
+          passwordHash: user.passwordHash,
+        }),
+      }).catch(() => {});
+    } catch {}
   } catch (error) {
     if (error instanceof Error && error.message.startsWith("An account")) throw error;
     throw new Error(error instanceof Error ? error.message : "Unable to create your account.");
@@ -224,6 +255,22 @@ async function signIn(email: string, password: string) {
       user: { name: user.name, email: user.email },
     };
     notify();
+
+    // Sync to backend SQLite database
+    try {
+      fetch("/api/account/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          name: user.name,
+          email: user.email,
+          salt: user.salt,
+          passwordHash: user.passwordHash,
+          password,
+        }),
+      }).catch(() => {});
+    } catch {}
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : "Unable to sign in.");
   }
@@ -233,6 +280,14 @@ function signOut() {
   try {
     lastManualSignOutAt = Date.now();
     window.localStorage.removeItem(SESSION_KEY);
+    try {
+      document.cookie = "phishguard_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
+      fetch("/api/account/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "logout" }),
+      }).catch(() => {});
+    } catch {}
     snapshot = { status: "unauthenticated", user: null };
     notify();
   } catch (error) {

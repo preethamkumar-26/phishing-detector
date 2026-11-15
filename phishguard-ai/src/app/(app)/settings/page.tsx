@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
-import { Sliders, Server, Bell, Shield, Save, Check } from "lucide-react";
+import { Sliders, Server, Bell, Save, Check } from "lucide-react";
 
 export default function SettingsPage() {
   const [threshold, setThreshold] = useState(0.65);
@@ -33,7 +33,7 @@ export default function SettingsPage() {
 
       <form onSubmit={handleSave} className="space-y-6">
         {/* Backend API Connection Card */}
-        <Card className="border-[var(--border-color)]">
+        <Card phase={1} className="border-[var(--border-color)]">
           <CardHeader className="p-5 pb-3">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Server className="w-4 h-4 text-[var(--primary-accent)]" />
@@ -63,7 +63,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Model Threshold & Sensitivity */}
-        <Card className="border-[var(--border-color)]">
+        <Card phase={2} className="border-[var(--border-color)]">
           <CardHeader className="p-5 pb-3">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Sliders className="w-4 h-4 text-[var(--primary-accent)]" />
@@ -100,7 +100,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Alert Notifications */}
-        <Card className="border-[var(--border-color)]">
+        <Card phase={3} className="border-[var(--border-color)]">
           <CardHeader className="p-5 pb-3">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Bell className="w-4 h-4 text-amber-600 dark:text-amber-400" />

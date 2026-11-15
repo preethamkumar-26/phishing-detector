@@ -1,7 +1,11 @@
 import React from "react";
 import { AppShell } from "@/components/layout/AppShell";
+import { KpiAnimationProvider } from "@/context/KpiAnimationContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  return <AppShell>{children}</AppShell>;
+  return (
+    <KpiAnimationProvider>
+      <AppShell>{children}</AppShell>
+    </KpiAnimationProvider>
+  );
 }
-

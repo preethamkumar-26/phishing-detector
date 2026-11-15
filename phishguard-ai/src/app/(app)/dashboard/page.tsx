@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { PageHeader } from "@/components/layout/PageHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
@@ -11,6 +11,8 @@ import { ProfileSummaryCard } from "@/components/layout/ProfileSummaryCard";
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
 import { Button } from "@/components/ui/Button";
 import { GlideSelect, GlideSelectOptionItem } from "@/components/ui/GlideSelect";
+import { useKpiAnimation } from "@/context/KpiAnimationContext";
+import { markDashboardAnimated } from "@/lib/navTracker";
 import {
   ScanSearch,
   Mail,
@@ -28,30 +30,15 @@ const DASHBOARD_DATE_OPTIONS: GlideSelectOptionItem[] = [
 
 export default function DashboardPage() {
   const [dateRange, setDateRange] = useState("Last 14 days");
+  const { shouldAnimateDashboard, markDashboardAnimated: markContextAnimated } = useKpiAnimation();
+  const [shouldAnimate] = useState(() => shouldAnimateDashboard());
 
-  // Only animate KPI count-up when arriving from the landing page
-  // Read sessionStorage in the lazy initializer to avoid setState-in-effect
-  const [shouldAnimate] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      const fromLanding = sessionStorage.getItem("phishguard-from-landing");
-      const lastPage = sessionStorage.getItem("phishguard-last-page");
-      const isFromLanding =
-        fromLanding === "1" ||
-        lastPage === "landing" ||
-        lastPage === "/" ||
-        lastPage === "/landing";
-
-      if (isFromLanding) {
-        sessionStorage.removeItem("phishguard-from-landing");
-        sessionStorage.setItem("phishguard-last-page", "/dashboard");
-        return true;
-      }
-    } catch {
-      // sessionStorage unavailable
+  useEffect(() => {
+    if (shouldAnimate) {
+      markContextAnimated();
+      markDashboardAnimated();
     }
-    return false;
-  });
+  }, [shouldAnimate, markContextAnimated]);
 
   return (
     <div className="space-y-6">

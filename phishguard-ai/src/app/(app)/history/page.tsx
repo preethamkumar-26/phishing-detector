@@ -114,7 +114,7 @@ function HistoryContent() {
       </PageHeader>
 
       {/* Search and Filters Bar */}
-      <Card className="border-[var(--border-color)] p-4 bg-[var(--bg-surface)] overflow-visible relative z-10">
+      <Card phase={1} className="border-[var(--border-color)] p-4 bg-[var(--bg-surface)] overflow-visible relative z-10">
         <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
           {/* Search Field */}
           <div className="relative flex-1 max-w-md">
@@ -168,7 +168,7 @@ function HistoryContent() {
       </Card>
 
       {/* Main Scans Table */}
-      <Card className="border-[var(--border-color)]">
+      <Card phase={2} className="border-[var(--border-color)]">
         <CardContent className="p-0">
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">

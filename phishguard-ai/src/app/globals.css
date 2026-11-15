@@ -69,7 +69,6 @@
     color: var(--text-primary);
     font-family: var(--font-geist-sans), system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
     overflow-x: hidden;
-    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   ::selection {
@@ -91,6 +90,53 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: var(--secondary-accent);
+  }
+}
+
+/* Smooth Enhanced Theme Transition (550ms cubic-bezier) */
+html.theme-transitioning,
+html.theme-transitioning *,
+html.theme-transitioning *::before,
+html.theme-transitioning *::after {
+  transition: 
+    background-color 550ms cubic-bezier(0.25, 1, 0.5, 1),
+    border-color 550ms cubic-bezier(0.25, 1, 0.5, 1),
+    color 450ms cubic-bezier(0.25, 1, 0.5, 1),
+    fill 450ms cubic-bezier(0.25, 1, 0.5, 1),
+    stroke 450ms cubic-bezier(0.25, 1, 0.5, 1),
+    box-shadow 550ms cubic-bezier(0.25, 1, 0.5, 1),
+    backdrop-filter 550ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+  transition-delay: 0s !important;
+}
+
+@keyframes themeAmbientBloom {
+  0% {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  30% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.02);
+  }
+}
+
+.theme-ambient-wave {
+  animation: themeAmbientBloom 650ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.theme-transitioning,
+  html.theme-transitioning *,
+  html.theme-transitioning *::before,
+  html.theme-transitioning *::after {
+    transition: none !important;
+  }
+  .theme-ambient-wave {
+    display: none !important;
   }
 }
 
@@ -393,5 +439,108 @@
     opacity: 0.4 !important;
   }
 }
+
+/* ==========================================================================
+   PhishGuard AI — Multicolor Radiant Border System
+   Specification: PHISHGUARD_MULTICOLOR_RADIANT_BORDER_IMPLEMENTATION_SPEC.md
+   ========================================================================== */
+
+@property --pg-radiant-angle {
+  syntax: "<angle>";
+  inherits: false;
+  initial-value: 0deg;
+}
+
+@keyframes pg-radiant-orbit {
+  0% {
+    --pg-radiant-angle: 0deg;
+  }
+  100% {
+    --pg-radiant-angle: 360deg;
+  }
+}
+
+.pg-radiant-surface {
+  --pg-radiant-border-width: 1.75px;
+  --pg-radiant-duration: 14s;
+  --pg-radiant-delay: 0s;
+  --pg-radiant-spectrum: conic-gradient(
+    from var(--pg-radiant-angle, 0deg),
+    #22d3ee 0%,
+    #2f80ff 14.3%,
+    #8b5cf6 28.6%,
+    #d946ef 42.9%,
+    #fb7185 57.1%,
+    #fb923c 71.4%,
+    #14b8a6 85.7%,
+    #22d3ee 100%
+  );
+  position: relative !important;
+  isolation: isolate;
+  background-color: var(--bg-surface) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Continuous perimeter glowing mixtured line (clean, no outer shadow/blur) */
+.pg-radiant-surface::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  border-radius: inherit;
+  z-index: 2;
+  inset: calc(-1 * var(--pg-radiant-border-width));
+  padding: var(--pg-radiant-border-width);
+  background: var(--pg-radiant-spectrum);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: pg-radiant-orbit var(--pg-radiant-duration) linear infinite;
+  animation-delay: var(--pg-radiant-delay);
+  transition: filter 250ms ease;
+}
+
+/* Hover and focus-within: slight luminous brightness on the line itself */
+.pg-radiant-surface:hover::before,
+.pg-radiant-surface:focus-within::before {
+  filter: brightness(1.22);
+}
+
+/* Variant: Subtle (for independently surfaced nested containers) */
+.pg-radiant-subtle {
+  --pg-radiant-border-width: 1.25px;
+  --pg-radiant-duration: 18s;
+}
+
+/* Variant: Static (pins angle to 45deg, no continuous orbit) */
+.pg-radiant-static::before {
+  animation: none !important;
+  --pg-radiant-angle: 45deg !important;
+}
+
+/* Phase Offsets (1 through 6) - Explicit Classes */
+.pg-radiant-surface.pg-radiant-phase-1 { --pg-radiant-delay: 0s; }
+.pg-radiant-surface.pg-radiant-phase-2 { --pg-radiant-delay: -2.33s; }
+.pg-radiant-surface.pg-radiant-phase-3 { --pg-radiant-delay: -4.66s; }
+.pg-radiant-surface.pg-radiant-phase-4 { --pg-radiant-delay: -7s; }
+.pg-radiant-surface.pg-radiant-phase-5 { --pg-radiant-delay: -9.33s; }
+.pg-radiant-surface.pg-radiant-phase-6 { --pg-radiant-delay: -11.66s; }
+
+/* Automatic Phase Staggering for Sibling Containers */
+.pg-radiant-surface:nth-of-type(6n + 1) { --pg-radiant-delay: 0s; }
+.pg-radiant-surface:nth-of-type(6n + 2) { --pg-radiant-delay: -2.33s; }
+.pg-radiant-surface:nth-of-type(6n + 3) { --pg-radiant-delay: -4.66s; }
+.pg-radiant-surface:nth-of-type(6n + 4) { --pg-radiant-delay: -7s; }
+.pg-radiant-surface:nth-of-type(6n + 5) { --pg-radiant-delay: -9.33s; }
+.pg-radiant-surface:nth-of-type(6n + 6) { --pg-radiant-delay: -11.66s; }
+
+/* Accessibility: prefers-reduced-motion: reduce */
+@media (prefers-reduced-motion: reduce) {
+  .pg-radiant-surface::before {
+    animation: none !important;
+    --pg-radiant-angle: 45deg !important;
+  }
+}
+
 
 

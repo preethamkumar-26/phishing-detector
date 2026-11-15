@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 
 export interface CountUpNumberProps {
   value: number | string;
@@ -18,15 +18,6 @@ function easeOutCubic(t: number): number {
   return 1 - Math.pow(1 - t, 3);
 }
 
-function createFormatter(decimals: number, suffix: string): (val: number) => string {
-  return (val: number) => {
-    const fixed = decimals > 0
-      ? val.toFixed(decimals)
-      : Math.round(val).toLocaleString("en-US");
-    return `${fixed}${suffix}`;
-  };
-}
-
 export function CountUpNumber({
   value,
   duration = 1050,
@@ -36,7 +27,15 @@ export function CountUpNumber({
   suffix = "",
   formatter,
 }: CountUpNumberProps) {
-  const resolvedFormatter = formatter ?? createFormatter(decimals, suffix);
+  const formatFn = useMemo(() => {
+    if (formatter) return formatter;
+    return (val: number) => {
+      const fixed = decimals > 0
+        ? val.toFixed(decimals)
+        : Math.round(val).toLocaleString("en-US");
+      return `${fixed}${suffix}`;
+    };
+  }, [formatter, decimals, suffix]);
 
   const target = typeof value === "number"
     ? value
@@ -47,13 +46,10 @@ export function CountUpNumber({
   const [displayValue, setDisplayValue] = useState<string>(() => {
     if (!isNumeric) return String(value);
     if (typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return resolvedFormatter(target);
+      return formatFn(target);
     }
-    return `${decimals > 0 ? (0).toFixed(decimals) : "0"}${suffix}`;
+    return formatFn(0);
   });
-
-  const prevTargetRef = useRef(target);
-  const isFirstMountRef = useRef(true);
 
   useEffect(() => {
     if (!isNumeric) return;
@@ -62,13 +58,11 @@ export function CountUpNumber({
       return;
     }
 
-    const startValue = isFirstMountRef.current ? 0 : prevTargetRef.current;
-    isFirstMountRef.current = false;
-    prevTargetRef.current = target;
-
     let rafId: number;
     let timeoutId: ReturnType<typeof setTimeout>;
     let startTime: number | null = null;
+    const startValue = 0;
+    const endValue = target;
 
     const runAnimation = () => {
       const step = (now: number) => {
@@ -76,14 +70,14 @@ export function CountUpNumber({
         const elapsed = now - startTime;
         const progress = Math.min(1, elapsed / duration);
         const easedProgress = easeOutCubic(progress);
-        const current = startValue + (target - startValue) * easedProgress;
+        const current = startValue + (endValue - startValue) * easedProgress;
 
-        setDisplayValue(resolvedFormatter(current));
+        setDisplayValue(formatFn(current));
 
         if (progress < 1) {
           rafId = requestAnimationFrame(step);
         } else {
-          setDisplayValue(resolvedFormatter(target));
+          setDisplayValue(formatFn(endValue));
         }
       };
       rafId = requestAnimationFrame(step);
@@ -99,7 +93,7 @@ export function CountUpNumber({
       if (timeoutId) clearTimeout(timeoutId);
       if (rafId) cancelAnimationFrame(rafId);
     };
-  }, [target, isNumeric, duration, delay, resolvedFormatter]);
+  }, [target, isNumeric, duration, delay, formatFn]);
 
   if (!isNumeric) {
     return <span className={className}>{value}</span>;

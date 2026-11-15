@@ -7,6 +7,7 @@ import { useAuthGate } from "@/components/auth/AuthGateProvider";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { TopBar } from "@/components/layout/TopBar";
 import { isAllowedInternalRoute } from "@/lib/authGate";
+import { recordPathTransition } from "@/lib/navTracker";
 import { cn } from "@/lib/utils";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -17,11 +18,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [sidebarPinned, setSidebarPinned] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
-  // Auto-collapse sidebar on tablet screens (< 1024px)
   useEffect(() => {
-    try {
-      sessionStorage.setItem("phishguard-last-page", pathname);
-    } catch {}
+    recordPathTransition(pathname);
   }, [pathname]);
 
   useEffect(() => {

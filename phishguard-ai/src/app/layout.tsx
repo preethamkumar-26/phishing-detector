@@ -17,7 +17,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "PhishGuard AI — Explainable AI Phishing Email Detection",
-  description: "Advanced explainable AI-based email security analysis platform using hybrid BERT, Multi-Head Attention, and 1D-CNN / Bi-GRU sequence architecture.",
+  description: "Advanced explainable AI email security platform featuring 5-branch feature fusion (836-d), custom residual representation network, and validation-calibrated threshold decision.",
 };
 
 export default function RootLayout({

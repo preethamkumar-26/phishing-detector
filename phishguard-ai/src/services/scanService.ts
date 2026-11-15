@@ -31,7 +31,6 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<ScanResult
   await new Promise((resolve) => setTimeout(resolve, 650));
 
   const textToScan = `${input.subject || ""} ${input.body}`.trim();
-  const lower = textToScan.toLowerCase();
 
   const evidence: EvidenceItem[] = [];
 
@@ -70,7 +69,7 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<ScanResult
     confidence,
     summary,
     evidence,
-    modelVersion: "BERT-MHA-CNN-GRU-Demo-v0.1",
+    modelVersion: "PhishGuard-5BF-ResNet-Demo-v1.0",
     processingTimeMs,
     isDemo: true,
     timestamp: new Date().toISOString(),
@@ -93,7 +92,7 @@ export function saveScanToHistory(result: ScanResult): ScanRecord {
     prediction: result.prediction,
     confidence: result.confidence || 95.0,
     timestamp: result.timestamp || new Date().toISOString(),
-    modelVersion: result.modelVersion || "BERT-MHA-CNN-GRU-Demo-v0.1",
+    modelVersion: result.modelVersion || "PhishGuard-5BF-ResNet-Demo-v1.0",
     isDemo: true,
     bodySnippet: result.body?.slice(0, 120) || "",
     evidenceCount: result.evidence.length,
@@ -102,6 +101,25 @@ export function saveScanToHistory(result: ScanResult): ScanRecord {
 
   // Prepend to session history
   sessionScans = [record, ...sessionScans];
+
+  // Async record scan in backend account activity
+  try {
+    const userEmail = typeof window !== "undefined" ? window.localStorage.getItem("phishguard-session") : null;
+    fetch("/api/account/scan", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(userEmail ? { "x-user-email": userEmail } : {}),
+      },
+      body: JSON.stringify({
+        scanId: result.scanId,
+        subject: result.subject,
+        prediction: result.prediction,
+        confidence: result.confidence,
+      }),
+    }).catch(() => {});
+  } catch {}
+
   return record;
 }
 

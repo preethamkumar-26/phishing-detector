@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React from "react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import {
   ResponsiveContainer,
@@ -13,14 +13,13 @@ import {
 } from "recharts";
 import { DEMO_SCAN_ACTIVITY } from "@/data/demo-data";
 
+const emptySubscribe = () => () => {};
+
 export function ScanActivityChart() {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const mounted = React.useSyncExternalStore(emptySubscribe, () => true, () => false);
 
   return (
-    <Card className="h-full flex flex-col border-[var(--border-color)]">
+    <Card phase={3} className="h-full flex flex-col border-[var(--border-color)]">
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <div>

@@ -68,7 +68,7 @@ export function AnalysisResultsPanel({
   };
 
   return (
-    <Card className="h-full flex flex-col border-[var(--border-color)]">
+    <Card phase={2} className="h-full flex flex-col border-[var(--border-color)]">
       <CardHeader className="pb-3 border-b border-[var(--border-color)]">
         <div className="flex items-center justify-between">
           <div>
@@ -79,7 +79,7 @@ export function AnalysisResultsPanel({
               </span>
             </CardTitle>
             <CardDescription>
-              Hybrid BERT + Attention + CNN/GRU classification verdicts
+              Multi-branch feature fusion &amp; custom residual network verdicts
             </CardDescription>
           </div>
           {result && (
@@ -187,7 +187,7 @@ export function AnalysisResultsPanel({
             <div className="pt-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] bg-[var(--bg-elevated)] px-3 py-1.5 rounded-xl border border-[var(--border-color)]">
                 <Layers className="w-3.5 h-3.5 text-[var(--primary-accent)]" />
-                BERT + Attention + CNN/GRU Pipeline Ready
+                5-Branch Feature Fusion Pipeline Ready
               </span>
             </div>
           </div>

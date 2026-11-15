@@ -1,15 +1,38 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 
+export type RadiantVariant = "standard" | "subtle" | "static" | "none" | boolean;
+
+export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  radiant?: RadiantVariant;
+  phase?: 1 | 2 | 3 | 4 | 5 | 6;
+}
+
 export function Card({
   className,
   children,
+  radiant = "standard",
+  phase,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) {
+}: CardProps) {
+  const isRadiant = radiant !== "none" && radiant !== false;
+  const radiantVariantClass =
+    radiant === "subtle"
+      ? "pg-radiant-surface pg-radiant-subtle"
+      : radiant === "static"
+      ? "pg-radiant-surface pg-radiant-static"
+      : isRadiant
+      ? "pg-radiant-surface"
+      : "";
+
+  const phaseClass = phase ? `pg-radiant-phase-${phase}` : "";
+
   return (
     <div
       className={cn(
-        "rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[box-shadow,border-color] duration-150 overflow-hidden",
+        "rounded-xl border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-[var(--shadow-card)] transition-[box-shadow,border-color] duration-150",
+        radiantVariantClass,
+        phaseClass,
         className
       )}
       {...props}
@@ -26,7 +49,7 @@ export function CardHeader({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("p-6 border-b border-[var(--border-color)]/70 flex flex-col space-y-2", className)}
+      className={cn("p-6 border-b border-[var(--border-color)]/70 flex flex-col space-y-2 rounded-t-xl", className)}
       {...props}
     >
       {children}
@@ -80,10 +103,11 @@ export function CardFooter({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("p-4 border-t border-[var(--border-color)]/70 bg-[var(--bg-elevated)]/40 flex items-center", className)}
+      className={cn("p-4 border-t border-[var(--border-color)]/70 bg-[var(--bg-elevated)]/40 flex items-center rounded-b-xl", className)}
       {...props}
     >
       {children}
     </div>
   );
 }
+

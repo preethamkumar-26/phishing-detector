@@ -1,6 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 import { X } from "lucide-react";
 
@@ -194,7 +195,7 @@ export function Dialog({
 
   const state = open ? "open" : "closed";
 
-  return (
+  const dialogDom = (
     <DialogContext.Provider value={{ titleId, descriptionId, requestClose }}>
       <div
         className={cn(
@@ -231,6 +232,9 @@ export function Dialog({
       </div>
     </DialogContext.Provider>
   );
+
+  if (typeof document === "undefined") return null;
+  return createPortal(dialogDom, document.body);
 }
 
 export function DialogHeader({ className, children }: React.HTMLAttributes<HTMLDivElement>) {

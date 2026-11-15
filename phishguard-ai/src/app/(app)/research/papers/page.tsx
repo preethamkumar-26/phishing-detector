@@ -6,11 +6,11 @@ export default function PapersPage() {
     <ComingSoonPage
       title="Research Papers & Publications"
       category="Academic Research"
-      description="Preprints, technical reports, and experimental summaries detailing the development and validation of the BERT-MHA-CNN-GRU framework."
+      description="Preprints, technical reports, and experimental summaries detailing the development, baseline benchmarking, and validation of the PhishGuard AI neural framework."
       plannedFeatures={[
-        "Synthesis Report: Critical assessment of the base BERT-CNN-GRU-MGO architecture",
+        "Synthesis Report: Comparative evaluation of baseline BERT-CNN-GRU vs. the final 5-branch feature fusion architecture",
         "Preprint: Cross-dataset generalization failures in monolithic transformer filters",
-        "Technical Brief: Interpretability faithfulness in multi-head attention phishing models",
+        "Technical Brief: Interpretability faithfulness in multi-modal feature attribution and rule-based explanations",
         "Open-access PDF downloads and LaTeX replication packages",
       ]}
     />

@@ -17,4 +17,7 @@ node_modules/
 .next/
 dist/
 out/
+.data/
+*.db
+*.db-journal
 

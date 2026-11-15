@@ -10,7 +10,7 @@ import { DEMO_EXPLAINABILITY_SAMPLE } from "@/data/demo-data";
 import { Info } from "lucide-react";
 
 export default function ExplainabilityPage() {
-  const [method, setMethod] = useState<"attention" | "shap" | "lime">("attention");
+  const [method, setMethod] = useState<"tokens" | "shap" | "lime">("tokens");
   const [selectedToken, setSelectedToken] = useState<string | null>("Re-authenticate");
 
   return (
@@ -28,12 +28,12 @@ export default function ExplainabilityPage() {
         {/* Explanation Method Selector via RubberSegment */}
         <RubberSegment
           items={[
-            { value: "attention", label: "Multi-Head Attention" },
+            { value: "tokens", label: "Rule & Token Evidence" },
             { value: "shap", label: "SHAP Attribution" },
             { value: "lime", label: "LIME Local" },
           ]}
           value={method}
-          onChange={(val) => setMethod(val as "attention" | "shap" | "lime")}
+          onChange={(val) => setMethod(val as "tokens" | "shap" | "lime")}
           size="sm"
           radius={10}
           ariaLabel="Select explanation method"
@@ -44,7 +44,7 @@ export default function ExplainabilityPage() {
         {/* Left 8 Cols: Token Heatmap & Feature Ranking */}
         <div className="lg:col-span-8 space-y-6">
           {/* Interactive Token Heatmap Panel */}
-          <Card className="border-[var(--border-color)]">
+          <Card phase={1} className="border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div>
@@ -117,7 +117,7 @@ export default function ExplainabilityPage() {
           </Card>
 
           {/* Top Contributing Phrases Table */}
-          <Card className="border-[var(--border-color)]">
+          <Card phase={2} className="border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <CardTitle className="text-base font-bold">
                 Ranked Feature Attributions
@@ -167,7 +167,7 @@ export default function ExplainabilityPage() {
         {/* Right 4 Cols: Prediction Summary & Limitations Disclaimer */}
         <div className="lg:col-span-4 space-y-6">
           {/* Verdict Summary Card */}
-          <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]">
+          <Card phase={3} className="border-[var(--border-color)] bg-[var(--bg-surface)]">
             <CardHeader className="p-5 pb-3 border-b border-[var(--border-color)]">
               <CardTitle className="text-sm font-bold">Inference Summary</CardTitle>
             </CardHeader>
@@ -193,11 +193,11 @@ export default function ExplainabilityPage() {
               <div className="pt-3 border-t border-[var(--border-color)] space-y-2 text-[var(--text-muted)]">
                 <div className="flex justify-between">
                   <span>Explainer Model:</span>
-                  <span className="text-[var(--text-primary)] font-medium">Integrated Gradients + MHA</span>
+                  <span className="text-[var(--text-primary)] font-medium">Multi-Branch Feature Attribution</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Baseline Target:</span>
-                  <span className="text-[var(--text-primary)] font-medium">Legitimate Corpus Mean</span>
+                  <span className="text-[var(--text-primary)] font-medium">Legitimate Corpus Baseline</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Tokens Evaluated:</span>
@@ -208,17 +208,17 @@ export default function ExplainabilityPage() {
           </Card>
 
           {/* Research Faithfulness Note */}
-          <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]/80">
+          <Card phase={4} className="border-[var(--border-color)] bg-[var(--bg-surface)]/80">
             <CardContent className="p-5 space-y-3 text-xs leading-relaxed text-[var(--text-muted)]">
               <div className="flex items-center gap-2 font-bold text-[var(--text-primary)]">
                 <Info className="w-4 h-4 text-[var(--primary-accent)]" />
                 Scientific Faithfulness Note
               </div>
               <p>
-                In empirical NLP literature, raw attention weights do not always correspond to causal model rationales. Attention maps reveal internal routing rather than guaranteed counterfactual necessity.
+                PhishGuard AI combines structured feature ablation across 5 branches (text, financial, security, URL, and metadata) with rule-based pattern matching and token importance scoring for transparent, multi-level interpretability.
               </p>
               <p className="text-[11px] text-[var(--text-muted)]/80">
-                Future project phases will include systematic erasure tests and SHAP perturbation checks to validate explanation fidelity.
+                Systematic feature group erasure tests and SHAP perturbation checks validate that high-attribution cues align with genuine security indicators rather than superficial lexical correlations.
               </p>
             </CardContent>
           </Card>

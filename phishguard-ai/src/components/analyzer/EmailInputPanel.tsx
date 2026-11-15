@@ -115,7 +115,7 @@ export function EmailInputPanel({
   const charCount = body.length;
 
   return (
-    <Card className="h-full flex flex-col border-[var(--border-color)]">
+    <Card phase={1} className="h-full flex flex-col border-[var(--border-color)]">
       <CardHeader className="pb-3 border-b border-[var(--border-color)]">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div>

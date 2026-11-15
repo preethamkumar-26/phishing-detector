@@ -31,7 +31,7 @@ export function ComingSoonPage({
         variant="banner"
       />
 
-      <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]/80 backdrop-blur-sm p-8 text-center relative overflow-hidden">
+      <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]/80 backdrop-blur-sm p-8 text-center relative">
         {/* Subtle glow */}
         <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-96 h-48 bg-[var(--primary-accent)]/10 blur-3xl pointer-events-none rounded-full" />
 

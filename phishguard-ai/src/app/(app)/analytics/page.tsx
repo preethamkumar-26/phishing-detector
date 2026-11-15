@@ -5,12 +5,13 @@ import { PageHeader } from "@/components/layout/PageHeader";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
 import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
 import { StatCard } from "@/components/dashboard/StatCard";
+import { useKpiAnimation } from "@/context/KpiAnimationContext";
+import { markModelEvaluationAnimated } from "@/lib/navTracker";
 import {
   DEMO_RESEARCH_METRICS,
   DEMO_CONFUSION_MATRIX,
   DEMO_MODEL_COMPARISON,
   DEMO_LOSS_CURVES,
-  DEMO_ROC_CURVE,
 } from "@/data/demo-data";
 import {
   ResponsiveContainer,
@@ -26,37 +27,22 @@ import {
   CheckCircle2,
   TrendingUp,
   Cpu,
-  Layers,
   Database,
-  Sliders,
-  Sparkles,
-  Info,
   Zap,
-  HardDrive,
 } from "lucide-react";
 
 export default function AnalyticsPage() {
   const [mounted, setMounted] = useState(false);
-
-  // Animate KPI count-up only on the FIRST visit to this page per session
-  // Read sessionStorage in the lazy initializer to avoid setState-in-effect
-  const [shouldAnimate] = useState(() => {
-    if (typeof window === "undefined") return false;
-    try {
-      const alreadyVisited = sessionStorage.getItem("phishguard-analytics-animated");
-      if (!alreadyVisited) {
-        sessionStorage.setItem("phishguard-analytics-animated", "1");
-        return true;
-      }
-    } catch {
-      // sessionStorage unavailable
-    }
-    return false;
-  });
+  const { shouldAnimateModelEvaluation, markModelEvaluationAnimated: markContextAnimated } = useKpiAnimation();
+  const [shouldAnimate] = useState(() => shouldAnimateModelEvaluation());
 
   useEffect(() => {
     setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect -- hydration guard: must start false on server, true after mount
-  }, []);
+    if (shouldAnimate) {
+      markContextAnimated();
+      markModelEvaluationAnimated();
+    }
+  }, [shouldAnimate, markContextAnimated]);
 
   const cm = DEMO_CONFUSION_MATRIX;
   const totalCM = cm.truePositive + cm.falsePositive + cm.trueNegative + cm.falseNegative;
@@ -73,7 +59,7 @@ export default function AnalyticsPage() {
         description="Comprehensive evaluation metrics, ROC-AUC trajectories, loss curves, and comparative architecture benchmarks."
       >
         <span className="text-xs bg-[var(--bg-elevated)] text-[var(--text-muted)] px-3 py-1.5 rounded-xl border border-[var(--border-color)] font-mono">
-          Optimizer: Mountain Gazelle (MGO)
+          Architecture: 5-Branch Fusion (836-d) + Custom ResNet
         </span>
       </PageHeader>
 
@@ -141,7 +127,7 @@ export default function AnalyticsPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Confusion Matrix Interactive Visual Widget */}
         <div className="lg:col-span-5">
-          <Card className="h-full border-[var(--border-color)]">
+          <Card phase={5} className="h-full border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <CardTitle className="text-base font-bold flex items-center justify-between">
                 <span>Confusion Matrix (Test Split)</span>
@@ -228,7 +214,7 @@ export default function AnalyticsPage() {
 
         {/* Training & Validation Loss Chart */}
         <div className="lg:col-span-7">
-          <Card className="h-full border-[var(--border-color)]">
+          <Card phase={6} className="h-full border-[var(--border-color)]">
             <CardHeader className="p-5 pb-3">
               <div className="flex items-center justify-between">
                 <div>
@@ -298,13 +284,13 @@ export default function AnalyticsPage() {
       </div>
 
       {/* Model Comparison Table */}
-      <Card className="border-[var(--border-color)]">
+      <Card phase={1} className="border-[var(--border-color)]">
         <CardHeader className="p-5 pb-3">
           <CardTitle className="text-base font-bold">
-            Architecture Comparison & Ablation Study
+            Architecture Comparison & Baseline Ablation
           </CardTitle>
           <CardDescription>
-            Performance baseline models vs. proposed BERT + Attention + CNN/GRU hybrid
+            Performance baseline models vs. PhishGuard AI 5-Branch Feature Fusion & Custom Residual Network
           </CardDescription>
         </CardHeader>
         <CardContent className="p-0">
@@ -361,7 +347,7 @@ export default function AnalyticsPage() {
       </Card>
 
       {/* Dataset & Experiment Metadata Card */}
-      <Card className="border-[var(--border-color)] bg-[var(--bg-surface)]/60">
+      <Card phase={2} className="border-[var(--border-color)] bg-[var(--bg-surface)]/60">
         <CardHeader className="p-5 pb-3 border-b border-[var(--border-color)]">
           <CardTitle className="text-sm font-bold flex items-center gap-2">
             <Database className="w-4 h-4 text-[var(--primary-accent)]" />
@@ -395,7 +381,7 @@ export default function AnalyticsPage() {
               </span>
             </div>
             <div>
-              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Base Transformer</span>
+              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Feature Backbone</span>
               <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
                 {DEMO_RESEARCH_METRICS.backbone}
               </span>
