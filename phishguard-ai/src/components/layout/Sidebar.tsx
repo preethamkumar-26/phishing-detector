@@ -245,7 +245,7 @@ export function Sidebar({
           {isMobile && (
             <button
               onClick={onCloseMobile}
-              className="p-2 rounded-xl text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+              className="p-2 rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
               aria-label="Close navigation drawer"
             >
               <X className="w-5 h-5" />
@@ -256,7 +256,7 @@ export function Sidebar({
           {!isMobile && onTogglePin && isExpanded && (
             <button
               onClick={onTogglePin}
-              className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
+              className="p-1.5 rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] transition-colors"
               title={effectivePinned ? "Unpin sidebar (auto-collapse)" : "Pin sidebar expanded"}
               aria-label={effectivePinned ? "Unpin sidebar" : "Pin sidebar"}
             >

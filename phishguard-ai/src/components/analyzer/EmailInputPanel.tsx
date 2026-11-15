@@ -229,7 +229,7 @@ export function EmailInputPanel({
                   onChange={handleFileInputChange}
                   className="hidden"
                 />
-                <span className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated-hover)] text-[var(--text-primary)] border border-[var(--border-color)] transition-colors">
+                <span className="inline-flex items-center gap-2 px-4.5 py-2 text-xs font-semibold rounded-full bg-[var(--bg-elevated)] hover:bg-[var(--bg-elevated-hover)] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--primary-accent)]/45 hover:-translate-y-px shadow-xs transition-all">
                   <UploadCloud className="w-4 h-4" />
                   Browse Files
                 </span>

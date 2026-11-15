@@ -288,7 +288,7 @@ export function DialogClose({
       onClick={handleClick}
       disabled={disabled}
       className={cn(
-        "p-1.5 rounded-lg text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] disabled:opacity-50 transition-colors",
+        "p-1.5 rounded-full text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-[var(--bg-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] disabled:opacity-50 transition-colors",
         className
       )}
       aria-label="Close dialog"

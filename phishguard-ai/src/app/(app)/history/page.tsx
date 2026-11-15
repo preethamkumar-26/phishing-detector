@@ -235,7 +235,7 @@ function HistoryContent() {
                           </Button>
                           <button
                             onClick={() => handleDelete(scan.id)}
-                            className="p-1.5 rounded-lg text-[var(--text-muted)] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                            className="p-1.5 rounded-full text-[var(--text-muted)] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors"
                             title="Delete demo scan record"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
