@@ -1,7 +1,7 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/Card";
 import { cn } from "@/lib/utils";
-import { AlertCircle } from "lucide-react";
+import { CountUpNumber } from "@/components/ui/CountUpNumber";
 
 interface StatCardProps {
   title: string;
@@ -12,6 +12,8 @@ interface StatCardProps {
   iconBg?: string;
   trend?: string;
   isPositive?: boolean;
+  animateCount?: boolean;
+  staggerIndex?: number;
 }
 
 export function StatCard({
@@ -23,6 +25,8 @@ export function StatCard({
   iconBg = "bg-blue-500/10 border-blue-500/20",
   trend,
   isPositive,
+  animateCount = false,
+  staggerIndex = 0,
 }: StatCardProps) {
   return (
     <Card className="relative overflow-hidden border-[var(--border-color)] hover:border-[var(--primary-accent)]/50 transition-colors">
@@ -38,7 +42,15 @@ export function StatCard({
               </span>
             </div>
             <div className="text-2xl font-bold font-mono tabular-nums text-[var(--text-primary)] tracking-tight">
-              {value}
+              {animateCount ? (
+                <CountUpNumber
+                  value={value}
+                  delay={staggerIndex * 80}
+                  duration={1050}
+                />
+              ) : (
+                value
+              )}
             </div>
           </div>
           <div

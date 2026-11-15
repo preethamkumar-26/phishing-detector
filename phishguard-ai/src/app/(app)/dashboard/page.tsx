@@ -80,6 +80,8 @@ export default function DashboardPage() {
               iconBg="bg-blue-500/10 border-blue-500/20"
               trend="+12% this week"
               isPositive={true}
+              animateCount={true}
+              staggerIndex={0}
             />
             <StatCard
               title="Phishing Detected"
@@ -89,6 +91,8 @@ export default function DashboardPage() {
               iconColor="text-red-400"
               iconBg="bg-red-500/10 border-red-500/20"
               trend="26.9% threat rate"
+              animateCount={true}
+              staggerIndex={1}
             />
             <StatCard
               title="Safe Emails"
@@ -99,6 +103,8 @@ export default function DashboardPage() {
               iconBg="bg-emerald-500/10 border-emerald-500/20"
               trend="68.1% of traffic"
               isPositive={true}
+              animateCount={true}
+              staggerIndex={2}
             />
             <StatCard
               title="Needs Review"
@@ -108,6 +114,8 @@ export default function DashboardPage() {
               iconColor="text-amber-400"
               iconBg="bg-amber-500/10 border-amber-500/20"
               trend="5.0% queue"
+              animateCount={true}
+              staggerIndex={3}
             />
           </div>
 
