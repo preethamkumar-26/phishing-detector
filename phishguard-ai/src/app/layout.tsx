@@ -1,23 +1,25 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import { AuthProvider } from "@/components/auth/AuthProvider";
-import { AuthGateProvider } from "@/components/auth/AuthGateProvider";
-import { ThemeProvider } from "@/components/theme/ThemeProvider";
+import { Outfit, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const outfit = Outfit({
   subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-outfit",
+  display: "swap",
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-jetbrains-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "PhishGuard AI — Explainable AI Phishing Email Detection",
-  description: "Advanced explainable AI email security platform featuring 5-branch feature fusion (836-d), custom residual representation network, and validation-calibrated threshold decision.",
+  title: "PhishGuard AI — Email Threat Analysis",
+  description:
+    "Restrained editorial/technical security console for email threat analysis featuring structured 5-branch feature extraction and validation-calibrated threshold decision.",
 };
 
 export default function RootLayout({
@@ -26,26 +28,12 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className="dark h-full" suppressHydrationWarning>
+    <html lang="en" className={`${outfit.variable} ${jetbrainsMono.variable}`}>
       <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `try {
-  const savedTheme = localStorage.getItem("phishguard-theme");
-  document.documentElement.classList.toggle("dark", savedTheme !== "light");
-} catch {
-  document.documentElement.classList.add("dark");
-}`,
-          }}
-        />
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
       </head>
-      <body className={`${geistSans.variable} ${geistMono.variable} min-h-full antialiased`}>
-        <ThemeProvider>
-          <AuthProvider>
-            <AuthGateProvider>{children}</AuthGateProvider>
-          </AuthProvider>
-        </ThemeProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }

@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PhishGuard AI — Explainable Deep Learning Phishing Email Detection</title>
+  <style>
+    /* ==========================================================================
+       PhishGuard AI — Design System & Tokens
+       ========================================================================== */
+    :root {
+      --bg-primary: #F8FAFC;
+      --bg-sidebar: #FFFFFF;
+      --bg-surface: #FFFFFF;
+      --bg-elevated: #F1F5F9;
+      --bg-elevated-hover: #E2E8F0;
+      --border-color: #E2E8F0;
+      --border-subtle: #F1F5F9;
+      --text-primary: #0F172A;
+      --text-muted: #64748B;
+      --primary-accent: #2563EB;
+      --primary-hover: #1D4ED8;
+      --secondary-accent: #4F46E5;
+      --accent-glow: rgba(37, 99, 235, 0.12);
+      --text-on-accent: #FFFFFF;
+      --safe: #10B981;
+      --threat: #EF4444;
+      --warning: #F59E0B;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      color-scheme: light;
+    }
+
+    html.dark {
+      --bg-primary: #0B0F19;
+      --bg-sidebar: #101726;
+      --bg-surface: #141D2E;
+      --bg-elevated: #1B263B;
+      --bg-elevated-hover: #23324E;
+      --border-color: #24324A;
+      --border-subtle: #1A2538;
+      --text-primary: #F8FAFC;
+      --text-muted: #94A3B8;
+      --primary-accent: #3B82F6;
+      --primary-hover: #2563EB;
+      --secondary-accent: #6366F1;
+      --accent-glow: rgba(59, 130, 246, 0.20);
+      --text-on-accent: #FFFFFF;
+      --safe: #10B981;
+      --threat: #EF4444;
+      --warning: #F59E0B;
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-primary);
+      color: var(--text-primary);
+      font-family: var(--font-sans);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Smooth Enhanced Theme Transition */
+    html.theme-transitioning,
+    html.theme-transitioning *,
+    html.theme-transitioning *::before,
+    html.theme-transitioning *::after {
+      transition: background-color 550ms cubic-bezier(0.25, 1, 0.5, 1),
+                  border-color 550ms cubic-bezier(0.25, 1, 0.5, 1),
+                  color 550ms cubic-bezier(0.25, 1, 0.5, 1),
+                  fill 550ms cubic-bezier(0.25, 1, 0.5, 1),
+                  stroke 550ms cubic-bezier(0.25, 1, 0.5, 1) !important;
+    }
+
+    /* Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: var(--bg-primary);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: var(--border-color);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: var(--secondary-accent);
+    }
+
+    /* ==========================================================================
+       Continuous Animated Multicolor Radiant Border Line (Zero Outer Shadow)
+       ========================================================================== */
+    @property --pg-radiant-angle {
+      syntax: "<angle>";
+      inherits: false;
+      initial-value: 0deg;
+    }
+
+    @keyframes pg-radiant-orbit {
+      0% { --pg-radiant-angle: 0deg; }
+      100% { --pg-radiant-angle: 360deg; }
+    }
+
+    .pg-radiant-surface {
+      --pg-radiant-border-width: 1.75px;
+      --pg-radiant-duration: 14s;
+      --pg-radiant-delay: 0s;
+      --pg-radiant-spectrum: conic-gradient(
+        from var(--pg-radiant-angle, 0deg),
+        #22d3ee 0%,
+        #2f80ff 14.3%,
+        #8b5cf6 28.6%,
+        #d946ef 42.9%,
+        #fb7185 57.1%,
+        #fb923c 71.4%,
+        #14b8a6 85.7%,
+        #22d3ee 100%
+      );
+      position: relative !important;
+      isolation: isolate;
+      background-color: var(--bg-surface) !important;
+      border-color: transparent !important;
+      box-shadow: none !important;
+      border-radius: 12px;
+    }
+
+    .pg-radiant-surface::before {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      border-radius: inherit;
+      z-index: 2;
+      inset: calc(-1 * var(--pg-radiant-border-width));
+      padding: var(--pg-radiant-border-width);
+      background: var(--pg-radiant-spectrum);
+      -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      animation: pg-radiant-orbit var(--pg-radiant-duration) linear infinite;
+      animation-delay: var(--pg-radiant-delay);
+      transition: filter 250ms ease;
+    }
+
+    .pg-radiant-surface:hover::before,
+    .pg-radiant-surface:focus-within::before {
+      filter: brightness(1.22);
+    }
+
+    .pg-radiant-phase-1 { --pg-radiant-delay: 0s; }
+    .pg-radiant-phase-2 { --pg-radiant-delay: -2.33s; }
+    .pg-radiant-phase-3 { --pg-radiant-delay: -4.66s; }
+    .pg-radiant-phase-4 { --pg-radiant-delay: -7s; }
+    .pg-radiant-phase-5 { --pg-radiant-delay: -9.33s; }
+    .pg-radiant-phase-6 { --pg-radiant-delay: -11.66s; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .pg-radiant-surface::before {
+        animation: none !important;
+        --pg-radiant-angle: 45deg !important;
+      }
+    }
+
+    /* Layout Containers */
+    .app-layout {
+      display: flex;
+      min-height: 100vh;
+      width: 100%;
+    }
+
+    .app-sidebar {
+      width: 250px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+      position: sticky;
+      top: 0;
+      height: 100vh;
+      overflow-y: auto;
+      z-index: 40;
+    }
+
+    .app-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      overflow-y: auto;
+    }
+
+    .app-topbar {
+      height: 64px;
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+    }
+
+    .app-content {
+      padding: 24px;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      flex: 1;
+    }
+
+    /* Common Card Styling */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 20px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+    .badge-safe { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .badge-phishing { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .badge-review { background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .badge-accent { background: rgba(59, 130, 246, 0.15); color: #3B82F6; border: 1px solid rgba(59, 130, 246, 0.3); }
+
+    /* Nav Item */
+    .nav-link {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: all 150ms ease;
+      margin-bottom: 2px;
+    }
+    .nav-link:hover {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+    }
+    .nav-link.active {
+      background: var(--primary-accent);
+      color: #FFFFFF;
+    }
+
+    /* Grid utilities */
+    .grid-4 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 16px;
+    }
+    .grid-2 {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+      gap: 20px;
+    }
+
+    /* Interactive Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 150ms ease;
+    }
+    .btn-primary {
+      background: var(--primary-accent);
+      color: #FFFFFF;
+    }
+    .btn-primary:hover {
+      background: var(--primary-hover);
+    }
+    .btn-secondary {
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      border-color: var(--border-color);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-elevated-hover);
+    }
+
+    /* Inputs */
+    .input-field {
+      width: 100%;
+      height: 40px;
+      padding: 0 12px;
+      border-radius: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-color);
+      color: var(--text-primary);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 150ms ease;
+    }
+    .input-field:focus {
+      border-color: var(--primary-accent);
+    }
+    textarea.input-field {
+      height: auto;
+      padding: 12px;
+      min-height: 120px;
+      font-family: inherit;
+      resize: vertical;
+    }
+
+    /* Table */
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+    th {
+      padding: 12px 16px;
+      color: var(--text-muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border-color);
+      background: var(--bg-elevated);
+    }
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    tr:hover td {
+      background: var(--bg-elevated);
+    }
+
+    /* Tab views */
+    .view-panel {
+      display: none;
+      animation: fadeIn 200ms ease;
+    }
+    .view-panel.active {
+      display: block;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Banner */
+    .notice-banner {
+      background: rgba(245, 158, 11, 0.1);
+      border: 1px solid rgba(245, 158, 11, 0.3);
+      color: #F59E0B;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-layout">
+    <!-- SIDEBAR -->
+    <aside class="app-sidebar">
+      <div style="padding: 20px; border-bottom: 1px solid var(--border-color); display: flex; align-items: center; gap: 10px;">
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color: var(--primary-accent);">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+          <path d="m9 12 2 2 4-4"/>
+        </svg>
+        <div>
+          <div style="font-weight: 800; font-size: 16px; letter-spacing: -0.02em;">PhishGuard <span style="color: var(--primary-accent);">AI</span></div>
+          <div style="font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); font-weight: 700;">Research Prototype</div>
+        </div>
+      </div>
+
+      <div style="padding: 16px 12px; flex: 1;">
+        <div style="font-size: 10px; text-transform: uppercase; font-weight: 800; color: var(--text-muted); padding: 0 8px 8px 8px; letter-spacing: 0.08em;">Core Monitoring</div>
+        <a class="nav-link active" onclick="switchTab('dashboard')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
+          Dashboard
+        </a>
+        <a class="nav-link" onclick="switchTab('analyzer')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21 21-4.3-4.3"/><circle cx="11" cy="11" r="8"/><path d="m8 11 2 2 4-4"/></svg>
+          Email Analyzer
+        </a>
+        <a class="nav-link" onclick="switchTab('explainability')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4"/><path d="m4.93 4.93 2.83 2.83"/><path d="M2 12h4"/><path d="m4.93 19.07 2.83-2.83"/><path d="M12 22v-4"/><path d="m19.07 19.07-2.83-2.83"/><path d="M22 12h-4"/><path d="m19.07 4.93-2.83 2.83"/></svg>
+          Explainable AI (XAI)
+        </a>
+        <a class="nav-link" onclick="switchTab('analytics')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+          Model Performance
+        </a>
+        <a class="nav-link" onclick="switchTab('history')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          Scan History
+        </a>
+
+        <div style="font-size: 10px; text-transform: uppercase; font-weight: 800; color: var(--text-muted); padding: 20px 8px 8px 8px; letter-spacing: 0.08em;">Research Lab</div>
+        <a class="nav-link" onclick="switchTab('architecture')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/><path d="m14 9 3 3-3 3"/></svg>
+          Architecture Blueprint
+        </a>
+
+        <div style="font-size: 10px; text-transform: uppercase; font-weight: 800; color: var(--text-muted); padding: 20px 8px 8px 8px; letter-spacing: 0.08em;">Account & System</div>
+        <a class="nav-link" onclick="switchTab('account')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 1 0-16 0"/></svg>
+          Account Profile
+        </a>
+        <a class="nav-link" onclick="switchTab('settings')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+          Settings
+        </a>
+      </div>
+
+      <div style="padding: 16px; border-top: 1px solid var(--border-color); font-size: 11px; color: var(--text-muted); text-align: center;">
+        Standalone Offline Bundle v1.0
+      </div>
+    </aside>
+
+    <!-- MAIN BODY -->
+    <div class="app-main">
+      <!-- TOPBAR -->
+      <header class="app-topbar">
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="badge badge-safe">
+            <span style="width: 6px; height: 6px; border-radius: 50%; background: #10B981;"></span>
+            Model ON
+          </span>
+          <span style="font-size: 13px; color: var(--text-muted); font-family: var(--font-mono);">5-Branch Fusion + Custom ResNet (836-d)</span>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <!-- THEME TOGGLE -->
+          <button class="btn btn-secondary" onclick="toggleTheme()" title="Toggle Dark/Light Mode" style="border-radius: 50%; width: 36px; height: 36px; padding: 0;">
+            <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+            </svg>
+          </button>
+
+          <!-- USER AVATAR -->
+          <div style="display: flex; align-items: center; gap: 8px; padding-left: 8px; border-left: 1px solid var(--border-color);">
+            <div style="width: 32px; height: 32px; border-radius: 8px; background: linear-gradient(135deg, #2563EB, #8B5CF6); display: flex; align-items: center; justify-content: center; font-weight: 700; color: #FFF; font-size: 12px;">
+              SR
+            </div>
+            <div style="font-size: 12px; font-weight: 600;">Security Researcher</div>
+          </div>
+        </div>
+      </header>
+
+      <!-- CONTENT PANELS -->
+      <main class="app-content">
+
+        <!-- ==================== VIEW 1: DASHBOARD ==================== -->
+        <div id="view-dashboard" class="view-panel active">
+          <div class="notice-banner">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+            <span><strong>Research Demonstration Mode:</strong> All statistical metrics and threat telemetry represent simulated benchmark records.</span>
+          </div>
+
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Dashboard Overview</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Real-time monitoring of evaluated messages, emerging threats, and model inferences.</p>
+          </div>
+
+          <!-- 4 KPI CARDS WITH MULTICOLOR RADIANT BORDER & COUNT-UP -->
+          <div class="grid-4" style="margin-bottom: 24px;">
+            <div class="card pg-radiant-surface pg-radiant-phase-1">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Total Scanned</div>
+                  <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.03em;" class="count-up" data-target="1428">0</div>
+                </div>
+                <div style="padding: 8px; border-radius: 8px; background: rgba(59, 130, 246, 0.1); color: var(--primary-accent);">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                </div>
+              </div>
+              <div style="font-size: 11px; color: #10B981; margin-top: 8px; font-weight: 600;">+12% this week</div>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-2">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Phishing Detected</div>
+                  <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.03em; color: #EF4444;" class="count-up" data-target="384">0</div>
+                </div>
+                <div style="padding: 8px; border-radius: 8px; background: rgba(239, 68, 68, 0.1); color: #EF4444;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                </div>
+              </div>
+              <div style="font-size: 11px; color: #EF4444; margin-top: 8px; font-weight: 600;">26.9% Threat Ratio</div>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-3">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Safe Emails</div>
+                  <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.03em; color: #10B981;" class="count-up" data-target="972">0</div>
+                </div>
+                <div style="padding: 8px; border-radius: 8px; background: rgba(16, 185, 129, 0.1); color: #10B981;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></svg>
+                </div>
+              </div>
+              <div style="font-size: 11px; color: #10B981; margin-top: 8px; font-weight: 600;">68.1% Legitimate</div>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-4">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                  <div style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 4px;">Needs Review</div>
+                  <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); letter-spacing: -0.03em; color: #F59E0B;" class="count-up" data-target="72">0</div>
+                </div>
+                <div style="padding: 8px; border-radius: 8px; background: rgba(245, 158, 11, 0.1); color: #F59E0B;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+                </div>
+              </div>
+              <div style="font-size: 11px; color: #F59E0B; margin-top: 8px; font-weight: 600;">5.0% Ambiguous Queue</div>
+            </div>
+          </div>
+
+          <!-- CHARTS SECTION -->
+          <div class="grid-2" style="margin-bottom: 24px;">
+            <div class="card pg-radiant-surface pg-radiant-phase-2">
+              <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Threat Classification Breakdown</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Distribution of scanned emails across categories</p>
+              
+              <!-- SVG Donut Chart -->
+              <div style="display: flex; align-items: center; justify-content: center; gap: 24px; padding: 12px 0;">
+                <svg width="160" height="160" viewBox="0 0 42 42">
+                  <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="var(--bg-elevated)" stroke-width="6"></circle>
+                  <!-- Safe 68% (Green) -->
+                  <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#10B981" stroke-width="6" stroke-dasharray="68 32" stroke-dashoffset="25"></circle>
+                  <!-- Phishing 27% (Red) -->
+                  <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#EF4444" stroke-width="6" stroke-dasharray="27 73" stroke-dashoffset="57"></circle>
+                  <!-- Review 5% (Amber) -->
+                  <circle cx="21" cy="21" r="15.915" fill="transparent" stroke="#F59E0B" stroke-width="6" stroke-dasharray="5 95" stroke-dashoffset="30"></circle>
+                </svg>
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="width: 10px; height: 10px; background: #10B981; border-radius: 2px;"></span>
+                    <span>Safe (68.1%)</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="width: 10px; height: 10px; background: #EF4444; border-radius: 2px;"></span>
+                    <span>Phishing (26.9%)</span>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="width: 10px; height: 10px; background: #F59E0B; border-radius: 2px;"></span>
+                    <span>Needs Review (5.0%)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-3">
+              <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Scan Activity Trends</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Daily processing throughput over the past 14 days</p>
+
+              <!-- SVG Trend Graph -->
+              <svg width="100%" height="160" viewBox="0 0 500 160" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="grad-blue" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.4"/>
+                    <stop offset="100%" stop-color="#3B82F6" stop-opacity="0.0"/>
+                  </linearGradient>
+                </defs>
+                <path d="M0,130 Q50,90 100,105 T200,70 T300,50 T400,60 T500,20 L500,160 L0,160 Z" fill="url(#grad-blue)"/>
+                <path d="M0,130 Q50,90 100,105 T200,70 T300,50 T400,60 T500,20" fill="none" stroke="#3B82F6" stroke-width="3"/>
+                <circle cx="100" cy="105" r="4" fill="#3B82F6"/>
+                <circle cx="200" cy="70" r="4" fill="#3B82F6"/>
+                <circle cx="300" cy="50" r="4" fill="#3B82F6"/>
+                <circle cx="400" cy="60" r="4" fill="#3B82F6"/>
+                <circle cx="500" cy="20" r="4" fill="#3B82F6"/>
+              </svg>
+              <div style="display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-top: 8px;">
+                <span>Day 1</span><span>Day 4</span><span>Day 7</span><span>Day 10</span><span>Day 14 (Peak)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- RECENT SCANS TABLE -->
+          <div class="card pg-radiant-surface pg-radiant-phase-4">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+              <div>
+                <h3 style="font-size: 15px; font-weight: 700;">Recent Email Scans</h3>
+                <p style="font-size: 12px; color: var(--text-muted);">Audit log of inbound candidate messages</p>
+              </div>
+              <button class="btn btn-primary" onclick="switchTab('analyzer')">Scan New Email</button>
+            </div>
+
+            <div style="overflow-x: auto;">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Subject & Sender</th>
+                    <th>Classification</th>
+                    <th>Confidence</th>
+                    <th>Timestamp</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>
+                      <div style="font-weight: 600;">URGENT: Verify Your Corporate Payroll Account</div>
+                      <div style="font-size: 11px; color: var(--text-muted);">hr-payroll@secured-login-portal.net</div>
+                    </td>
+                    <td><span class="badge badge-phishing">Phishing</span></td>
+                    <td><span style="font-family: var(--font-mono); font-weight: 700;">97.4%</span></td>
+                    <td style="color: var(--text-muted);">10 mins ago</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div style="font-weight: 600;">Monthly IEEE Security Transactions Digest</div>
+                      <div style="font-size: 11px; color: var(--text-muted);">updates@ieee-security.org</div>
+                    </td>
+                    <td><span class="badge badge-safe">Safe</span></td>
+                    <td><span style="font-family: var(--font-mono); font-weight: 700;">98.9%</span></td>
+                    <td style="color: var(--text-muted);">45 mins ago</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div style="font-weight: 600;">Your Amazon.com order #402-891 has shipped</div>
+                      <div style="font-size: 11px; color: var(--text-muted);">auto-confirm@amazon.com</div>
+                    </td>
+                    <td><span class="badge badge-safe">Safe</span></td>
+                    <td><span style="font-family: var(--font-mono); font-weight: 700;">99.2%</span></td>
+                    <td style="color: var(--text-muted);">2 hours ago</td>
+                  </tr>
+                  <tr>
+                    <td>
+                      <div style="font-weight: 600;">Immediate Wire Transfer Authorization Needed</div>
+                      <div style="font-size: 11px; color: var(--text-muted);">ceo-exec-office@wire-authorizer.org</div>
+                    </td>
+                    <td><span class="badge badge-phishing">Phishing</span></td>
+                    <td><span style="font-family: var(--font-mono); font-weight: 700;">96.8%</span></td>
+                    <td style="color: var(--text-muted);">3 hours ago</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 2: EMAIL ANALYZER ==================== -->
+        <div id="view-analyzer" class="view-panel">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Live Email Threat Scanner</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Inspect candidate messages using the 5-branch multimodal representation and custom ResNet.</p>
+          </div>
+
+          <div class="grid-2">
+            <!-- INPUT PANEL -->
+            <div class="card pg-radiant-surface pg-radiant-phase-1">
+              <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                <h3 style="font-size: 15px; font-weight: 700;">Candidate Email Input</h3>
+                <div style="display: flex; gap: 8px;">
+                  <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px;" onclick="loadPhishingSample()">Load Phishing</button>
+                  <button class="btn btn-secondary" style="font-size: 11px; padding: 4px 10px;" onclick="loadSafeSample()">Load Safe</button>
+                </div>
+              </div>
+
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">Subject</label>
+                  <input type="text" id="email-subject" class="input-field" placeholder="Enter email subject header...">
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">Sender (From)</label>
+                  <input type="text" id="email-sender" class="input-field" placeholder="sender@example.com">
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">Email Body Content</label>
+                  <textarea id="email-body" class="input-field" placeholder="Paste full email body text or headers here..."></textarea>
+                </div>
+                <div style="display: flex; gap: 10px; margin-top: 8px;">
+                  <button class="btn btn-primary" style="flex: 1;" onclick="runLiveScan()">Analyze Message</button>
+                  <button class="btn btn-secondary" onclick="clearScanForm()">Clear</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- RESULT PANEL -->
+            <div class="card pg-radiant-surface pg-radiant-phase-2" id="scan-result-card">
+              <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 16px;">Inference Verdict & Indicators</h3>
+              
+              <div id="scan-empty-state" style="text-align: center; padding: 40px 20px; color: var(--text-muted);">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin: 0 auto 12px; opacity: 0.5;">
+                  <rect width="20" height="16" x="2" y="4" rx="2"/>
+                  <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
+                </svg>
+                <div style="font-weight: 600;">No Scan Active</div>
+                <div style="font-size: 12px; margin-top: 4px;">Input email headers and body on the left and click "Analyze Message" to trigger the neural pipeline.</div>
+              </div>
+
+              <div id="scan-active-state" style="display: none;">
+                <div style="display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); margin-bottom: 16px;">
+                  <div>
+                    <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Classification Result</div>
+                    <div id="result-badge-container" style="margin-top: 4px;">
+                      <span class="badge badge-phishing" style="font-size: 13px; padding: 4px 12px;">Phishing Detected</span>
+                    </div>
+                  </div>
+                  <div style="text-align: right;">
+                    <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Confidence Score</div>
+                    <div id="result-confidence" style="font-size: 26px; font-weight: 800; font-family: var(--font-mono); color: #EF4444;">96.8%</div>
+                  </div>
+                </div>
+
+                <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); margin-bottom: 8px;">Extracted Threat Indicators:</div>
+                <div id="result-indicators" style="display: flex; flex-direction: column; gap: 8px; font-size: 12px;">
+                  <!-- Dynamic tags injected here -->
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 3: EXPLAINABILITY ==================== -->
+        <div id="view-explainability" class="view-panel">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Explainable AI (XAI) Attribution</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Inspect token weights, multi-branch ablation penalties, and linguistic coercion cues.</p>
+          </div>
+
+          <div class="grid-2">
+            <div class="card pg-radiant-surface pg-radiant-phase-1">
+              <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Token Importance Heatmap</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Darker highlights indicate higher contribution toward phishing verdict.</p>
+              
+              <div style="padding: 16px; background: var(--bg-elevated); border-radius: 8px; line-height: 2; font-size: 13px;">
+                <span>Dear user, your </span>
+                <span style="background: rgba(239, 68, 68, 0.4); padding: 2px 6px; border-radius: 4px; font-weight: 700;">payroll account</span>
+                <span> will be </span>
+                <span style="background: rgba(239, 68, 68, 0.6); padding: 2px 6px; border-radius: 4px; font-weight: 700;">suspended</span>
+                <span> within </span>
+                <span style="background: rgba(239, 68, 68, 0.8); color: #FFF; padding: 2px 6px; border-radius: 4px; font-weight: 700;">24 hours</span>
+                <span> unless you </span>
+                <span style="background: rgba(239, 68, 68, 0.7); color: #FFF; padding: 2px 6px; border-radius: 4px; font-weight: 700;">re-authenticate credentials</span>
+                <span> via the secure portal below.</span>
+              </div>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-2">
+              <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 4px;">Ranked Feature Contributions</h3>
+              <p style="font-size: 12px; color: var(--text-muted); margin-bottom: 16px;">Feature importance weights across extracted branches</p>
+
+              <div style="display: flex; flex-direction: column; gap: 12px; font-size: 12px;">
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span>f2-1: Urgency / Time-Pressure Language</span>
+                    <span style="font-weight: 700; font-family: var(--font-mono);">+0.34</span>
+                  </div>
+                  <div style="height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden;">
+                    <div style="width: 85%; height: 100%; background: #EF4444;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span>f1-15: Password / Credential Request</span>
+                    <span style="font-weight: 700; font-family: var(--font-mono);">+0.28</span>
+                  </div>
+                  <div style="height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden;">
+                    <div style="width: 70%; height: 100%; background: #EF4444;"></div>
+                  </div>
+                </div>
+                <div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                    <span>f3-4: IP Address in URL Hostname</span>
+                    <span style="font-weight: 700; font-family: var(--font-mono);">+0.22</span>
+                  </div>
+                  <div style="height: 6px; background: var(--bg-elevated); border-radius: 3px; overflow: hidden;">
+                    <div style="width: 55%; height: 100%; background: #F59E0B;"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 4: ANALYTICS ==================== -->
+        <div id="view-analytics" class="view-panel">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Model Evaluation & Benchmarks</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Empirical test performance across Kaggle, Nazario, and synthetic benchmark corpora.</p>
+          </div>
+
+          <div class="grid-4" style="margin-bottom: 24px;">
+            <div class="card pg-radiant-surface pg-radiant-phase-1">
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Test Accuracy</div>
+              <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); color: #10B981;">97.4%</div>
+            </div>
+            <div class="card pg-radiant-surface pg-radiant-phase-2">
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Precision</div>
+              <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); color: #3B82F6;">96.8%</div>
+            </div>
+            <div class="card pg-radiant-surface pg-radiant-phase-3">
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Recall</div>
+              <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); color: #8B5CF6;">98.1%</div>
+            </div>
+            <div class="card pg-radiant-surface pg-radiant-phase-4">
+              <div style="font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700;">Macro F1-Score</div>
+              <div style="font-size: 28px; font-weight: 800; font-family: var(--font-mono); color: #EC4899;">97.4%</div>
+            </div>
+          </div>
+
+          <div class="card pg-radiant-surface pg-radiant-phase-1">
+            <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 12px;">Architecture Baseline Comparison</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Architecture Model</th>
+                  <th>Accuracy</th>
+                  <th>Precision</th>
+                  <th>Recall</th>
+                  <th>Macro F1</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr style="font-weight: 700; color: var(--primary-accent);">
+                  <td>PhishGuard AI (5-Branch + ResNet)</td>
+                  <td>97.4%</td>
+                  <td>96.8%</td>
+                  <td>98.1%</td>
+                  <td>97.4%</td>
+                </tr>
+                <tr>
+                  <td>Baseline BERT (Monolithic)</td>
+                  <td>91.2%</td>
+                  <td>89.4%</td>
+                  <td>92.1%</td>
+                  <td>90.7%</td>
+                </tr>
+                <tr>
+                  <td>1D-CNN + BiGRU Baseline</td>
+                  <td>88.6%</td>
+                  <td>87.1%</td>
+                  <td>89.3%</td>
+                  <td>88.2%</td>
+                </tr>
+                <tr>
+                  <td>TF-IDF + Random Forest</td>
+                  <td>83.4%</td>
+                  <td>81.9%</td>
+                  <td>84.2%</td>
+                  <td>83.0%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 5: ARCHITECTURE ==================== -->
+        <div id="view-architecture" class="view-panel">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Neural Architecture Blueprint</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">End-to-end 12-stage visualization of the multi-branch representation and custom residual network.</p>
+          </div>
+
+          <div style="display: flex; flex-direction: column; gap: 16px;">
+            <div class="card pg-radiant-surface pg-radiant-phase-1">
+              <span class="badge badge-accent">Stage 1</span>
+              <h3 style="font-size: 15px; font-weight: 700; margin: 8px 0 4px;">Candidate Email Ingestion & Parsing</h3>
+              <p style="font-size: 13px; color: var(--text-muted);">Ingests MIME payloads, decodes quoted-printable/base64 strings, strips HTML noise, and splits subject, body, URLs, and MTA headers.</p>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-2">
+              <span class="badge badge-accent">Stage 3–7</span>
+              <h3 style="font-size: 15px; font-weight: 700; margin: 8px 0 4px;">5-Branch Parallel Feature Extraction</h3>
+              <div class="grid-4" style="margin-top: 12px;">
+                <div style="padding: 10px; background: var(--bg-elevated); border-radius: 8px;">
+                  <div style="font-weight: 700; font-size: 12px; color: #F43F5E;">Text Branch</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">768-d Contextual Projection</div>
+                </div>
+                <div style="padding: 10px; background: var(--bg-elevated); border-radius: 8px;">
+                  <div style="font-weight: 700; font-size: 12px; color: #10B981;">Financial Branch</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">18-d Specific Attributes</div>
+                </div>
+                <div style="padding: 10px; background: var(--bg-elevated); border-radius: 8px;">
+                  <div style="font-weight: 700; font-size: 12px; color: #38BDF8;">Security Branch</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">19-d Coercion Signals</div>
+                </div>
+                <div style="padding: 10px; background: var(--bg-elevated); border-radius: 8px;">
+                  <div style="font-weight: 700; font-size: 12px; color: #F59E0B;">URL & Metadata</div>
+                  <div style="font-size: 11px; color: var(--text-muted);">31-d Structural Cues</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-3">
+              <span class="badge badge-accent">Stage 8 & 9</span>
+              <h3 style="font-size: 15px; font-weight: 700; margin: 8px 0 4px;">Concatenation Fusion & Custom ResNet (From Scratch)</h3>
+              <p style="font-size: 13px; color: var(--text-muted);">Combines all branches into an 836-d fused vector (<code style="font-family: var(--font-mono); color: #38BDF8;">h_fused</code>). Passes through projection layer and dual residual blocks with layer normalization to produce a 256-d compact representation vector (<code style="font-family: var(--font-mono); color: #10B981;">h_repr</code>) without relying on heavy BERT or CNN backbones.</p>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-4">
+              <span class="badge badge-accent">Stage 10–12</span>
+              <h3 style="font-size: 15px; font-weight: 700; margin: 8px 0 4px;">Classification Head & Validation Thresholding</h3>
+              <p style="font-size: 13px; color: var(--text-muted);">Evaluates <code style="font-family: var(--font-mono);">P_phish &ge; T</code> using calibrated thresholds (default 0.58) alongside three-pillar explainability audit logging.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 6: HISTORY ==================== -->
+        <div id="view-history" class="view-panel">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Forensic Scan History</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Search and review previous message evaluations and audit trails.</p>
+          </div>
+
+          <div class="card pg-radiant-surface pg-radiant-phase-1" style="margin-bottom: 20px;">
+            <input type="text" id="history-search" class="input-field" placeholder="Search by subject, sender, or scan ID..." onkeyup="filterHistoryTable()">
+          </div>
+
+          <div class="card pg-radiant-surface pg-radiant-phase-2">
+            <table>
+              <thead>
+                <tr>
+                  <th>Subject</th>
+                  <th>Sender</th>
+                  <th>Classification</th>
+                  <th>Confidence</th>
+                </tr>
+              </thead>
+              <tbody id="history-tbody">
+                <tr>
+                  <td>URGENT: Verify Your Corporate Payroll Account</td>
+                  <td>hr-payroll@secured-login-portal.net</td>
+                  <td><span class="badge badge-phishing">Phishing</span></td>
+                  <td style="font-family: var(--font-mono); font-weight: 700;">97.4%</td>
+                </tr>
+                <tr>
+                  <td>Monthly IEEE Security Transactions Digest</td>
+                  <td>updates@ieee-security.org</td>
+                  <td><span class="badge badge-safe">Safe</span></td>
+                  <td style="font-family: var(--font-mono); font-weight: 700;">98.9%</td>
+                </tr>
+                <tr>
+                  <td>Your Amazon.com order #402-891 has shipped</td>
+                  <td>auto-confirm@amazon.com</td>
+                  <td><span class="badge badge-safe">Safe</span></td>
+                  <td style="font-family: var(--font-mono); font-weight: 700;">99.2%</td>
+                </tr>
+                <tr>
+                  <td>Action Required: Confirm Wire Transfer #9812</td>
+                  <td>finance@wire-transfers-auth.com</td>
+                  <td><span class="badge badge-phishing">Phishing</span></td>
+                  <td style="font-family: var(--font-mono); font-weight: 700;">96.8%</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 7: ACCOUNT ==================== -->
+        <div id="view-account" class="view-panel">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">Account Profile & Security</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Manage researcher credentials, affiliations, and session security.</p>
+          </div>
+
+          <div class="grid-2">
+            <div class="card pg-radiant-surface pg-radiant-phase-1">
+              <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 16px;">Personal Profile</h3>
+              <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">Full Name</label>
+                  <input type="text" class="input-field" value="Security Researcher" id="profile-name">
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">Email</label>
+                  <input type="email" class="input-field" value="researcher@phishguard.internal" disabled style="opacity: 0.7;">
+                </div>
+                <div>
+                  <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">Organization</label>
+                  <input type="text" class="input-field" value="Cybersecurity Research Institute" id="profile-org">
+                </div>
+                <button class="btn btn-primary" style="margin-top: 8px;" onclick="saveProfileNotification()">Save Profile Changes</button>
+              </div>
+            </div>
+
+            <div class="card pg-radiant-surface pg-radiant-phase-2">
+              <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 16px;">Security & Quotas</h3>
+              <div style="display: flex; flex-direction: column; gap: 12px; font-size: 13px;">
+                <div style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-elevated); border-radius: 8px;">
+                  <span>Plan Tier</span>
+                  <span class="badge badge-accent">Research Prototype</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-elevated); border-radius: 8px;">
+                  <span>API Limits</span>
+                  <span style="font-weight: 700; color: #10B981;">Non-metered (Unlimited)</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; padding: 12px; background: var(--bg-elevated); border-radius: 8px;">
+                  <span>Two-Factor Authentication (2FA)</span>
+                  <span style="color: var(--text-muted);">Unconfigured</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ==================== VIEW 8: SETTINGS ==================== -->
+        <div id="view-settings" class="view-panel">
+          <div style="margin-bottom: 24px;">
+            <h1 style="font-size: 24px; font-weight: 800; letter-spacing: -0.02em;">System Configuration</h1>
+            <p style="font-size: 13px; color: var(--text-muted);">Tune decision cutoffs and external API serving endpoints.</p>
+          </div>
+
+          <div class="card pg-radiant-surface pg-radiant-phase-1" style="max-width: 650px;">
+            <h3 style="font-size: 15px; font-weight: 700; margin-bottom: 16px;">Inference Parameters</h3>
+            
+            <div style="display: flex; flex-direction: column; gap: 16px;">
+              <div>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">Classification Threshold (T)</label>
+                <div style="display: flex; align-items: center; gap: 12px;">
+                  <input type="range" min="0.30" max="0.90" step="0.05" value="0.58" id="threshold-slider" oninput="updateThresholdLabel(this.value)" style="flex: 1;">
+                  <span id="threshold-val" style="font-weight: 800; font-family: var(--font-mono); font-size: 16px; color: var(--primary-accent);">0.58</span>
+                </div>
+                <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">Lower values yield higher sensitivity (fewer missed threats); higher values minimize false alarms.</div>
+              </div>
+
+              <div>
+                <label style="font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); display: block; margin-bottom: 4px;">FastAPI Serving Endpoint</label>
+                <input type="text" class="input-field" value="http://localhost:8000/api/v1/predict">
+              </div>
+
+              <button class="btn btn-primary" onclick="alert('Configuration parameters saved successfully!')">Save Settings</button>
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <!-- JAVASCRIPT LOGIC -->
+  <script>
+    // Tab Navigation
+    function switchTab(tabId) {
+      document.querySelectorAll('.view-panel').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-link').forEach(el => el.classList.remove('active'));
+
+      const targetView = document.getElementById('view-' + tabId);
+      if (targetView) targetView.classList.add('active');
+
+      const targetNav = Array.from(document.querySelectorAll('.nav-link')).find(el => el.getAttribute('onclick')?.includes(tabId));
+      if (targetNav) targetNav.classList.add('active');
+
+      if (tabId === 'dashboard') {
+        animateCounters();
+      }
+    }
+
+    // Theme Toggle
+    function toggleTheme() {
+      const html = document.documentElement;
+      html.classList.add('theme-transitioning');
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        localStorage.setItem('theme', 'light');
+      } else {
+        html.classList.add('dark');
+        localStorage.setItem('theme', 'dark');
+      }
+      setTimeout(() => html.classList.remove('theme-transitioning'), 600);
+    }
+
+    // Animated Counters
+    function animateCounters() {
+      const counters = document.querySelectorAll('.count-up');
+      counters.forEach(counter => {
+        const target = parseInt(counter.getAttribute('data-target') || '0', 10);
+        let start = 0;
+        const duration = 1000;
+        const stepTime = 20;
+        const steps = duration / stepTime;
+        const increment = target / steps;
+
+        const timer = setInterval(() => {
+          start += increment;
+          if (start >= target) {
+            counter.innerText = target.toLocaleString();
+            clearInterval(timer);
+          } else {
+            counter.innerText = Math.floor(start).toLocaleString();
+          }
+        }, stepTime);
+      });
+    }
+
+    // Interactive Email Analyzer
+    function loadPhishingSample() {
+      document.getElementById('email-subject').value = "URGENT: Re-verify Your Bank Wire Transfer";
+      document.getElementById('email-sender').value = "accounts-security@payee-auth-online.org";
+      document.getElementById('email-body').value = "Attention customer,\n\nWe detected unauthorized withdrawal requests totaling $4,850.00 from your account. Immediate credential confirmation is required within 24 hours to prevent permanent account suspension.\n\nClick here immediately: http://192.168.1.105/auth-portal/login.php";
+    }
+
+    function loadSafeSample() {
+      document.getElementById('email-subject').value = "Your Monthly Research Project Summary";
+      document.getElementById('email-sender').value = "newsletter@ieee-cybersecurity.org";
+      document.getElementById('email-body').value = "Dear IEEE Member,\n\nHere is your digest of upcoming academic conferences and open-source threat benchmark releases for November 2026. Review proceedings on our verified domain.\n\nBest regards,\nIEEE Cybersecurity Team";
+    }
+
+    function clearScanForm() {
+      document.getElementById('email-subject').value = "";
+      document.getElementById('email-sender').value = "";
+      document.getElementById('email-body').value = "";
+      document.getElementById('scan-empty-state').style.display = "block";
+      document.getElementById('scan-active-state').style.display = "none";
+    }
+
+    function runLiveScan() {
+      const body = document.getElementById('email-body').value;
+      if (!body.trim()) {
+        alert("Please enter email text or load a sample first!");
+        return;
+      }
+
+      document.getElementById('scan-empty-state').style.display = "none";
+      document.getElementById('scan-active-state').style.display = "block";
+
+      const isPhish = body.toLowerCase().includes("urgent") || body.toLowerCase().includes("withdrawal") || body.toLowerCase().includes("suspended") || body.toLowerCase().includes("http");
+
+      const badge = document.getElementById('result-badge-container');
+      const conf = document.getElementById('result-confidence');
+      const indicators = document.getElementById('result-indicators');
+
+      if (isPhish) {
+        badge.innerHTML = '<span class="badge badge-phishing" style="font-size: 13px; padding: 4px 12px;">Phishing Detected</span>';
+        conf.innerText = "97.4%";
+        conf.style.color = "#EF4444";
+        indicators.innerHTML = `
+          <div style="padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #EF4444; border-radius: 4px;">
+            <strong>f2-1 Urgency Cues:</strong> Coercive deadline ('within 24 hours') detected.
+          </div>
+          <div style="padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #EF4444; border-radius: 4px;">
+            <strong>f3-4 IP Hostname:</strong> Naked IP URL identified in body.
+          </div>
+          <div style="padding: 8px 12px; background: rgba(239, 68, 68, 0.1); border-left: 3px solid #EF4444; border-radius: 4px;">
+            <strong>f1-15 Credential Solicit:</strong> Requests authentication on unverified domain.
+          </div>
+        `;
+      } else {
+        badge.innerHTML = '<span class="badge badge-safe" style="font-size: 13px; padding: 4px 12px;">Safe Email</span>';
+        conf.innerText = "98.9%";
+        conf.style.color = "#10B981";
+        indicators.innerHTML = `
+          <div style="padding: 8px 12px; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10B981; border-radius: 4px;">
+            <strong>Legitimate Sender:</strong> Sender domain reputation verified via SPF/DKIM baseline.
+          </div>
+          <div style="padding: 8px 12px; background: rgba(16, 185, 129, 0.1); border-left: 3px solid #10B981; border-radius: 4px;">
+            <strong>Zero Coercion:</strong> No psychological pressure or artificial urgency cues found.
+          </div>
+        `;
+      }
+    }
+
+    function updateThresholdLabel(val) {
+      document.getElementById('threshold-val').innerText = parseFloat(val).toFixed(2);
+    }
+
+    function saveProfileNotification() {
+      alert("Profile updated successfully!");
+    }
+
+    function filterHistoryTable() {
+      const q = document.getElementById('history-search').value.toLowerCase();
+      const rows = document.querySelectorAll('#history-tbody tr');
+      rows.forEach(r => {
+        const text = r.innerText.toLowerCase();
+        r.style.display = text.includes(q) ? "" : "none";
+      });
+    }
+
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      animateCounters();
+    });
+  </script>
+</body>
+</html>

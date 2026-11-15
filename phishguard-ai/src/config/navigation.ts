@@ -1,7 +1,7 @@
 export interface NavItem {
   title: string;
   href: string;
-  iconName: string;
+  iconName?: string;
   badge?: string;
   badgeVariant?: "success" | "warning" | "neutral" | "accent";
   isExternal?: boolean;
@@ -14,98 +14,58 @@ export interface NavGroup {
   isAccordion?: boolean;
 }
 
-export const SIDEBAR_ITEMS = {
-  primary: [
-    {
-      title: "Home",
-      href: "/dashboard",
-      iconName: "Home",
-    },
-    {
-      title: "New Scan",
-      href: "/analyzer",
-      iconName: "ScanSearch",
-      badge: "Model ON",
-      badgeVariant: "success" as const,
-    },
-    {
-      title: "Scan File",
-      href: "/analyzer?mode=upload",
-      iconName: "FileUp",
-    },
-    {
-      title: "Scan History",
-      href: "/history",
-      iconName: "History",
-    },
-  ],
-  research: {
-    title: "Research",
-    iconName: "FlaskConical",
-    items: [
-      {
-        title: "Dataset Versions",
-        href: "/research/datasets",
-        iconName: "Database",
-      },
-      {
-        title: "Model Evaluation",
-        href: "/analytics",
-        iconName: "ChartNoAxesCombined",
-      },
-      {
-        title: "Architecture",
-        href: "/research/architecture",
-        iconName: "Network",
-      },
-    ],
+export const MAIN_NAV_ITEMS: NavItem[] = [
+  {
+    title: "Overview",
+    href: "/dashboard",
   },
-  ourWork: {
-    title: "Our Work",
-    iconName: "FolderGit2",
-    items: [
-      {
-        title: "Videos",
-        href: "#videos",
-        iconName: "Youtube",
-        isExternal: true,
-      },
-      {
-        title: "Sources",
-        href: "/research/sources",
-        iconName: "BookOpen",
-      },
-      {
-        title: "GitHub",
-        href: "https://github.com",
-        iconName: "Github",
-        isExternal: true,
-      },
-      {
-        title: "Papers",
-        href: "/research/papers",
-        iconName: "FileText",
-      },
-    ],
+  {
+    title: "Email analyzer",
+    href: "/analyzer",
   },
-  footer: [
-    {
-      title: "Settings",
-      href: "/settings",
-      iconName: "Settings",
-    },
-    {
-      title: "Account",
-      href: "/account",
-      iconName: "UserRound",
-    },
-  ],
-};
-
-export const PUBLIC_NAV_ITEMS = [
-  { title: "Home", href: "/" },
-  { title: "Phishing Scan", href: "/analyzer" },
-  { title: "Scan History", href: "/history" },
-  { title: "Contact Us", href: "#contact" },
+  {
+    title: "Explainability",
+    href: "/explainability",
+  },
+  {
+    title: "Evaluation",
+    href: "/analytics",
+  },
+  {
+    title: "Scan history",
+    href: "/history",
+  },
 ];
 
+export const PUBLIC_NAV_ITEMS: NavItem[] = [
+  { title: "Overview", href: "/dashboard" },
+  { title: "Analyzer", href: "/analyzer" },
+  { title: "Explainability", href: "/explainability" },
+  { title: "Evaluation", href: "/analytics" },
+  { title: "Scan History", href: "/history" },
+];
+
+export const SIDEBAR_ITEMS = {
+  primary: [
+    { title: "Overview", href: "/dashboard", iconName: "Home" },
+    { title: "Email Analyzer", href: "/analyzer", iconName: "ScanSearch" },
+    { title: "Explainability", href: "/explainability", iconName: "Eye" },
+    { title: "Evaluation", href: "/analytics", iconName: "ChartNoAxesCombined" },
+    { title: "Scan History", href: "/history", iconName: "History" },
+  ],
+  research: {
+    title: "Evaluation",
+    iconName: "FlaskConical",
+    items: [
+      { title: "Model Evaluation", href: "/analytics", iconName: "ChartNoAxesCombined" },
+    ],
+  },
+  account: {
+    title: "Workspace",
+    iconName: "User",
+    items: [
+      { title: "Settings", href: "/settings", iconName: "Settings" },
+      { title: "Account Profile", href: "/account", iconName: "User" },
+    ],
+  },
+};

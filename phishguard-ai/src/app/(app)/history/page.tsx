@@ -1,414 +1,325 @@
 "use client";
 
-import React, { useState, useMemo, Suspense } from "react";
-import { useSearchParams } from "next/navigation";
-import Link from "next/link";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Card, CardContent } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { ClassificationBadge, Badge } from "@/components/ui/Badge";
-import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/Dialog";
-import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
-import { GlideSelect, GlideSelectOptionItem } from "@/components/ui/GlideSelect";
-import RubberSegment from "@/components/ui/RubberSegment";
-import { formatDateTime } from "@/lib/utils";
-import { ScanRecord } from "@/types/scan";
-import { getScanHistory, deleteScanRecord } from "@/services/scanService";
-import {
-  Search,
-  Download,
-  Eye,
-  Trash2,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import React, { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { usePhishGuard, ScanItem } from "@/context/PhishGuardContext";
 
-const HISTORY_DATE_OPTIONS: GlideSelectOptionItem[] = [
-  { value: "all", label: "All Dates", tag: "All" },
-  { value: "today", label: "Today", tag: "24h" },
-  { value: "week", label: "Past 7 Days", tag: "7d" },
-  { value: "month", label: "Past 30 Days", tag: "30d" },
-];
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const pad = (n: number) => String(n).padStart(2, "0");
+const BASELINE_TIME = 1794747600000;
 
-function HistoryContent() {
-  const searchParams = useSearchParams();
-  const qParam = searchParams.get("q") ?? "";
-  const scanIdParam = searchParams.get("scanId");
+const fmtAbs = (ts: number) => {
+  const d = new Date(ts);
+  return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
 
-  const [scans, setScans] = useState<ScanRecord[]>(() => getScanHistory());
-  const [internalQuery, setInternalQuery] = useState<string | null>(null);
-  const searchQuery = internalQuery !== null ? internalQuery : qParam;
+const fmtRel = (ts: number, now = BASELINE_TIME) => {
+  const m = Math.round((now - ts) / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return m + " min ago";
+  const h = Math.round(m / 60);
+  if (h < 24) return h + " h ago";
+  return Math.round(h / 24) + " d ago";
+};
 
-  const [statusFilter, setStatusFilter] = useState<"all" | "phishing" | "safe" | "needs_review">("all");
-  const [dateRange, setDateRange] = useState("all");
-  const [modalDismissedId, setModalDismissedId] = useState<string | null>(null);
-  const [selectedScanOverride, setSelectedScanOverride] = useState<ScanRecord | null>(null);
+const senderShort = (f: string) => {
+  const m = f.match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  return m ? m[2].trim() : f;
+};
 
-  const selectedScan = selectedScanOverride
-    ? selectedScanOverride
-    : scanIdParam && modalDismissedId !== scanIdParam
-    ? scans.find((s) => s.id === scanIdParam) || null
-    : null;
+export default function HistoryPage() {
+  const router = useRouter();
+  const { scans, setSelectedScanId, clearUserScans, formatP } = usePhishGuard();
 
-  const [currentPage, setCurrentPage] = useState(1);
-  const [exportNotice, setExportNotice] = useState(false);
-  const pageSize = 8;
+  const [query, setQuery] = useState("");
+  const [decisionFilter, setDecisionFilter] = useState<"all" | "PHISHING" | "SAFE">("all");
+  const [sourceFilter, setSourceFilter] = useState<"all" | "sample" | "user">("all");
+  const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
+  const [nowTime, setNowTime] = useState<number>(BASELINE_TIME);
 
+  React.useEffect(() => {
+    setNowTime(Date.now());
+  }, []);
+
+  // Filtered rows
   const filteredScans = useMemo(() => {
-    return scans.filter((scan) => {
-      const matchesSearch =
-        searchQuery === "" ||
-        scan.subject.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scan.sender?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        scan.id.toLowerCase().includes(searchQuery.toLowerCase());
-
-      const matchesStatus =
-        statusFilter === "all" || scan.prediction === statusFilter;
-
-      return matchesSearch && matchesStatus;
+    const q = query.trim().toLowerCase();
+    return scans.filter((s) => {
+      const matchDec = decisionFilter === "all" || s.decision === decisionFilter;
+      const matchSrc = sourceFilter === "all" || s.src === sourceFilter;
+      const matchQuery =
+        !q || (s.id + " " + s.email.subject + " " + s.email.from).toLowerCase().includes(q);
+      return matchDec && matchSrc && matchQuery;
     });
-  }, [scans, searchQuery, statusFilter]);
+  }, [decisionFilter, query, scans, sourceFilter]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredScans.length / pageSize));
-  const paginatedScans = filteredScans.slice(
-    (currentPage - 1) * pageSize,
-    currentPage * pageSize
-  );
+  // Overall KPIs
+  const kpis = useMemo(() => {
+    const ph = scans.filter((s) => s.decision === "PHISHING").length;
+    const avg = scans.length ? scans.reduce((a, s) => a + s.P, 0) / scans.length : 0;
+    return [
+      { label: "Scans", value: scans.length, color: "var(--ink)" },
+      { label: "Phishing", value: ph, color: "var(--phish)" },
+      { label: "Safe", value: scans.length - ph, color: "var(--safe)" },
+      { label: "Mean P_phish", value: avg.toFixed(3), color: "var(--ink)" },
+    ];
+  }, [scans]);
 
-  const handleDelete = (id: string) => {
-    deleteScanRecord(id);
-    setScans(getScanHistory());
-    if (selectedScan?.id === id) {
-      setSelectedScanOverride(null);
-      if (scanIdParam === id) setModalDismissedId(id);
-    }
+  const handleOpenScan = (id: string) => {
+    setSelectedScanId(id);
+    router.push("/explainability");
   };
 
-  const handleExport = () => {
-    setExportNotice(true);
+  const handleLoadIntoAnalyzer = (s: ScanItem) => {
+    // Navigate to analyzer with prefilled query
+    setSelectedScanId(s.id);
+    router.push("/analyzer");
   };
 
   return (
-    <div className="space-y-6">
-      <DemoDataNotice
-        message="Demo History Workspace — Retains analysis records in session memory. Historical records are cleared upon full page reload."
-        variant="banner"
-      />
-
-      <PageHeader
-        title="Scan History"
-        description="Comprehensive audit trail and forensic logs for all submitted email analyses."
-      >
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleExport}>
-            <Download className="w-3.5 h-3.5 mr-1" />
-            Export Scans (Demo)
-          </Button>
-          <Link href="/analyzer" prefetch={true}>
-            <Button variant="primary" size="sm">
-              New Scan
-            </Button>
-          </Link>
-        </div>
-      </PageHeader>
-
-      {/* Search and Filters Bar */}
-      <Card phase={1} className="border-[var(--border-color)] p-4 bg-[var(--bg-surface)] overflow-visible relative z-10">
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          {/* Search Field */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-[var(--text-muted)] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="Search by subject, sender, or scan ID..."
-              value={searchQuery}
-              onChange={(e) => {
-                setInternalQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              className="w-full h-10 pl-9 pr-3 text-xs bg-[var(--bg-elevated)] text-[var(--text-primary)] placeholder-[var(--text-muted)] rounded-xl border border-[var(--border-color)] focus:outline-none focus:border-[var(--primary-accent)]"
-            />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Status Segments via RubberSegment */}
-            <RubberSegment
-              items={[
-                { value: "all", label: "All Scans" },
-                { value: "phishing", label: "Phishing" },
-                { value: "safe", label: "Safe" },
-                { value: "needs_review", label: "Needs Review" },
-              ]}
-              value={statusFilter}
-              onChange={(val) => {
-                setStatusFilter(val as typeof statusFilter);
-                setCurrentPage(1);
-              }}
-              size="sm"
-              radius={10}
-              ariaLabel="Filter scan history by status"
-            />
-
-            {/* Date range UI selector via GlideSelect */}
-            <div className="flex items-center">
-              <GlideSelect
-                options={HISTORY_DATE_OPTIONS}
-                value={dateRange}
-                onChange={(val) => setDateRange(val)}
-                ariaLabel="Filter history by date range"
-                size="md"
-                align="right"
-                menuWidth={180}
-                radius={10}
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
-
-      {/* Main Scans Table */}
-      <Card phase={2} className="border-[var(--border-color)]">
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-elevated)]/60 text-[var(--text-muted)] uppercase text-[10px] tracking-wider">
-                  <th className="py-3 px-5 font-semibold">Scan ID</th>
-                  <th className="py-3 px-5 font-semibold">Email Subject & Sender</th>
-                  <th className="py-3 px-4 font-semibold">Classification</th>
-                  <th className="py-3 px-4 font-semibold">Confidence</th>
-                  <th className="py-3 px-4 font-semibold">Scan Date</th>
-                  <th className="py-3 px-4 font-semibold">Model Version</th>
-                  <th className="py-3 px-4 font-semibold text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)]/60">
-                {paginatedScans.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="py-12 text-center text-[var(--text-muted)]">
-                      No historical records found matching your filters.
-                    </td>
-                  </tr>
-                ) : (
-                  paginatedScans.map((scan) => (
-                    <tr
-                      key={scan.id}
-                      className="hover:bg-[var(--bg-elevated)]/40 transition-colors group"
-                    >
-                      <td className="py-3.5 px-5 font-mono text-[11px] text-[var(--text-muted)]">
-                        {scan.id}
-                      </td>
-                      <td className="py-3.5 px-5 max-w-xs">
-                        <div className="font-semibold text-[var(--text-primary)] truncate group-hover:text-[var(--primary-accent)] transition-colors">
-                          {scan.subject}
-                        </div>
-                        <div className="text-[11px] text-[var(--text-muted)] truncate mt-0.5">
-                          {scan.sender || "Unspecified"}
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap">
-                        <ClassificationBadge prediction={scan.prediction} size="sm" />
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap font-mono text-[11px]">
-                        <span className="font-semibold text-[var(--text-primary)]">
-                          {scan.confidence.toFixed(1)}%
-                        </span>{" "}
-                        <span className="text-[10px] text-[var(--text-muted)] font-sans">(demo)</span>
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap text-[var(--text-muted)] text-[11px]">
-                        {formatDateTime(scan.timestamp)}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap text-[var(--text-muted)] font-mono text-[10px]">
-                        {scan.modelVersion}
-                      </td>
-                      <td className="py-3.5 px-4 whitespace-nowrap text-right">
-                        <div className="flex items-center justify-end gap-1">
-                          <Button
-                            variant="secondary"
-                            size="sm"
-                            className="h-7 text-xs px-2.5"
-                            onClick={() => setSelectedScanOverride(scan)}
-                          >
-                            <Eye className="w-3.5 h-3.5 mr-1" />
-                            Detail
-                          </Button>
-                          <button
-                            onClick={() => handleDelete(scan.id)}
-                            className="p-1.5 rounded-full text-[var(--text-muted)] hover:text-red-500 dark:hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                            title="Delete demo scan record"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination bar */}
-          <div className="p-4 bg-[var(--bg-elevated)]/40 border-t border-[var(--border-color)] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-[var(--text-muted)]">
-            <div>
-              Showing {filteredScans.length > 0 ? (currentPage - 1) * pageSize + 1 : 0} to{" "}
-              {Math.min(currentPage * pageSize, filteredScans.length)} of {filteredScans.length} records
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage <= 1}
-                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              >
-                <ChevronLeft className="w-3.5 h-3.5 mr-1" />
-                Previous
-              </Button>
-              <span className="px-3 py-1 font-mono text-xs text-[var(--text-primary)]">
-                {currentPage} / {totalPages}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={currentPage >= totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-              >
-                Next
-                <ChevronRight className="w-3.5 h-3.5 ml-1" />
-              </Button>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Side Detail Modal / Inspection View */}
-      <Dialog
-        open={!!selectedScan}
-        onOpenChange={(open) => {
-          if (!open) {
-            setSelectedScanOverride(null);
-            if (scanIdParam) setModalDismissedId(scanIdParam);
-          }
-        }}
-      >
-        {selectedScan && (
-          <>
-            <DialogHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <ClassificationBadge prediction={selectedScan.prediction} />
-                  <span className="text-xs text-[var(--text-muted)] font-mono">{selectedScan.id}</span>
-                </div>
-              </div>
-              <DialogTitle className="text-base font-bold mt-2">
-                {selectedScan.subject}
-              </DialogTitle>
-              <DialogDescription>
-                From: {selectedScan.sender} • Scanned {formatDateTime(selectedScan.timestamp)}
-              </DialogDescription>
-            </DialogHeader>
-
-            <div className="mt-4 space-y-4">
-              <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] grid grid-cols-2 gap-2 text-xs">
-                <div>
-                  <span className="text-[var(--text-muted)] text-[10px] block">Model Pipeline:</span>
-                  <span className="text-[var(--text-primary)] font-mono">{selectedScan.modelVersion}</span>
-                </div>
-                <div>
-                  <span className="text-[var(--text-muted)] text-[10px] block">Inference Confidence:</span>
-                  <span className="text-[var(--text-primary)] font-bold font-mono">{selectedScan.confidence}% (Demo)</span>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
-                  Extracted Body Text
-                </h4>
-                <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] font-mono text-xs text-[var(--text-primary)] whitespace-pre-wrap max-h-48 overflow-y-auto leading-relaxed">
-                  {selectedScan.bodySnippet}
-                </div>
-              </div>
-
-              {selectedScan.evidence && selectedScan.evidence.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-semibold text-[var(--text-muted)] uppercase tracking-wider mb-1.5">
-                    Detected Evidence Indicators ({selectedScan.evidence.length})
-                  </h4>
-                  <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                    {selectedScan.evidence.map((ev, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2.5 rounded-lg bg-[var(--bg-elevated)]/80 border border-[var(--border-color)] text-xs flex items-start justify-between gap-2"
-                      >
-                        <div>
-                          <span className="font-semibold text-red-700 dark:text-red-300">&ldquo;{ev.text}&rdquo;</span>
-                          <p className="text-[11px] text-[var(--text-muted)] mt-0.5">{ev.reason}</p>
-                        </div>
-                        <Badge variant="threat" size="sm">
-                          {ev.severity || "high"}
-                        </Badge>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            <DialogFooter>
-              <Link href="/explainability" prefetch={true}>
-                <Button variant="outline" size="sm">
-                  <Sparkles className="w-3.5 h-3.5 mr-1 text-[var(--primary-accent)]" />
-                  Open in Explainability
-                </Button>
-              </Link>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setSelectedScanOverride(null);
-                  if (scanIdParam) setModalDismissedId(scanIdParam);
-                }}
-              >
-                Done
-              </Button>
-            </DialogFooter>
-          </>
-        )}
-      </Dialog>
-
-      {/* Export Demo Toast Modal */}
-      <Dialog open={exportNotice} onOpenChange={setExportNotice}>
-        <DialogHeader>
-          <DialogTitle>Export Scan Data (Demo)</DialogTitle>
-          <DialogDescription>
-            Audit log export configuration.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="py-4 text-xs text-[var(--text-muted)] bg-[var(--bg-elevated)] p-3 rounded-xl border border-[var(--border-color)] space-y-2">
+    <div>
+      {/* Page Header */}
+      <div className="ph">
+        <div>
+          <h1>Scan history</h1>
           <p>
-            In production, this triggers an authenticated CSV or JSON streaming export of scan records, model predictions, and flagged token spans.
-          </p>
-          <p className="font-mono text-[11px] text-[var(--text-primary)]">
-            Exporting {filteredScans.length} active records in memory...
+            Every analysis with its decision, score and the threshold in force at the time. Expand a row for evidence.
           </p>
         </div>
-        <DialogFooter>
-          <Button variant="primary" size="sm" onClick={() => setExportNotice(false)}>
-            Close
-          </Button>
-        </DialogFooter>
-      </Dialog>
+        <div className="actions">
+          <button type="button" className="btn btn-line" onClick={clearUserScans}>
+            Clear my scans
+          </button>
+        </div>
+      </div>
+
+      {/* 4 KPI Cards */}
+      <div className="grid g4" id="hist-kpis">
+        {kpis.map((k, i) => (
+          <div key={i} className="card metric">
+            <div className="lbl">{k.label}</div>
+            <div className="big" style={{ marginTop: 10, color: k.color }}>
+              {k.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Table & Controls Card */}
+      <div className="card mt">
+        <div className="row wrap" style={{ marginBottom: 14, gap: 8 }}>
+          <input
+            className="input"
+            id="h-q"
+            placeholder="Search subject, sender or scan ID"
+            style={{ maxWidth: 340 }}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
+
+          <div className="seg" role="group" aria-label="Filter by decision">
+            <button
+              type="button"
+              className={decisionFilter === "all" ? "on" : ""}
+              onClick={() => setDecisionFilter("all")}
+            >
+              All
+            </button>
+            <button
+              type="button"
+              className={decisionFilter === "PHISHING" ? "on" : ""}
+              onClick={() => setDecisionFilter("PHISHING")}
+            >
+              Phishing
+            </button>
+            <button
+              type="button"
+              className={decisionFilter === "SAFE" ? "on" : ""}
+              onClick={() => setDecisionFilter("SAFE")}
+            >
+              Safe
+            </button>
+          </div>
+
+          <select
+            className="select"
+            id="h-src"
+            style={{ width: "auto" }}
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value as any)}
+          >
+            <option value="all">All sources</option>
+            <option value="sample">Sample workspace</option>
+            <option value="user">My scans</option>
+          </select>
+
+          <span className="mono muted" style={{ marginLeft: "auto", fontSize: "12px" }}>
+            {filteredScans.length} of {scans.length}
+          </span>
+        </div>
+
+        <div className="tbl-wrap">
+          <table className="tbl" id="hist-tbl">
+            <thead>
+              <tr>
+                <th>Scan</th>
+                <th>Message</th>
+                <th>Decision</th>
+                <th className="num">P<sub>phish</sub></th>
+                <th className="num">T</th>
+                <th>Engine</th>
+                <th className="num">Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredScans.length ? (
+                filteredScans.map((s) => {
+                  const isExpanded = expandedRowId === s.id;
+                  const isPhish = s.decision === "PHISHING";
+                  const topInd = s.rows
+                    .filter((r) => r.contrib > 0)
+                    .sort((a, b) => b.contrib - a.contrib)
+                    .slice(0, 4);
+
+                  return (
+                    <React.Fragment key={s.id}>
+                      <tr
+                        className="clickable"
+                        tabIndex={0}
+                        aria-expanded={isExpanded}
+                        onClick={() => setExpandedRowId(isExpanded ? null : s.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setExpandedRowId(isExpanded ? null : s.id);
+                          }
+                        }}
+                      >
+                        <td className="mono" style={{ fontSize: "12px" }}>
+                          {s.id}
+                        </td>
+                        <td>
+                          <div className="trunc" style={{ maxWidth: 360 }}>
+                            {s.email.subject}
+                          </div>
+                          <div className="t-sub trunc" style={{ maxWidth: 360 }}>
+                            {senderShort(s.email.from)}
+                          </div>
+                        </td>
+                        <td>
+                          <span className={`verdict ${isPhish ? "v-phish" : "v-safe"}`}>
+                            {isPhish ? (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
+                              </svg>
+                            ) : (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path d="m5 12.5 4.5 4.5L19 7" />
+                              </svg>
+                            )}
+                            {isPhish ? "Phishing" : "Safe"}
+                          </span>
+                        </td>
+                        <td className="num">{formatP(s.P)}</td>
+                        <td className="num muted">{s.T.toFixed(2)}</td>
+                        <td>
+                          {s.src === "sample" ? (
+                            <span className="tag">sample</span>
+                          ) : s.engine === "service" ? (
+                            <span className="tag">service · {s.modelVersion}</span>
+                          ) : (
+                            <span className="tag">local preview</span>
+                          )}
+                        </td>
+                        <td className="num muted" title={fmtAbs(s.ts)}>
+                          {fmtRel(s.ts, nowTime)}
+                        </td>
+                      </tr>
+
+                      {/* Expandable detail row */}
+                      {isExpanded && (
+                        <tr className="detail">
+                          <td colSpan={7}>
+                            <div className="grid g-2-1" style={{ gap: 20 }}>
+                              <div>
+                                <div className="lbl" style={{ marginBottom: 8 }}>
+                                  Top indicators
+                                </div>
+                                {topInd.length ? (
+                                  topInd.map((r) => (
+                                    <div key={r.id} className="row" style={{ padding: "4px 0", fontSize: "13px" }}>
+                                      <span className="code">{r.id}</span>
+                                      <span>{r.name}</span>
+                                      <span
+                                        className="mono muted"
+                                        style={{ marginLeft: "auto", fontSize: "12px" }}
+                                      >
+                                        +{r.contrib.toFixed(2)}
+                                      </span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <span className="muted">None fired.</span>
+                                )}
+                              </div>
+                              <div>
+                                <div className="lbl" style={{ marginBottom: 8 }}>
+                                  Entities
+                                </div>
+                                <div className="ent">
+                                  <span className="tag">sector · {s.entities.sector}</span>
+                                  {s.entities.amounts.map((a, idx) => (
+                                    <span key={idx} className="tag">
+                                      amount · {a}
+                                    </span>
+                                  ))}
+                                  {s.entities.tx && <span className="tag">tx · {s.entities.tx}</span>}
+                                  {s.entities.orgs.map((o, idx) => (
+                                    <span key={idx} className="tag">
+                                      org · {o}
+                                    </span>
+                                  ))}
+                                </div>
+                                <div className="row" style={{ marginTop: 14 }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-dark btn-sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleOpenScan(s.id);
+                                    }}
+                                  >
+                                    Open explanation
+                                  </button>
+                                  <button
+                                    type="button"
+                                    className="btn btn-line btn-sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleLoadIntoAnalyzer(s);
+                                    }}
+                                  >
+                                    Load into analyzer
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan={7} style={{ padding: 36, textAlign: "center" }} className="muted">
+                    No scans match these filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
-
-export default function HistoryPage() {
-  return (
-    <Suspense fallback={<div className="p-8 text-center text-xs text-[var(--text-muted)]">Loading history...</div>}>
-      <HistoryContent />
-    </Suspense>
-  );
-}
-

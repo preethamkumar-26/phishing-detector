@@ -5,19 +5,12 @@ export const ALLOWED_INTERNAL_ROUTES = new Set<string>([
   "/analyzer",
   "/explainability",
   "/analytics",
+  "/evaluation",
   "/history",
   "/settings",
   "/account",
-  "/research/architecture",
-  "/research/datasets",
-  "/research/sources",
-  "/research/papers",
 ]);
 
-/**
- * Validates that a pending destination is an allowlisted internal application
- * route. Rejects external URLs, protocol-relative URLs, or unknown paths.
- */
 export function sanitizeInternalDestination(destination?: string | null): string | null {
   if (typeof destination !== "string") return null;
   const trimmed = destination.trim();
@@ -63,60 +56,13 @@ export function getAuthGateCopy(
 
   if (safeDest.startsWith("/analyzer")) {
     return {
-      heading,
-      description:
-        mode === "register"
-          ? "Create an account to analyze an email."
-          : "Log in to analyze an email.",
-    };
-  }
-
-  if (safeDest === "/history") {
-    return {
-      heading,
-      description:
-        mode === "register"
-          ? "Create an account to access your scan history."
-          : "Log in to access your scan history.",
-    };
-  }
-
-  if (safeDest === "/analytics") {
-    return {
-      heading,
-      description:
-        mode === "register"
-          ? "Create an account to explore research analytics."
-          : "Log in to view model analytics and evaluation metrics.",
-    };
-  }
-
-  if (safeDest === "/explainability") {
-    return {
-      heading,
-      description:
-        mode === "register"
-          ? "Create an account to inspect explainability insights."
-          : "Log in to inspect token explainability and attention weights.",
-    };
-  }
-
-  if (safeDest.startsWith("/research")) {
-    return {
-      heading,
-      description:
-        mode === "register"
-          ? "Create an account to access the research workspace."
-          : "Log in to access the research workspace.",
+      heading: mode === "register" ? "Create Account to Scan" : "Sign in to Analyze",
+      description: "Authentication required to run email threat analysis and view explanation reports.",
     };
   }
 
   return {
     heading,
-    description:
-      mode === "register"
-        ? "Create an account to manage your PhishGuard AI workspace."
-        : "Log in to manage your PhishGuard AI workspace.",
+    description: "Please sign in to access your security workspace.",
   };
 }
-

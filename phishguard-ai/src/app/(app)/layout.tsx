@@ -1,11 +1,11 @@
 import React from "react";
+import { PhishGuardProvider } from "@/context/PhishGuardContext";
 import { AppShell } from "@/components/layout/AppShell";
-import { KpiAnimationProvider } from "@/context/KpiAnimationContext";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <KpiAnimationProvider>
+    <PhishGuardProvider>
       <AppShell>{children}</AppShell>
-    </KpiAnimationProvider>
+    </PhishGuardProvider>
   );
 }

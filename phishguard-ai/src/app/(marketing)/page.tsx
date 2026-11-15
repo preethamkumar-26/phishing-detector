@@ -1,5 +1,5 @@
-import LandingPage from "@/components/marketing/LandingPage";
+import { redirect } from "next/navigation";
 
-export default function Page() {
-  return <LandingPage />;
+export default function RootPage() {
+  redirect("/dashboard");
 }

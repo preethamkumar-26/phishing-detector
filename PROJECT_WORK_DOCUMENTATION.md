@@ -66,6 +66,7 @@ flowchart TD
     M14 --> M15["Milestone 15: 5-Branch Fusion Architecture Update (WL-049)"]
     M15 --> M16["Milestone 16: Account Real Identity & Remove Fake Defaults (WL-050)"]
     M16 --> M17["Milestone 17: Multicolor Radiant Border System (WL-051)"]
+    M17 --> M18["Milestone 18: Complete Frontend Rebuild per Editorial Spec & Zero Architecture/Dataset Tolerance (WL-052)"]
 ```
 
 ### Milestone Log Table
@@ -125,6 +126,7 @@ flowchart TD
 | **WL-049** | 2026-11-15 14:50 | Final Model Architecture Frontend Update (5-Branch Fusion + Custom ResNet) | Completed | Replaced outdated base-research paper model descriptions (BERT, CNN, GRU, Multi-Head Attention, MGO) across all application pages, components, notifications, and metadata with the project's final authoritative architecture. Rebuilt the Model Architecture page (`/research/architecture`) into an end-to-end interactive 12-stage visualization: Input finance-related email, 6-stage parsing/preprocessing, 5 parallel feature branches (Text 768-d, Financial 18-d with f1-1..f1-18, Security 19-d with f2-1..f2-19, URL 20-d with f3-1..f3-20, Metadata 11-d with f4-1..f4-11), 836-d concatenation fusion, custom feature interaction network built from scratch (projection 836 -> 512, Residual Block 1 [512], Residual Block 2 [512 -> 256], Layer Normalization producing 256-d representation without BERT/CNN/GRU/Attention), dense classification head, validation-calibrated decision thresholding (P_phish >= T -> PHISHING / SAFE), forensic output/evidence, and three-pillar explainability (feature ablation, rule-based text evidence, human-readable explanations). Added high-res blueprint modal viewer (`/images/model-architecture-diagram.png`) with download support and transparent blueprint verification notes explaining diagram typographical artifacts. Upgraded `<Dialog>` with React Portal (`createPortal(..., document.body)`) to prevent page transition transforms from hijacking fixed viewport positioning. Updated related components across LandingPage, AnalyticsPage, AnalyzerPage, AnalysisResultsPanel, ProfileSummaryCard, TopBar, AccountPage, demo data, and scan service. Verified with TypeScript (`npx tsc --noEmit`, 0 errors), ESLint (0 errors, 0 warnings), Next.js production build (`26/26 routes`, exit code 0), and automated Chrome CDP test suite capturing verification artifacts (`architecture_stage1_input_preprocessing.png`, `architecture_stage3_7_feature_branches.png`, `architecture_stage8_9_fusion_resnet.png`, `architecture_stage10_12_decision_explainability.png`, and `architecture_blueprint_modal.png`). (Commit/push held locally per user instruction). |
 | **WL-050** | 2026-11-15 17:15 | Account & Profile Real Registered Identity & Removal of Fabricated Defaults | Completed | Eliminated all fabricated identities, mock fallbacks, seed records, and static badges across the Account & Profile implementation (`/account`). Displayed strictly the authenticated user's real registered name and email by default from the server database context. Initialized all optional fields (Phone number, Organization / Institution, Designation / Job title, Biography, and Avatar) to genuinely empty (`null`), displaying subtle, polished `Not added` labels in read-only cards. Implemented exact muted input placeholders for edit mode (`Enter your full name`, `Enter your phone number`, `e.g. University or organization`, `e.g. Security Analyst`, `Write a short bio about yourself`) with strict guarantee that placeholders are never treated or persisted as values. Removed the `evelyn.reed@phishguard.internal` fallback and auto-seed call from `authenticateRequest()` in `auth.ts`, ensuring unauthorized requests return 401 instead of exposing another person's profile. Omitted the static decorative `Active Account` badge per spec, and displayed registration dates strictly from the authenticated user's actual database `created_at` timestamp. Derived avatar initials dynamically from the authenticated user's real name, falling back to a neutral `<User />` icon when unnamed. Added Cancel button state restoration in edit mode. Cleared static badges and hardcoded job titles (`"Research Evaluator"`) from `ProfileSummaryCard.tsx` and `TopBar.tsx`. Validated with TypeScript (`npx tsc --noEmit`, 0 errors), ESLint (0 errors, 0 warnings), Next.js production build (`26/26 routes`, exit code 0), and an automated end-to-end multi-account CDP test suite verifying complete profile data isolation between Account A (Alice Smith) and Account B (Bob Jones), persistence after logout/login, and zero cross-account data leakage. (Commit/push held locally per user instruction). |
 | **WL-051** | 2026-11-15 17:40 | Multicolor Radiant Border Implementation Across Major UI Containers | Completed | Implemented continuous, animated multicolor radiant border system according to `PHISHGUARD_MULTICOLOR_RADIANT_BORDER_IMPLEMENTATION_SPEC.md` across all qualifying major PhishGuard AI containers while preserving solid card interiors (`#141D2E` dark mode, `#FFFFFF` light mode), pre-existing radii, and layout geometry. Created reusable, dependency-free CSS system (`globals.css`) with registered `@property --pg-radiant-angle`, `@keyframes pg-radiant-orbit` (14s linear infinite), and full 8-color spectrum conic gradient (`cyan #22d3ee -> electric blue #2f80ff -> violet #8b5cf6 -> magenta #d946ef -> pink #fb7185 -> orange #fb923c -> teal #14b8a6 -> cyan #22d3ee`). Per user refinement, eliminated outer diffuse shadow and card drop-shadow (`box-shadow: none !important`, removed `::after` blurred glow), isolating exclusively the crisp, luminous, animated multicolor perimeter line (`::before` with 1.75px hairline stroke and dual-layer content-box mask exclusion) with zero outer blur cloud or interior bleed. Built typed props (`radiant?: RadiantVariant`, `phase?: 1..6`) into atomic `<Card>` component with default `"standard"` variant, enabling universal application across all pages without layout regressions. Provided variants `subtle` (1.25px, 18s duration) and `static` (45deg angle pinned without orbit). Engineered deterministic 6-phase staggering (`pg-radiant-phase-1` through `pg-radiant-phase-6`, -2.33s steps) and automatic `:nth-of-type(6n+k)` fallback so adjacent containers orbit out of phase. Explicitly excluded buttons, icon buttons, inputs, textareas, selects, tabs, chips, avatars, table rows, and inline notices (`DemoDataNotice`). Full `prefers-reduced-motion: reduce` compliance stopping rotation and pinning border angle to 45deg. Verified with TypeScript (`npx tsc --noEmit`, 0 errors), ESLint (0 errors, 0 warnings), Next.js production build (`26/26 routes`, exit code 0), and automated multi-page Chrome DevTools Protocol test suite across Dashboard, Analytics, Analyzer, Explainability, Architecture, History, Account, Settings, Datasets, and Papers, with pristine screenshots captured (`radiant_dashboard_line_only.png`, `radiant_analytics_line_only.png`, `radiant_architecture_line_only.png`, `radiant_dashboard_line_only_light.png`). (Commit/push held locally per user instruction). |
+| **WL-052** | 2026-11-15 23:05 | Complete Editorial Frontend Rebuild per Reference Spec & Complete Architecture/Dataset Removal | Completed | Executed a ground-up rebuild of the entire PhishGuard AI frontend web application strictly aligned with the visual and interaction reference `phishguard-ai.html` and specification `PHISHING_FRONTEND_REBUILD_PROMPT.md`. Enforced a restrained editorial/technical security console aesthetic: muted sage canvas & cards (`#D6D9C8`, `#E3E5D6`, `#ECEEE2`, `#DCDFCE`), dark green-black radial hero and panels (`#131614`, `#1B1F1C`, `#242925`), warm orange accents (`#EF6A1E`, `#D65A10`), semantic status colors (`#D8452B` phish, `#1E9A69` safe), 6px card radius, 4px control radius, and Google fonts Outfit (primary sans) and JetBrains Mono (technical monospace). Completely removed all Architecture and Dataset sections, pages, tabs, links, and cards with zero tolerance; added permanent HTTP 307 redirects from `/research/architecture`, `/research/datasets`, `/research/papers`, `/research/sources`, `/`, and `/landing` to `/dashboard`. Retained strictly 5 horizontal top navigation destinations: Overview (`/dashboard`), Email Analyzer (`/analyzer`), Explainability (`/explainability`), Evaluation (`/analytics` & `/evaluation`), and Scan History (`/history`), plus utility controls (Model service status indicator pill, New scan button, Settings `/settings`, Account `/account`). Implemented rich client-side 68-feature extraction engine (Financial 18, Security 19, URL 20, Metadata 11), multi-branch ablation calculation, sigmoid probability scoring, entity extraction, text evidence highlighting, and real backend scan synchronization (`/api/account/scan`). Tested and verified with TypeScript (`npx tsc --noEmit`, 0 errors), Next.js production build (`27/27` routes prerendered, exit code 0), and automated multi-viewport Chrome CDP test suite across Desktop (1440x900), Tablet (820x1180), and Mobile (390x844) with 10 high-resolution verification screenshots captured. |
 
 ---
 
@@ -136,25 +138,39 @@ phishguard-ai/
 ├── src/
 │   ├── app/
 │   │   ├── (marketing)/
-│   │   │   ├── page.tsx              # Root Public Route (renders <LandingPage />)
-│   │   │   └── landing/page.tsx      # Dedicated Landing Page Route (renders <LandingPage />)
+│   │   │   ├── page.tsx                  # Permanent redirect -> /dashboard
+│   │   │   └── landing/page.tsx          # Permanent redirect -> /dashboard
 │   │   ├── (app)/
-│   │   │   ├── layout.tsx            # AppShell wrapper (Sidebar + TopBar)
-│   │   │   ├── dashboard/page.tsx    # Operational Overview (Page 2)
-│   │   │   ├── analyzer/page.tsx     # Two-Panel Email Analyzer (Page 3)
-│   │   │   ├── explainability/page.tsx # Token Heatmap & Attribution (Page 4)
-│   │   │   ├── analytics/page.tsx    # Research Metrics & Loss Curves (Page 5)
-│   │   │   ├── history/page.tsx      # Forensic Audit Log (Page 6)
+│   │   │   ├── layout.tsx                # AppShell wrapper (TopBar + Shell)
+│   │   │   ├── dashboard/page.tsx        # Overview (Hero, Calibrated Radar Gauge, 4 KPIs, Scans Table)
+│   │   │   ├── analyzer/page.tsx         # Email Analyzer (Input & Realtime Dark Result Panel)
+│   │   │   ├── explainability/page.tsx   # Explainability (Narrative, Ablation, Evidence, 68 Features)
+│   │   │   ├── analytics/page.tsx        # Evaluation (Metrics, Hosseinzadeh Benchmark, Confusion Matrix)
+│   │   │   ├── evaluation/page.tsx       # Evaluation alias (Metrics, ROC curve, Hosseinzadeh Benchmark)
+│   │   │   ├── history/page.tsx          # Forensic Scan History (KPIs, Search, Audit Table)
 │   │   │   ├── research/
-│   │   │   │   ├── architecture/page.tsx # Neural Pipeline Blueprint
-│   │   │   │   ├── datasets/page.tsx     # Corpus Curation Registry
-│   │   │   │   ├── sources/page.tsx      # Threat Feeds & API Providers
-│   │   │   │   └── papers/page.tsx       # Research References & Bibliography
-│   │   │   ├── settings/page.tsx     # Threshold & Backend Config
-│   │   │   └── account/page.tsx      # Analyst Profile & Demo Sign-in
+│   │   │   │   ├── architecture/page.tsx # Permanent redirect -> /dashboard (Zero Architecture Tolerance)
+│   │   │   │   ├── datasets/page.tsx     # Permanent redirect -> /dashboard (Zero Dataset Tolerance)
+│   │   │   │   ├── sources/page.tsx      # Permanent redirect -> /dashboard
+│   │   │   │   └── papers/page.tsx       # Permanent redirect -> /dashboard
+│   │   │   ├── settings/page.tsx         # Decision Threshold & Backend Endpoint Config
+│   │   │   └── account/page.tsx          # Personal Profile, Security, Preferences, Activity Audit
+│   │   ├── globals.css                   # Sage & Dark design tokens, editorial utility classes
+│   │   └── layout.tsx                    # Outfit + JetBrains Mono fonts and layout root
 │   ├── components/
-│   │   ├── marketing/
-│   │   │   ├── LandingPage.tsx           # Reusable Modular Landing Page Component
+│   │   └── layout/
+│   │       ├── AppShell.tsx              # Centered 1480px shell, shortcuts, footer, toast manager
+│   │       ├── TopBar.tsx                # Horizontal 5-tab top navigation, status pill, user avatar
+│   │       └── Sidebar.tsx               # Stubbed (legacy sidebar removed)
+│   ├── context/
+│   │   └── PhishGuardContext.tsx         # Central state, 68-feature extraction, ablation, API sync
+│   ├── config/
+│   │   └── navigation.ts                 # Authoritative 5-tab navigation configuration
+│   ├── services/
+│   │   └── scanService.ts                # Real email scanning service & API adapter
+│   └── lib/
+│       └── authGate.ts                   # Navigation access gate (Architecture & Datasets stripped)
+```
 │   │   │   └── AnimatedEmailShowcase.tsx # Live Multi-Stage Interactive Showcaseation & Splits
 │   │   │   │   ├── sources/page.tsx      # Literature References
 │   │   │   │   └── papers/page.tsx       # Publications & Preprints

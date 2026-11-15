@@ -1,400 +1,403 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
-import { PageHeader } from "@/components/layout/PageHeader";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/Card";
-import { DemoDataNotice } from "@/components/ui/DemoDataNotice";
-import { StatCard } from "@/components/dashboard/StatCard";
-import { useKpiAnimation } from "@/context/KpiAnimationContext";
-import { markModelEvaluationAnimated } from "@/lib/navTracker";
-import {
-  DEMO_RESEARCH_METRICS,
-  DEMO_CONFUSION_MATRIX,
-  DEMO_MODEL_COMPARISON,
-  DEMO_LOSS_CURVES,
-} from "@/data/demo-data";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  Tooltip,
-  CartesianGrid,
-  Legend,
-} from "recharts";
-import {
-  CheckCircle2,
-  TrendingUp,
-  Cpu,
-  Database,
-  Zap,
-} from "lucide-react";
+import React, { useRef, useMemo } from "react";
+import { usePhishGuard } from "@/context/PhishGuardContext";
 
-export default function AnalyticsPage() {
-  const [mounted, setMounted] = useState(false);
-  const { shouldAnimateModelEvaluation, markModelEvaluationAnimated: markContextAnimated } = useKpiAnimation();
-  const [shouldAnimate] = useState(() => shouldAnimateModelEvaluation());
+export default function EvaluationPage() {
+  const { evalArtifact, setEvalArtifact, logActivity, showToast } = usePhishGuard();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    setMounted(true); // eslint-disable-line react-hooks/set-state-in-effect -- hydration guard: must start false on server, true after mount
-    if (shouldAnimate) {
-      markContextAnimated();
-      markModelEvaluationAnimated();
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const json = JSON.parse(String(reader.result));
+        const missing = ["model_version", "dataset", "split", "threshold", "date", "n"].filter(
+          (k) => json[k] == null
+        );
+        setEvalArtifact(json);
+        logActivity("Loaded evaluation artifact " + (json.model_version || file.name));
+        showToast(
+          missing.length ? "Loaded. Missing fields: " + missing.join(", ") : "Evaluation artifact loaded",
+          !!missing.length
+        );
+      } catch (err: any) {
+        showToast("Could not parse JSON: " + err.message, true);
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
+
+  const a = evalArtifact;
+  const cm = a?.confusion;
+
+  // ROC Curve SVG construction
+  const rocSvg = useMemo(() => {
+    const W = 220, H = 180, L = 28, B = 22, pw = W - L - 8, ph = H - B - 8;
+    const X = (v: number) => L + v * pw;
+    const Y = (v: number) => 8 + (1 - v) * ph;
+
+    let pathD = "";
+    if (a && Array.isArray(a.roc) && a.roc.length > 1) {
+      const pts = a.roc.slice().sort((p, q) => p[0] - q[0]);
+      pathD = pts.map((p, i) => (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1)).join(" ");
     }
-  }, [shouldAnimate, markContextAnimated]);
 
-  const cm = DEMO_CONFUSION_MATRIX;
-  const totalCM = cm.truePositive + cm.falsePositive + cm.trueNegative + cm.falseNegative;
+    return { W, H, L, B, pw, ph, X, Y, pathD };
+  }, [a]);
+
+  const litMetrics = [
+    { label: "Accuracy", value: 97.22 },
+    { label: "Precision", value: 94.26 },
+    { label: "Recall", value: 98.71 },
+    { label: "F1 score", value: 96.43 },
+  ];
 
   return (
-    <div className="space-y-6">
-      <DemoDataNotice
-        message="Demo Research Evaluation — Metrics, loss curves, and confusion tables reflect illustrative progress targets based on project synthesis."
-        variant="banner"
-      />
-
-      <PageHeader
-        title="Model Performance & Evaluation"
-        description="Comprehensive evaluation metrics, ROC-AUC trajectories, loss curves, and comparative architecture benchmarks."
-      >
-        <span className="text-xs bg-[var(--bg-elevated)] text-[var(--text-muted)] px-3 py-1.5 rounded-xl border border-[var(--border-color)] font-mono">
-          Architecture: 5-Branch Fusion (836-d) + Custom ResNet
-        </span>
-      </PageHeader>
-
-      {/* 4 Primary Performance KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Test Accuracy"
-          value={`${DEMO_RESEARCH_METRICS.accuracy}%`}
-          subtitle="Overall correct predictions"
-          icon={CheckCircle2}
-          iconColor="text-emerald-600 dark:text-emerald-400"
-          iconBg="bg-emerald-500/10 border-emerald-500/20"
-          trend="Target: >97.0%"
-          isPositive={true}
-          animateCount={shouldAnimate}
-          staggerIndex={0}
-          countUpDecimals={1}
-          countUpSuffix="%"
-        />
-        <StatCard
-          title="Precision (Phishing)"
-          value={`${DEMO_RESEARCH_METRICS.precision}%`}
-          subtitle="Low false positive rate"
-          icon={TrendingUp}
-          iconColor="text-[var(--secondary-accent)]"
-          iconBg="bg-blue-500/10 border-blue-500/20"
-          trend="FP: 45 samples"
-          isPositive={true}
-          animateCount={shouldAnimate}
-          staggerIndex={1}
-          countUpDecimals={1}
-          countUpSuffix="%"
-        />
-        <StatCard
-          title="Recall (Sensitivity)"
-          value={`${DEMO_RESEARCH_METRICS.recall}%`}
-          subtitle="Threat capture rate"
-          icon={Zap}
-          iconColor="text-[var(--primary-accent)]"
-          iconBg="bg-blue-500/10 border-blue-500/20"
-          trend="FN: 27 samples"
-          isPositive={true}
-          animateCount={shouldAnimate}
-          staggerIndex={2}
-          countUpDecimals={1}
-          countUpSuffix="%"
-        />
-        <StatCard
-          title="Macro F1-Score"
-          value={`${DEMO_RESEARCH_METRICS.f1Score}%`}
-          subtitle="Harmonic mean of P & R"
-          icon={Cpu}
-          iconColor="text-amber-600 dark:text-amber-400"
-          iconBg="bg-amber-500/10 border-amber-500/20"
-          trend="Champion metric"
-          isPositive={true}
-          animateCount={shouldAnimate}
-          staggerIndex={3}
-          countUpDecimals={1}
-          countUpSuffix="%"
-        />
+    <div>
+      {/* Page Header */}
+      <div className="ph">
+        <div>
+          <h1>Model evaluation</h1>
+          <p>
+            PhishGuard metrics appear only when a versioned evaluation artifact is loaded. Figures from the reference
+            study are shown separately as literature context.
+          </p>
+        </div>
+        <div className="actions">
+          <button
+            type="button"
+            className="btn btn-dark"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Load evaluation artifact
+          </button>
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="application/json,.json"
+            className="sr"
+            onChange={handleFileUpload}
+          />
+        </div>
       </div>
 
-      {/* Confusion Matrix & ROC Curve */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Confusion Matrix Interactive Visual Widget */}
-        <div className="lg:col-span-5">
-          <Card phase={5} className="h-full border-[var(--border-color)]">
-            <CardHeader className="p-5 pb-3">
-              <CardTitle className="text-base font-bold flex items-center justify-between">
-                <span>Confusion Matrix (Test Split)</span>
-                <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                  N = {totalCM.toLocaleString()}
-                </span>
-              </CardTitle>
-              <CardDescription>
-                Cross-tabulation of ground truth versus predicted labels
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="p-5 pt-2 space-y-4">
-              <div className="grid grid-cols-2 gap-3 text-center">
-                {/* True Positive */}
-                <div className="p-4 rounded-xl bg-emerald-500/15 border border-emerald-500/30">
-                  <div className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400 tracking-wider">
-                    True Positive (TP)
-                  </div>
-                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
-                    {cm.truePositive.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                    Phishing correctly flagged
-                  </div>
-                </div>
+      {/* PhishGuard Section */}
+      <div className="eyebrow" style={{ marginBottom: 8 }}>
+        PhishGuard
+      </div>
 
-                {/* False Positive */}
-                <div className="p-4 rounded-xl bg-amber-500/15 border border-amber-500/30">
-                  <div className="text-[10px] uppercase font-bold text-amber-700 dark:text-amber-400 tracking-wider">
-                    False Positive (FP)
-                  </div>
-                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
-                    {cm.falsePositive.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                    Legitimate flagged as threat
-                  </div>
-                </div>
-
-                {/* False Negative */}
-                <div className="p-4 rounded-xl bg-red-500/15 border border-red-500/30">
-                  <div className="text-[10px] uppercase font-bold text-red-700 dark:text-red-400 tracking-wider">
-                    False Negative (FN)
-                  </div>
-                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
-                    {cm.falseNegative.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                    Missed phishing emails
-                  </div>
-                </div>
-
-                {/* True Negative */}
-                <div className="p-4 rounded-xl bg-blue-500/15 border border-blue-500/30">
-                  <div className="text-[10px] uppercase font-bold text-blue-700 dark:text-blue-400 tracking-wider">
-                    True Negative (TN)
-                  </div>
-                  <div className="text-2xl font-black text-[var(--text-primary)] font-mono mt-1">
-                    {cm.trueNegative.toLocaleString()}
-                  </div>
-                  <div className="text-[11px] text-[var(--text-muted)] mt-0.5">
-                    Legitimate correctly passed
-                  </div>
-                </div>
+      {/* 4 Metric Cards */}
+      <div className="grid g4" id="eval-metrics">
+        {[
+          { label: "Accuracy", key: "accuracy" },
+          { label: "Precision", key: "precision" },
+          { label: "Recall", key: "recall" },
+          { label: "F1 score", key: "f1" },
+        ].map(({ label, key }) => {
+          const val = a && typeof (a as any)[key] === "number" ? (a as any)[key] : null;
+          return (
+            <div key={key} className="card metric">
+              <div className="row between">
+                <span className="lbl">{label}</span>
+                {val !== null && <span className="tag">{a?.split || "test"}</span>}
               </div>
-
-              <div className="p-3 bg-[var(--bg-elevated)] rounded-xl border border-[var(--border-color)] text-xs text-[var(--text-muted)] space-y-1">
-                <div className="flex justify-between">
-                  <span>Specificity:</span>
-                  <span className="font-mono text-[var(--text-primary)] font-bold">
-                    {((cm.trueNegative / (cm.trueNegative + cm.falsePositive)) * 100).toFixed(2)}%
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span>False Alarm Rate:</span>
-                  <span className="font-mono text-amber-600 dark:text-amber-400 font-bold">
-                    {((cm.falsePositive / (cm.trueNegative + cm.falsePositive)) * 100).toFixed(2)}%
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Training & Validation Loss Chart */}
-        <div className="lg:col-span-7">
-          <Card phase={6} className="h-full border-[var(--border-color)]">
-            <CardHeader className="p-5 pb-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="text-base font-bold">
-                    Training & Validation Loss Convergence
-                  </CardTitle>
-                  <CardDescription>
-                    Binary cross-entropy loss over 10 optimization epochs
-                  </CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-5 pt-2">
-              <div className="h-64 w-full">
-                {mounted ? (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={DEMO_LOSS_CURVES} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="var(--border-color)" vertical={false} opacity={0.5} />
-                      <XAxis dataKey="epoch" stroke="var(--text-muted)" fontSize={11} />
-                      <YAxis stroke="var(--text-muted)" fontSize={11} domain={[0, 0.7]} />
-                      <Tooltip
-                        content={({ active, payload, label }) => {
-                          if (active && payload && payload.length) {
-                            return (
-                              <div className="rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] p-3 shadow-xl text-xs space-y-1">
-                                <div className="font-bold text-[var(--text-primary)]">Epoch {label}</div>
-                                <div className="text-[var(--primary-accent)]">
-                                  Train Loss: {payload[0]?.value}
-                                </div>
-                                <div className="text-emerald-400">
-                                  Val Loss: {payload[1]?.value}
-                                </div>
-                              </div>
-                            );
-                          }
-                          return null;
-                        }}
-                      />
-                      <Legend wrapperStyle={{ fontSize: "11px", paddingTop: "8px" }} />
-                      <Line
-                        type="monotone"
-                        dataKey="trainLoss"
-                        name="Training Loss"
-                        stroke="var(--primary-accent)"
-                        strokeWidth={2}
-                        dot={{ r: 3 }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="valLoss"
-                        name="Validation Loss"
-                        stroke="#22C55E"
-                        strokeWidth={2}
-                        dot={{ r: 3 }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
+              <div className={`big ${val === null ? "dim" : ""}`} style={{ marginTop: 12 }}>
+                {val === null ? (
+                  "—"
                 ) : (
-                  <div className="h-full flex items-center justify-center text-xs text-[var(--text-muted)]">
-                    Loading convergence plot...
-                  </div>
+                  <>
+                    {(val * 100).toFixed(2)}
+                    <small style={{ color: "var(--muted)" }}>%</small>
+                  </>
                 )}
               </div>
-            </CardContent>
-          </Card>
+              <div className="muted" style={{ fontSize: "12px", marginTop: 8 }}>
+                {val === null ? "No evaluation artifact loaded" : a?.model_version || ""}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* 3 Grid: Confusion Matrix, ROC curve, Evaluation metadata */}
+      <div className="grid g3 mt">
+        {/* Confusion Matrix */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3>Confusion matrix</h3>
+              <p>{a && a.threshold != null ? `At threshold T = ${a.threshold}` : "At threshold T"}</p>
+            </div>
+          </div>
+          <div className="cm">
+            <div />
+            <div className="ax">pred. phishing</div>
+            <div className="ax">pred. safe</div>
+            <div className="ax">actual phishing</div>
+            <div
+              className="cell"
+              style={cm ? { background: "var(--dark)", color: "var(--dark-ink)" } : {}}
+            >
+              <b>{cm ? Number(cm.tp).toLocaleString() : "—"}</b>
+              <span className="muted" style={{ fontSize: "10.5px" }}>
+                TP
+              </span>
+            </div>
+            <div className="cell">
+              <b>{cm ? Number(cm.fn).toLocaleString() : "—"}</b>
+              <span className="muted" style={{ fontSize: "10.5px" }}>
+                FN
+              </span>
+            </div>
+            <div className="ax">actual safe</div>
+            <div className="cell">
+              <b>{cm ? Number(cm.fp).toLocaleString() : "—"}</b>
+              <span className="muted" style={{ fontSize: "10.5px" }}>
+                FP
+              </span>
+            </div>
+            <div
+              className="cell"
+              style={cm ? { background: "var(--dark)", color: "var(--dark-ink)" } : {}}
+            >
+              <b>{cm ? Number(cm.tn).toLocaleString() : "—"}</b>
+              <span className="muted" style={{ fontSize: "10.5px" }}>
+                TN
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* ROC Curve */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3>ROC curve</h3>
+              <p>{a?.auc != null ? `AUC = ${Number(a.auc).toFixed(3)}` : "True vs false positive rate"}</p>
+            </div>
+          </div>
+          <svg
+            id="roc"
+            viewBox={`0 0 ${rocSvg.W} ${rocSvg.H}`}
+            width="100%"
+            style={{ display: "block" }}
+            aria-label="ROC curve display"
+          >
+            <rect
+              x={rocSvg.L}
+              y={8}
+              width={rocSvg.pw}
+              height={rocSvg.ph}
+              fill="none"
+              stroke="rgba(28,31,26,.12)"
+            />
+            {[1, 2, 3].map((i) => (
+              <React.Fragment key={i}>
+                <line
+                  x1={rocSvg.X(i / 4)}
+                  y1={8}
+                  x2={rocSvg.X(i / 4)}
+                  y2={8 + rocSvg.ph}
+                  stroke="rgba(28,31,26,.06)"
+                />
+                <line
+                  x1={rocSvg.L}
+                  y1={rocSvg.Y(i / 4)}
+                  x2={rocSvg.L + rocSvg.pw}
+                  y2={rocSvg.Y(i / 4)}
+                  stroke="rgba(28,31,26,.06)"
+                />
+              </React.Fragment>
+            ))}
+            <line
+              x1={rocSvg.X(0)}
+              y1={rocSvg.Y(0)}
+              x2={rocSvg.X(1)}
+              y2={rocSvg.Y(1)}
+              stroke="rgba(28,31,26,.25)"
+              strokeDasharray="3 3"
+            />
+            <text
+              x={rocSvg.L + rocSvg.pw / 2}
+              y={rocSvg.H - 4}
+              textAnchor="middle"
+              fontSize="9"
+              fill="#737869"
+              fontFamily="var(--font-jetbrains-mono), monospace"
+            >
+              FPR
+            </text>
+            <text
+              x={10}
+              y={8 + rocSvg.ph / 2}
+              fontSize="9"
+              fill="#737869"
+              fontFamily="var(--font-jetbrains-mono), monospace"
+              transform={`rotate(-90 10 ${8 + rocSvg.ph / 2})`}
+              textAnchor="middle"
+            >
+              TPR
+            </text>
+
+            {rocSvg.pathD ? (
+              <path d={rocSvg.pathD} fill="none" stroke="#EF6A1E" strokeWidth="2" />
+            ) : (
+              <text
+                x={rocSvg.L + rocSvg.pw / 2}
+                y={8 + rocSvg.ph / 2}
+                textAnchor="middle"
+                fontSize="11"
+                fill="#737869"
+                fontFamily="var(--font-outfit), Outfit, system-ui"
+              >
+                No ROC data
+              </text>
+            )}
+          </svg>
+        </div>
+
+        {/* Evaluation Metadata */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3>Evaluation record</h3>
+              <p>Each reported value needs these fields.</p>
+            </div>
+          </div>
+          <dl className="kv" id="eval-meta">
+            {[
+              ["Model version", "model_version"],
+              ["Dataset", "dataset"],
+              ["Dataset version", "dataset_version"],
+              ["Split", "split"],
+              ["Threshold", "threshold"],
+              ["Evaluation date", "date"],
+              ["Sample size", "n"],
+            ].map(([l, k]) => {
+              const val = a ? (a as any)[k] : null;
+              return (
+                <React.Fragment key={k}>
+                  <dt>{l}</dt>
+                  <dd style={val != null ? {} : { color: "#A6AA9A" }}>
+                    {val != null ? (k === "n" ? Number(val).toLocaleString() : val) : "required"}
+                  </dd>
+                </React.Fragment>
+              );
+            })}
+          </dl>
         </div>
       </div>
 
-      {/* Model Comparison Table */}
-      <Card phase={1} className="border-[var(--border-color)]">
-        <CardHeader className="p-5 pb-3">
-          <CardTitle className="text-base font-bold">
-            Architecture Comparison & Baseline Ablation
-          </CardTitle>
-          <CardDescription>
-            Performance baseline models vs. PhishGuard AI 5-Branch Feature Fusion & Custom Residual Network
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-[var(--border-color)] bg-[var(--bg-surface)]/60 text-[var(--text-muted)] uppercase text-[10px] tracking-wider">
-                  <th className="py-3 px-5 font-semibold">Model Architecture</th>
-                  <th className="py-3 px-4 font-semibold">Type</th>
-                  <th className="py-3 px-4 font-semibold">Accuracy</th>
-                  <th className="py-3 px-4 font-semibold">F1-Score</th>
-                  <th className="py-3 px-4 font-semibold">Inference Latency</th>
-                  <th className="py-3 px-4 font-semibold">Parameters</th>
-                  <th className="py-3 px-4 font-semibold">Role</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[var(--border-color)]/60">
-                {DEMO_MODEL_COMPARISON.map((m, idx) => (
-                  <tr
-                    key={idx}
-                    className={`hover:bg-[var(--bg-elevated)]/40 transition-colors ${
-                      m.status.includes("Champion") ? "bg-[var(--primary-accent)]/5" : ""
-                    }`}
-                  >
-                    <td className="py-3.5 px-5 font-semibold text-[var(--text-primary)]">
-                      {m.model}
-                    </td>
-                    <td className="py-3.5 px-4 text-[var(--text-muted)]">{m.type}</td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-[var(--text-primary)]">
-                      {m.accuracy}%
-                    </td>
-                    <td className="py-3.5 px-4 font-mono font-bold text-[var(--primary-accent)]">
-                      {m.f1Score}%
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-[var(--text-muted)]">{m.latency}</td>
-                    <td className="py-3.5 px-4 font-mono text-[var(--text-muted)]">{m.parameters}</td>
-                    <td className="py-3.5 px-4">
-                      {m.status.includes("Champion") ? (
-                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-500/40">
-                          {m.status}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-[var(--bg-elevated)] text-[var(--text-muted)] border border-[var(--border-color)]">
-                          {m.status}
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+      {/* Reference study · literature */}
+      <div className="eyebrow" style={{ margin: "26px 0 8px" }}>
+        Reference study · literature
+      </div>
+      <div className="grid g-2-1">
+        {/* Author-reported results */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3>Author-reported results</h3>
+              <p>Hosseinzadeh et al., Scientific Reports 2025 · Table 9 configuration, as used on the research poster.</p>
+            </div>
+            <span className="tag acc">not PhishGuard</span>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Dataset & Experiment Metadata Card */}
-      <Card phase={2} className="border-[var(--border-color)] bg-[var(--bg-surface)]/60">
-        <CardHeader className="p-5 pb-3 border-b border-[var(--border-color)]">
-          <CardTitle className="text-sm font-bold flex items-center gap-2">
-            <Database className="w-4 h-4 text-[var(--primary-accent)]" />
-            Dataset Split & Reproducibility Metadata
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 text-xs">
-            <div>
-              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Dataset Corpus</span>
-              <span className="text-[var(--text-primary)] font-medium mt-0.5 block truncate" title={DEMO_RESEARCH_METRICS.dataset}>
-                Kaggle + Enron
-              </span>
-            </div>
-            <div>
-              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Total Samples</span>
-              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
-                {DEMO_RESEARCH_METRICS.totalSamples.toLocaleString()}
-              </span>
-            </div>
-            <div>
-              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Train / Val / Test</span>
-              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
-                70 / 15 / 15
-              </span>
-            </div>
-            <div>
-              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Random Seed</span>
-              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
-                {DEMO_RESEARCH_METRICS.randomSeed}
-              </span>
-            </div>
-            <div>
-              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Feature Backbone</span>
-              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
-                {DEMO_RESEARCH_METRICS.backbone}
-              </span>
-            </div>
-            <div>
-              <span className="text-[var(--text-muted)] text-[10px] uppercase font-bold block">Max Sequence</span>
-              <span className="text-[var(--text-primary)] font-mono font-medium mt-0.5 block">
-                {DEMO_RESEARCH_METRICS.sequenceLength} tokens
-              </span>
+          <div>
+            {litMetrics.map(({ label, value }) => (
+              <div key={label} className="lit-row">
+                <span>{label}</span>
+                <div className="track">
+                  <i style={{ width: `${(((value - 90) / 10) * 100).toFixed(1)}%` }} />
+                </div>
+                <span className="v">{value.toFixed(2)}%</span>
+              </div>
+            ))}
+            <div
+              className="row between mono muted"
+              style={{ fontSize: "10.5px", margin: "4px 0 0 102px", paddingRight: "76px" }}
+            >
+              <span>90%</span>
+              <span>95%</span>
+              <span>100%</span>
             </div>
           </div>
-        </CardContent>
-      </Card>
+
+          <p className="note" style={{ marginTop: 14 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <circle cx="12" cy="12" r="9" />
+              <path d="M12 8v5M12 16h.01" />
+            </svg>
+            <span>
+              Some narrative sections of the paper pair these metrics inconsistently. These numbers describe that
+              study&apos;s BERT-based model on one public dataset. They are not PhishGuard performance.
+            </span>
+          </p>
+        </div>
+
+        {/* Study dataset */}
+        <div className="card">
+          <div className="card-head">
+            <div>
+              <h3>Study dataset</h3>
+              <p>Public Kaggle phishing-email collection</p>
+            </div>
+          </div>
+          <div className="big" style={{ color: "var(--ink)", fontSize: "40px" }}>
+            18,650<small style={{ color: "var(--muted)" }}>emails</small>
+          </div>
+          <div className="dist" style={{ marginTop: 16 }}>
+            <div style={{ width: "61%", background: "#3A3F38" }}>61% safe</div>
+            <div style={{ width: "39%", background: "var(--accent)" }}>39% phishing</div>
+          </div>
+          <p className="muted" style={{ fontSize: "12.5px", margin: "12px 0 0" }}>
+            Empty bodies removed. Single dataset, so wider testing across organisations, languages and new scam types is
+            still needed.
+          </p>
+        </div>
+      </div>
+
+      {/* Collapsible JSON schema */}
+      <details className="more" style={{ marginTop: 16 }}>
+        <summary>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="m9 6 6 6-6 6" />
+          </svg>
+          Evaluation artifact schema
+        </summary>
+        <pre className="schema">
+          {JSON.stringify(
+            {
+              model_version: "pg-fusion-836@0.1.0",
+              dataset: "pg-finance-mail",
+              dataset_version: "2026.11",
+              split: "test (time-based, 15%)",
+              threshold: 0.55,
+              date: "2026-11-15",
+              n: 2800,
+              accuracy: 0.964,
+              precision: 0.941,
+              recall: 0.978,
+              f1: 0.959,
+              confusion: { tp: 1042, fp: 65, tn: 1670, fn: 23 },
+              roc: [
+                [0, 0],
+                [0.02, 0.81],
+                [0.05, 0.92],
+                [0.1, 0.96],
+                [1, 1],
+              ],
+              auc: 0.978,
+            },
+            null,
+            2
+          )}
+        </pre>
+      </details>
     </div>
   );
 }
