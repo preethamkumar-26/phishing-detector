@@ -4,75 +4,124 @@ import { DEMO_RECENT_SCANS } from "@/data/demo-data";
 // In-memory session store initialized with demo records
 let sessionScans: ScanRecord[] = [...DEMO_RECENT_SCANS];
 
+const FASTAPI_BASE_URL =
+  process.env.NEXT_PUBLIC_FASTAPI_URL || "http://127.0.0.1:8000";
+
+export interface ScanInputPayload {
+  content?: string;
+  body?: string;
+  subject?: string;
+  sender?: string;
+  headers?: Record<string, string>;
+}
+
 export interface AnalyzeEmailInput {
   subject?: string;
   sender?: string;
   body: string;
 }
 
-const PHISHING_INDICATOR_PATTERNS = [
-  { regex: /urgent|immediately|within \d+ hours|action required|expire/i, reason: "Artificial urgency language", severity: "high" as const },
-  { regex: /re-authenticate|verify your (identity|password|account)|confirm your credentials|sign in to|login/i, reason: "Credential harvesting prompt", severity: "critical" as const },
-  { regex: /suspended|deactivated|terminated|disabled|legal action|penalty/i, reason: "Intimidation or consequence threat", severity: "high" as const },
-  { regex: /https?:\/\/[^\s]+/i, reason: "Embedded external hyperlink or IP address destination", severity: "medium" as const },
-  { regex: /wire transfer|bank details|remittance|invoice #|gift card/i, reason: "Financial transaction request", severity: "medium" as const },
-  { regex: /unauthorized login|security alert|incident response/i, reason: "Security impersonation / spoofing context", severity: "medium" as const },
-];
+interface FastAPIAnalysisResponse {
+  scan_id: string;
+  scanId: string;
+  timestamp: string;
+  is_phishing: boolean;
+  classification: "legitimate" | "suspicious" | "phishing";
+  confidence_score: number;
+  confidenceScore: number;
+  indicators: Array<{
+    title: string;
+    description: string;
+    severity: string;
+  }>;
+  explainability: {
+    summary: string;
+  };
+  model_metadata: {
+    model_name: string;
+    modelName: string;
+  };
+  modelMetadata: {
+    model_name: string;
+    modelName: string;
+  };
+  processing_time_ms: number;
+  processingTimeMs: number;
+}
+
+function getEvidenceSeverity(severity: string): EvidenceItem["severity"] {
+  switch (severity) {
+    case "critical":
+    case "high":
+    case "medium":
+    case "low":
+      return severity;
+    default:
+      return "medium";
+  }
+}
+
+export async function analyzeEmailWithBackend(
+  payload: ScanInputPayload
+): Promise<FastAPIAnalysisResponse> {
+  const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/analyze`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      content: payload.content ?? payload.body ?? "",
+      subject: payload.subject ?? "",
+      sender: payload.sender ?? "",
+      headers: payload.headers ?? {},
+    }),
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      data.detail || "Failed to analyze email via PhishGuard FastAPI Backend"
+    );
+  }
+
+  return data;
+}
 
 /**
- * Analyzes an email using the prototype inference service.
- * In this temporary milestone, it uses deterministic heuristic analysis with typed mock output,
- * labeled clearly as a demo result. It can later be replaced with `fetch('/api/v1/predict')`.
+ * Analyzes an email using the PhishGuard FastAPI backend.
  */
 export async function analyzeEmail(input: AnalyzeEmailInput): Promise<ScanResult> {
-  const startTime = performance.now();
-  
-  // Simulate network & neural inference latency (500ms - 800ms)
-  await new Promise((resolve) => setTimeout(resolve, 650));
+  const data = await analyzeEmailWithBackend({
+    body: input.body,
+    subject: input.subject,
+    sender: input.sender,
+  });
 
-  const textToScan = `${input.subject || ""} ${input.body}`.trim();
-
-  const evidence: EvidenceItem[] = [];
-
-  for (const pattern of PHISHING_INDICATOR_PATTERNS) {
-    const match = textToScan.match(pattern.regex);
-    if (match) {
-      evidence.push({
-        text: match[0],
-        reason: pattern.reason,
-        severity: pattern.severity,
-      });
-    }
-  }
-
-  let prediction: PredictionType = "safe";
-  let confidence = 98.4;
-  let summary = "No malicious indicators or credential-harvesting patterns were identified in the text content.";
-
-  if (evidence.some(e => e.severity === "critical") || evidence.length >= 3) {
-    prediction = "phishing";
-    confidence = Math.min(99.2, 88.0 + evidence.length * 2.5);
-    summary = `High threat probability. Detected ${evidence.length} phishing indicators including credential solicitation and severe urgency tactics.`;
-  } else if (evidence.length >= 1) {
-    prediction = "needs_review";
-    confidence = 64.8;
-    summary = `Suspicious elements detected (${evidence.length} indicators). Requires secondary human review or corroborating sender metadata.`;
-  }
-
-  const processingTimeMs = Math.round(performance.now() - startTime);
-
-  const scanId = `SCN-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+  const prediction: PredictionType =
+    data.classification === "suspicious"
+      ? "needs_review"
+      : data.classification === "phishing" || data.is_phishing
+        ? "phishing"
+        : "safe";
+  const modelMetadata = data.model_metadata || data.modelMetadata;
+  const confidence = (data.confidence_score ?? data.confidenceScore) * 100;
+  const evidence: EvidenceItem[] = data.indicators.map((indicator) => ({
+    text: indicator.title,
+    reason: indicator.description,
+    severity: getEvidenceSeverity(indicator.severity),
+  }));
 
   const result: ScanResult = {
-    scanId,
+    scanId: data.scan_id || data.scanId,
     prediction,
     confidence,
-    summary,
+    summary: data.explainability.summary,
     evidence,
-    modelVersion: "PhishGuard-5BF-ResNet-Demo-v1.0",
-    processingTimeMs,
-    isDemo: true,
-    timestamp: new Date().toISOString(),
+    modelVersion: modelMetadata.model_name || modelMetadata.modelName,
+    processingTimeMs: data.processing_time_ms ?? data.processingTimeMs,
+    isDemo: false,
+    timestamp: data.timestamp,
     subject: input.subject || (input.body.slice(0, 40) + "…"),
     sender: input.sender || "Unspecified",
     body: input.body,
@@ -93,7 +142,7 @@ export function saveScanToHistory(result: ScanResult): ScanRecord {
     confidence: result.confidence || 95.0,
     timestamp: result.timestamp || new Date().toISOString(),
     modelVersion: result.modelVersion || "PhishGuard-5BF-ResNet-Demo-v1.0",
-    isDemo: true,
+    isDemo: result.isDemo,
     bodySnippet: result.body?.slice(0, 120) || "",
     evidenceCount: result.evidence.length,
     evidence: result.evidence,
