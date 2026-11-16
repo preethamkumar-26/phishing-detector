@@ -1,7 +1,10 @@
 from fastapi import FastAPI, Request, status
+from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from app.core.logging import logger
+
+HTTP_422_STATUS = getattr(status, "HTTP_422_UNPROCESSABLE_CONTENT", 422)
 
 
 class ModelNotReadyError(Exception):
@@ -45,12 +48,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def validation_error_handler(request: Request, exc: RequestValidationError):
         logger.warning(f"Validation error on {request.url.path}: {exc.errors()}")
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=HTTP_422_STATUS,
             content={
                 "success": False,
                 "error": "ValidationError",
                 "detail": "Invalid request payload. Ensure email content/body is provided.",
-                "validation_errors": exc.errors(),
+                "validation_errors": jsonable_encoder(exc.errors()),
             },
         )
 

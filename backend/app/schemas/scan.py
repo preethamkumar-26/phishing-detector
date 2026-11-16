@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any
+from typing import Dict, List, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
@@ -13,13 +13,14 @@ class EmailScanRequest(BaseModel):
 
     @model_validator(mode="after")
     def resolve_email_body(self) -> "EmailScanRequest":
-        resolved = (
-            self.content
-            or self.body
-            or self.text
-            or self.emailText
-            or ""
-        ).strip()
+        resolved = next(
+            (
+                candidate.strip()
+                for candidate in (self.content, self.body, self.text, self.emailText)
+                if candidate and candidate.strip()
+            ),
+            "",
+        )
         if not resolved and not (self.subject or "").strip():
             raise ValueError("Email content (content, body, text, or subject) cannot be empty.")
         self.content = resolved
