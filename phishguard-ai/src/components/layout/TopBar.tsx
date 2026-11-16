@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePhishGuard } from "@/context/PhishGuardContext";
@@ -8,37 +8,53 @@ import { usePhishGuard } from "@/context/PhishGuardContext";
 export function TopBar() {
   const pathname = usePathname();
   const { serviceStatus, settings, profile } = usePhishGuard();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const initials = useMemo(() => {
-    const w = (profile.name || "Analyst").trim().split(/\s+/);
+    if (!mounted) return "AN";
+    const raw = (profile.name || "Analyst").trim();
+    if (!raw) return "AN";
+    const w = raw.split(/\s+/);
     return (w.length > 1 ? w[0][0] + w[1][0] : w[0].slice(0, 2)).toUpperCase();
-  }, [profile.name]);
+  }, [mounted, profile.name]);
+
+  const avatarTitle = useMemo(() => {
+    if (!mounted || !profile.name) return "Open profile";
+    return `${profile.name} · Open profile`;
+  }, [mounted, profile.name]);
 
   const svcLabel = useMemo(() => {
+    if (!mounted) return "Model service · not connected";
     if (serviceStatus === "ok") return "Model service · connected";
     if (serviceStatus === "err") return "Model service · unreachable";
     if (settings.useService && settings.endpoint.trim()) return "Model service · configured";
     return "Model service · not connected";
-  }, [serviceStatus, settings.endpoint, settings.useService]);
+  }, [mounted, serviceStatus, settings.endpoint, settings.useService]);
 
   const svcClass = useMemo(() => {
+    if (!mounted) return "svc";
     if (serviceStatus === "ok") return "svc on";
     if (serviceStatus === "err") return "svc err";
     return "svc";
-  }, [serviceStatus]);
+  }, [mounted, serviceStatus]);
 
   const isOverview = pathname === "/" || pathname === "/dashboard";
   const isAnalyzer = pathname === "/analyzer";
   const isExplain = pathname === "/explainability";
   const isEval = pathname === "/analytics" || pathname === "/evaluation";
   const isHistory = pathname === "/history";
+  const isProfile = pathname === "/profile" || pathname === "/account";
   const isSettings = pathname === "/settings";
-  const isAccount = pathname === "/account";
 
   return (
-    <header className="topbar" role="banner">
-      {/* Brand logo & title */}
-      <Link href="/dashboard" className="brand" aria-label="PhishGuard AI home">
+    <header className="topbar-wrap" role="banner">
+      <div className="topbar">
+        {/* Brand logo & title */}
+        <Link href="/dashboard" className="brand" aria-label="PhishGuard AI home">
         <svg
           width="24"
           height="26"
@@ -102,11 +118,18 @@ export function TopBar() {
         >
           Scan history
         </Link>
+        <Link
+          href="/profile"
+          className={`tab ${isProfile ? "active" : ""}`}
+          aria-current={isProfile ? "page" : undefined}
+        >
+          Profile
+        </Link>
       </nav>
 
       {/* Utility / status controls on right */}
       <div className="tools">
-        <span className={svcClass} title="Inference service status">
+        <span className={svcClass} title="Inference service status" suppressHydrationWarning>
           <i aria-hidden="true" />
           <span>{svcLabel}</span>
         </span>
@@ -137,15 +160,17 @@ export function TopBar() {
         </Link>
 
         <Link
-          href="/account"
-          className="avatar"
-          aria-current={isAccount ? "page" : undefined}
-          aria-label={`Account (${profile.name || "Analyst"})`}
-          title={`${profile.name || "Analyst"} · ${profile.role || "Security analyst"}`}
+          href="/profile"
+          className={`avatar ${isProfile ? "active" : ""}`}
+          aria-current={isProfile ? "page" : undefined}
+          aria-label="Open profile"
+          title={avatarTitle}
+          suppressHydrationWarning
         >
           {initials}
         </Link>
       </div>
-    </header>
-  );
+    </div>
+  </header>
+);
 }

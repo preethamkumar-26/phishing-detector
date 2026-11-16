@@ -7,6 +7,7 @@ export const ALLOWED_INTERNAL_ROUTES = new Set<string>([
   "/analytics",
   "/evaluation",
   "/history",
+  "/profile",
   "/settings",
   "/account",
 ]);

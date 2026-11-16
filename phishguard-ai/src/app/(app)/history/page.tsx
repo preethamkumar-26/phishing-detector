@@ -96,7 +96,7 @@ export default function HistoryPage() {
       {/* 4 KPI Cards */}
       <div className="grid g4" id="hist-kpis">
         {kpis.map((k, i) => (
-          <div key={i} className="card metric">
+          <div key={i} className="card metric no-hover">
             <div className="lbl">{k.label}</div>
             <div className="big" style={{ marginTop: 10, color: k.color }}>
               {k.value}

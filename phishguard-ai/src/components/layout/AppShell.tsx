@@ -49,18 +49,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <div className="shell min-h-screen flex flex-col justify-between">
-      <div>
-        <TopBar />
+    <div className="shell-root min-h-screen flex flex-col justify-between">
+      <TopBar />
+      <div className="shell flex-1 flex flex-col justify-between">
         <main className="page" id="main-content">
           {children}
         </main>
-      </div>
 
-      <footer className="foot" role="contentinfo">
-        <span>Overview figures reflect the sample workspace and are illustrative.</span>
-        <span className="mono">PhishGuard AI · research build</span>
-      </footer>
+        <footer className="foot" role="contentinfo">
+          <span>Overview figures reflect the sample workspace and are illustrative.</span>
+          <span className="mono">PhishGuard AI · research build</span>
+        </footer>
+      </div>
 
       {/* Floating toast notifications */}
       <div className="toasts" aria-live="polite" aria-atomic="true">

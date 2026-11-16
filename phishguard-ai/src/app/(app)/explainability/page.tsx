@@ -50,19 +50,6 @@ export default function ExplainabilityPage() {
     return t;
   }, [scan]);
 
-  // Ranked contributions
-  const contribs = useMemo(() => {
-    if (!scan) return [];
-    return scan.rows
-      .filter((r) => r.contrib !== 0)
-      .sort((a, b) => Math.abs(b.contrib) - Math.abs(a.contrib));
-  }, [scan]);
-
-  const maxC = useMemo(() => {
-    if (!contribs.length) return 0.1;
-    return Math.max(0.1, ...contribs.map((r) => Math.abs(r.contrib)));
-  }, [contribs]);
-
   const benignRows = useMemo(() => {
     if (!scan) return [];
     return scan.rows.filter((r) => r.contrib < 0);
@@ -100,7 +87,7 @@ export default function ExplainabilityPage() {
 
   if (!scan) {
     return (
-      <div>
+      <div className="section-no-hover">
         <div className="ph">
           <div>
             <h1>Explainability</h1>
@@ -123,7 +110,7 @@ export default function ExplainabilityPage() {
   const isPhish = scan.decision === "PHISHING";
 
   return (
-    <div>
+    <div className="section-no-hover">
       {/* Page Header with Scan Picker */}
       <div className="ph">
         <div>
@@ -358,134 +345,40 @@ export default function ExplainabilityPage() {
         </div>
       </div>
 
-      {/* Third Grid: Ranked Contributions & Textual Evidence */}
-      <div className="grid g2 mt">
-        {/* Ranked Contributions */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <h3>Ranked contributions</h3>
-              <p>Every feature that moved the score, by weight.</p>
-            </div>
-            <span className="mono muted" style={{ fontSize: "12px" }}>
-              {contribs.length} of 68
+      {/* Textual Evidence */}
+      <div className="card mt">
+        <div className="card-head">
+          <div>
+            <h3>Textual evidence</h3>
+            <p>Rule-based phrase detection over the parsed subject and body.</p>
+          </div>
+          <div className="legend">
+            <span>
+              <i style={{ background: "rgba(239,106,30,.5)" }} />
+              security
+            </span>
+            <span>
+              <i style={{ background: "rgba(168,102,42,.5)" }} />
+              financial
             </span>
           </div>
-          <div>
-            {contribs.length ? (
-              contribs.slice(0, 14).map((r) => (
-                <div key={r.id} className="contrib">
-                  <span className="code">{r.id}</span>
-                  <span style={{ minWidth: 0 }}>
-                    {r.name}
-                    {r.hit && <span className="h">{String(r.hit)}</span>}
-                  </span>
-                  <div className="bar">
-                    <i
-                      style={
-                        r.contrib >= 0
-                          ? { left: "50%", width: `${(Math.abs(r.contrib) / maxC) * 50}%`, background: "var(--phish)" }
-                          : { right: "50%", width: `${(Math.abs(r.contrib) / maxC) * 50}%`, background: "var(--safe)" }
-                      }
-                    />
-                  </div>
-                  <span className="mono" style={{ textAlign: "right", fontSize: "12px" }}>
-                    {r.contrib >= 0 ? "+" : "−"}
-                    {Math.abs(r.contrib).toFixed(2)}
-                  </span>
-                </div>
-              ))
-            ) : (
-              <p className="muted" style={{ margin: 0 }}>
-                No features fired.
-              </p>
-            )}
-          </div>
         </div>
+        <div className="evidence">{highlightedEvidence}</div>
 
-        {/* Textual Evidence */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <h3>Textual evidence</h3>
-              <p>Rule-based phrase detection over the parsed subject and body.</p>
+        {benignRows.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            <div className="lbl" style={{ marginBottom: 8 }}>
+              Benign evidence
             </div>
-            <div className="legend">
-              <span>
-                <i style={{ background: "rgba(239,106,30,.5)" }} />
-                security
-              </span>
-              <span>
-                <i style={{ background: "rgba(168,102,42,.5)" }} />
-                financial
-              </span>
+            <div className="row wrap" style={{ gap: 6 }}>
+              {benignRows.map((r) => (
+                <span key={r.id} className="verdict v-safe" style={{ textTransform: "none", letterSpacing: 0 }}>
+                  {r.id} · {r.name}
+                </span>
+              ))}
             </div>
           </div>
-          <div className="evidence">{highlightedEvidence}</div>
-
-          {benignRows.length > 0 && (
-            <div style={{ marginTop: 14 }}>
-              <div className="lbl" style={{ marginBottom: 8 }}>
-                Benign evidence
-              </div>
-              <div className="row wrap" style={{ gap: 6 }}>
-                {benignRows.map((r) => (
-                  <span key={r.id} className="verdict v-safe" style={{ textTransform: "none", letterSpacing: 0 }}>
-                    {r.id} · {r.name}
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Fourth Grid: All 68 Structured Features collapsible */}
-      <div className="card mt">
-        <details className="more" style={{ margin: 0 }}>
-          <summary>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="m9 6 6 6-6 6" />
-            </svg>
-            All 68 structured features for this scan
-          </summary>
-          <div className="grid g2" style={{ marginTop: 14 }}>
-            {(["financial", "security", "url", "metadata"] as const).map((g) => (
-              <div key={g}>
-                <div className="lbl" style={{ marginBottom: 6 }}>
-                  {BR[g].name} · {BR[g].dim}-d
-                </div>
-                <div className="tbl-wrap">
-                  <table className="tbl">
-                    <tbody>
-                      {scan.rows
-                        .filter((r) => r.b === g)
-                        .map((r) => (
-                          <tr key={r.id}>
-                            <td style={{ width: 56 }}>
-                              <span className="code">{r.id}</span>
-                            </td>
-                            <td>{r.name}</td>
-                            <td className="mono" style={{ fontSize: "12px", color: "var(--muted)" }}>
-                              {String(r.disp)}
-                            </td>
-                            <td
-                              className="num"
-                              style={{
-                                color: r.contrib > 0 ? "var(--phish)" : r.contrib < 0 ? "var(--safe)" : "var(--muted)",
-                              }}
-                            >
-                              {r.contrib ? (r.contrib > 0 ? "+" : "−") + Math.abs(r.contrib).toFixed(2) : "0"}
-                            </td>
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            ))}
-          </div>
-        </details>
+        )}
       </div>
     </div>
   );

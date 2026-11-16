@@ -49,13 +49,6 @@ export default function EvaluationPage() {
     return { W, H, L, B, pw, ph, X, Y, pathD };
   }, [a]);
 
-  const litMetrics = [
-    { label: "Accuracy", value: 97.22 },
-    { label: "Precision", value: 94.26 },
-    { label: "Recall", value: 98.71 },
-    { label: "F1 score", value: 96.43 },
-  ];
-
   return (
     <div>
       {/* Page Header */}
@@ -63,8 +56,7 @@ export default function EvaluationPage() {
         <div>
           <h1>Model evaluation</h1>
           <p>
-            PhishGuard metrics appear only when a versioned evaluation artifact is loaded. Figures from the reference
-            study are shown separately as literature context.
+            PhishGuard metrics appear only when a versioned evaluation artifact is loaded.
           </p>
         </div>
         <div className="actions">
@@ -291,113 +283,6 @@ export default function EvaluationPage() {
           </dl>
         </div>
       </div>
-
-      {/* Reference study · literature */}
-      <div className="eyebrow" style={{ margin: "26px 0 8px" }}>
-        Reference study · literature
-      </div>
-      <div className="grid g-2-1">
-        {/* Author-reported results */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <h3>Author-reported results</h3>
-              <p>Hosseinzadeh et al., Scientific Reports 2025 · Table 9 configuration, as used on the research poster.</p>
-            </div>
-            <span className="tag acc">not PhishGuard</span>
-          </div>
-
-          <div>
-            {litMetrics.map(({ label, value }) => (
-              <div key={label} className="lit-row">
-                <span>{label}</span>
-                <div className="track">
-                  <i style={{ width: `${(((value - 90) / 10) * 100).toFixed(1)}%` }} />
-                </div>
-                <span className="v">{value.toFixed(2)}%</span>
-              </div>
-            ))}
-            <div
-              className="row between mono muted"
-              style={{ fontSize: "10.5px", margin: "4px 0 0 102px", paddingRight: "76px" }}
-            >
-              <span>90%</span>
-              <span>95%</span>
-              <span>100%</span>
-            </div>
-          </div>
-
-          <p className="note" style={{ marginTop: 14 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v5M12 16h.01" />
-            </svg>
-            <span>
-              Some narrative sections of the paper pair these metrics inconsistently. These numbers describe that
-              study&apos;s BERT-based model on one public dataset. They are not PhishGuard performance.
-            </span>
-          </p>
-        </div>
-
-        {/* Study dataset */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <h3>Study dataset</h3>
-              <p>Public Kaggle phishing-email collection</p>
-            </div>
-          </div>
-          <div className="big" style={{ color: "var(--ink)", fontSize: "40px" }}>
-            18,650<small style={{ color: "var(--muted)" }}>emails</small>
-          </div>
-          <div className="dist" style={{ marginTop: 16 }}>
-            <div style={{ width: "61%", background: "#3A3F38" }}>61% safe</div>
-            <div style={{ width: "39%", background: "var(--accent)" }}>39% phishing</div>
-          </div>
-          <p className="muted" style={{ fontSize: "12.5px", margin: "12px 0 0" }}>
-            Empty bodies removed. Single dataset, so wider testing across organisations, languages and new scam types is
-            still needed.
-          </p>
-        </div>
-      </div>
-
-      {/* Collapsible JSON schema */}
-      <details className="more" style={{ marginTop: 16 }}>
-        <summary>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="m9 6 6 6-6 6" />
-          </svg>
-          Evaluation artifact schema
-        </summary>
-        <pre className="schema">
-          {JSON.stringify(
-            {
-              model_version: "pg-fusion-836@0.1.0",
-              dataset: "pg-finance-mail",
-              dataset_version: "2026.11",
-              split: "test (time-based, 15%)",
-              threshold: 0.55,
-              date: "2026-11-15",
-              n: 2800,
-              accuracy: 0.964,
-              precision: 0.941,
-              recall: 0.978,
-              f1: 0.959,
-              confusion: { tp: 1042, fp: 65, tn: 1670, fn: 23 },
-              roc: [
-                [0, 0],
-                [0.02, 0.81],
-                [0.05, 0.92],
-                [0.1, 0.96],
-                [1, 1],
-              ],
-              auc: 0.978,
-            },
-            null,
-            2
-          )}
-        </pre>
-      </details>
     </div>
   );
 }

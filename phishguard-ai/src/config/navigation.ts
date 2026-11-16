@@ -35,6 +35,10 @@ export const MAIN_NAV_ITEMS: NavItem[] = [
     title: "Scan history",
     href: "/history",
   },
+  {
+    title: "Profile",
+    href: "/profile",
+  },
 ];
 
 export const PUBLIC_NAV_ITEMS: NavItem[] = [
@@ -43,6 +47,7 @@ export const PUBLIC_NAV_ITEMS: NavItem[] = [
   { title: "Explainability", href: "/explainability" },
   { title: "Evaluation", href: "/analytics" },
   { title: "Scan History", href: "/history" },
+  { title: "Profile", href: "/profile" },
 ];
 
 export const SIDEBAR_ITEMS = {
@@ -52,6 +57,7 @@ export const SIDEBAR_ITEMS = {
     { title: "Explainability", href: "/explainability", iconName: "Eye" },
     { title: "Evaluation", href: "/analytics", iconName: "ChartNoAxesCombined" },
     { title: "Scan History", href: "/history", iconName: "History" },
+    { title: "Profile", href: "/profile", iconName: "User" },
   ],
   research: {
     title: "Evaluation",

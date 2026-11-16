@@ -28,7 +28,7 @@ const fmtRel = (ts: number, now = BASELINE_TIME) => {
 
 export default function OverviewPage() {
   const router = useRouter();
-  const { scans, setSelectedScanId, settings, evalArtifact, serviceStatus, formatP } = usePhishGuard();
+  const { scans, setSelectedScanId, evalArtifact, serviceStatus, formatP } = usePhishGuard();
 
   const handleOpenScan = (id: string) => {
     setSelectedScanId(id);
@@ -145,7 +145,7 @@ export default function OverviewPage() {
   return (
     <div>
       {/* ================= DASHBOARD HERO ================= */}
-      <div className="panel-dark hero">
+      <div className="panel-dark hero no-hover">
         {/* Left column */}
         <div className="hero-left" style={{ display: "flex", flexDirection: "column", gap: 22, paddingBottom: 22 }}>
           <div className="hero-title">
@@ -487,8 +487,8 @@ export default function OverviewPage() {
         </div>
       </div>
 
-      {/* ================= 4 KPI CARDS ================= */}
-      <div className="grid g4 mt">
+      {/* ================= 2 KPI CARDS (MAIL SOURCES & TOP INDICATORS) ================= */}
+      <div className="grid g2 mt">
         {/* Card 1: Mail Sources */}
         <div className="card warm">
           <div className="card-head">
@@ -508,7 +508,7 @@ export default function OverviewPage() {
                 placeItems: "center",
                 width: 26,
                 height: 26,
-                borderRadius: 4,
+                borderRadius: "var(--r-sm)",
                 background: "rgba(255,255,255,.4)",
               }}
             >
@@ -526,7 +526,7 @@ export default function OverviewPage() {
                 placeItems: "center",
                 width: 26,
                 height: 26,
-                borderRadius: 4,
+                borderRadius: "var(--r-sm)",
                 background: "rgba(255,255,255,.4)",
               }}
             >
@@ -544,7 +544,7 @@ export default function OverviewPage() {
                 placeItems: "center",
                 width: 26,
                 height: 26,
-                borderRadius: 4,
+                borderRadius: "var(--r-sm)",
                 background: "rgba(255,255,255,.4)",
               }}
             >
@@ -562,7 +562,7 @@ export default function OverviewPage() {
                 placeItems: "center",
                 width: 26,
                 height: 26,
-                borderRadius: 4,
+                borderRadius: "var(--r-sm)",
                 background: "rgba(255,255,255,.4)",
               }}
             >
@@ -625,82 +625,10 @@ export default function OverviewPage() {
             </div>
           </div>
         </div>
-
-        {/* Card 3: Pipeline (Strictly operational, no link to Architecture) */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <h3>Pipeline</h3>
-            </div>
-          </div>
-          <div className="li">
-            <span className="ico">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="m9 6 6 6-6 6" />
-              </svg>
-            </span>
-            <div>
-              <div className="n">/01</div>
-              Parsing &amp; normalisation
-            </div>
-          </div>
-          <div className="li">
-            <span className="ico">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="m9 6 6 6-6 6" />
-              </svg>
-            </span>
-            <div>
-              <div className="n">/02</div>
-              5-branch extraction · 836-d
-            </div>
-          </div>
-          <div className="li">
-            <span className="ico">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="m9 6 6 6-6 6" />
-              </svg>
-            </span>
-            <div>
-              <div className="n">/03</div>
-              Residual network → P<sub>phish</sub> ≥ T
-            </div>
-          </div>
-        </div>
-
-        {/* Card 4: Model Status */}
-        <div className="card">
-          <div className="card-head">
-            <div>
-              <h3>Model</h3>
-            </div>
-            <Link href="/analytics" className="go" aria-label="Open model evaluation">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                <path d="M7 17 17 7M8 7h9v9" />
-              </svg>
-            </Link>
-          </div>
-          <dl className="kv" style={{ fontSize: "12.5px" }}>
-            <dt>Fused vector</dt>
-            <dd>836-d</dd>
-            <dt>Representation</dt>
-            <dd>256-d</dd>
-            <dt>Threshold T</dt>
-            <dd>{settings.T.toFixed(2)}</dd>
-            <dt>Trained weights</dt>
-            <dd>{serviceStatus === "ok" ? "via service" : "not loaded"}</dd>
-          </dl>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", marginTop: 14 }}>
-            <span className="tag">{serviceStatus === "ok" ? "Model service" : "Local preview"}</span>
-            <span className="big" style={{ color: "var(--ink)", fontSize: "40px" }}>
-              384<small style={{ color: "var(--muted)" }}>flagged</small>
-            </span>
-          </div>
-        </div>
       </div>
 
       {/* ================= METADATA STRIP ================= */}
-      <div className="strip">
+      <div className="strip no-hover">
         <div className="it">
           <span className="mk">WS</span>
           <div>
@@ -739,7 +667,7 @@ export default function OverviewPage() {
       {/* ================= RECENT SCANS & ACTIVITY ================= */}
       <div className="grid g-2-1 mt">
         {/* Recent scans table */}
-        <div className="card">
+        <div className="card no-hover">
           <div className="card-head">
             <div>
               <h3>Recent scans</h3>
@@ -802,7 +730,7 @@ export default function OverviewPage() {
         </div>
 
         {/* Activity 14 days chart */}
-        <div className="card">
+        <div className="card no-hover">
           <div className="card-head">
             <div>
               <h3>Activity · 14 days</h3>

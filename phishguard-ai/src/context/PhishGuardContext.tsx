@@ -741,80 +741,101 @@ const DEFAULT_SETTINGS: SettingsState = {
 };
 
 const DEFAULT_PROFILE: ProfileState = {
-  name: "Analyst",
-  role: "Security analyst",
-  org: "PhishGuard Labs",
-  team: "Threat Intelligence",
+  name: "",
+  role: "",
+  org: "",
+  team: "",
 };
 
 export function PhishGuardProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<SettingsState>(() => {
-    if (typeof window === "undefined") return DEFAULT_SETTINGS;
-    try {
-      const saved = localStorage.getItem("pg.settings");
-      return saved ? { ...DEFAULT_SETTINGS, ...JSON.parse(saved) } : DEFAULT_SETTINGS;
-    } catch {
-      return DEFAULT_SETTINGS;
-    }
-  });
+  const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
+  const [profile, setProfile] = useState<ProfileState>(DEFAULT_PROFILE);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
+  const [usage, setUsage] = useState<{ scans: number; calls: number }>({ scans: 0, calls: 0 });
+  const [evalArtifact, setEvalArtifactState] = useState<EvalArtifact | null>(null);
+  const [scans, setScans] = useState<ScanItem[]>(() => buildInitialScans(DEFAULT_SETTINGS.T));
 
-  const [profile, setProfile] = useState<ProfileState>(() => {
-    if (typeof window === "undefined") return DEFAULT_PROFILE;
-    try {
-      const saved = localStorage.getItem("pg.profile");
-      return saved ? { ...DEFAULT_PROFILE, ...JSON.parse(saved) } : DEFAULT_PROFILE;
-    } catch {
-      return DEFAULT_PROFILE;
-    }
-  });
-
-  const [activity, setActivity] = useState<ActivityItem[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const saved = localStorage.getItem("pg.activity");
-      return saved ? JSON.parse(saved) : [];
-    } catch {
-      return [];
-    }
-  });
-
-  const [usage, setUsage] = useState<{ scans: number; calls: number }>(() => {
-    if (typeof window === "undefined") return { scans: 0, calls: 0 };
-    try {
-      const saved = localStorage.getItem("pg.usage");
-      return saved ? JSON.parse(saved) : { scans: 0, calls: 0 };
-    } catch {
-      return { scans: 0, calls: 0 };
-    }
-  });
-
-  const [evalArtifact, setEvalArtifactState] = useState<EvalArtifact | null>(() => {
-    if (typeof window === "undefined") return null;
-    try {
-      const saved = localStorage.getItem("pg.eval");
-      return saved ? JSON.parse(saved) : null;
-    } catch {
-      return null;
-    }
-  });
-
-  const [scans, setScans] = useState<ScanItem[]>(() => {
-    const base = buildInitialScans(DEFAULT_SETTINGS.T);
-    if (typeof window === "undefined") return base;
-    try {
-      const userScans: ScanItem[] = JSON.parse(localStorage.getItem("pg.scans") || "[]");
-      return [...userScans, ...base].sort((a, b) => b.ts - a.ts);
-    } catch {
-      return base;
-    }
-  });
-
-  const [selectedScanId, setSelectedScanId] = useState<string | null>(() => {
-    return scans[0]?.id || null;
-  });
+  const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
 
   const [serviceStatus, setServiceStatus] = useState<"ok" | "err" | "none">("none");
   const [toasts, setToasts] = useState<ToastItem[]>([]);
+
+  // Synchronize persisted browser storage after hydration to prevent SSR mismatch
+  useEffect(() => {
+    // 1. Settings
+    try {
+      const savedSettings = localStorage.getItem("pg.settings");
+      if (savedSettings) {
+        setSettings((prev) => ({ ...prev, ...JSON.parse(savedSettings) }));
+      }
+    } catch {}
+
+    // 2. Profile
+    try {
+      const sessionEmail = localStorage.getItem("phishguard-session");
+      if (sessionEmail) {
+        const rawUsers = localStorage.getItem("phishguard-users");
+        if (rawUsers) {
+          const users = JSON.parse(rawUsers);
+          const u = users.find((x: { email: string }) => x.email.toLowerCase() === sessionEmail.toLowerCase());
+          if (u) {
+            setProfile({
+              name: u.name || "",
+              role: u.designation || "",
+              org: u.organization || "",
+              team: "",
+            });
+          }
+        }
+      } else {
+        const savedProfile = localStorage.getItem("pg.profile");
+        if (savedProfile) {
+          const parsed = JSON.parse(savedProfile);
+          if (parsed.role === "Security analyst") parsed.role = "";
+          if (parsed.org === "PhishGuard Labs") parsed.org = "";
+          if (parsed.team === "Threat Intelligence") parsed.team = "";
+          if (parsed.name === "Analyst") parsed.name = "";
+          setProfile((prev) => ({ ...prev, ...parsed }));
+        }
+      }
+    } catch {}
+
+    // 3. Activity
+    try {
+      const savedActivity = localStorage.getItem("pg.activity");
+      if (savedActivity) {
+        setActivity(JSON.parse(savedActivity));
+      }
+    } catch {}
+
+    // 4. Usage
+    try {
+      const savedUsage = localStorage.getItem("pg.usage");
+      if (savedUsage) {
+        setUsage(JSON.parse(savedUsage));
+      }
+    } catch {}
+
+    // 5. Eval Artifact
+    try {
+      const savedEval = localStorage.getItem("pg.eval");
+      if (savedEval) {
+        setEvalArtifactState(JSON.parse(savedEval));
+      }
+    } catch {}
+
+    // 6. User Scans
+    try {
+      const userScans: ScanItem[] = JSON.parse(localStorage.getItem("pg.scans") || "[]");
+      if (userScans.length > 0) {
+        setScans((prev) => {
+          const existingIds = new Set(userScans.map((s) => s.id));
+          const filteredPrev = prev.filter((s) => !existingIds.has(s.id));
+          return [...userScans, ...filteredPrev].sort((a, b) => b.ts - a.ts);
+        });
+      }
+    } catch {}
+  }, []);
 
   // Show Toast
   const showToast = useCallback((msg: string, warn?: boolean) => {
