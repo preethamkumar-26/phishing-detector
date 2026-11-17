@@ -1,6 +1,11 @@
 "use client";
 
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from "react";
+import {
+  analyzeEmailWithBackend,
+  FASTAPI_ANALYZE_URL,
+  FastAPIAnalysisResponse,
+} from "@/services/scanService";
 
 export interface ScanEmailInput {
   subject: string;
@@ -49,6 +54,8 @@ export interface ScanItem {
   modelVersion: string;
   decision: "PHISHING" | "SAFE";
   risk: "High" | "Low";
+  riskScore?: number;
+  indicators?: FastAPIAnalysisResponse["indicators"];
   email: {
     subject: string;
     from: string;
@@ -732,8 +739,8 @@ function buildInitialScans(T = 0.5): ScanItem[] {
 
 const DEFAULT_SETTINGS: SettingsState = {
   T: 0.5,
-  useService: false,
-  endpoint: "",
+  useService: true,
+  endpoint: FASTAPI_ANALYZE_URL,
   store: true,
   start: "overview",
   fmt: "prob",
@@ -902,38 +909,35 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
   // Test service connection
   const testServiceConnection = useCallback(
     async (customEndpoint?: string) => {
-      const ep = (customEndpoint || settings.endpoint).trim();
-      if (!ep) {
-        showToast("Enter an endpoint URL first.", true);
-        return { ok: false, error: "Empty endpoint" };
-      }
+      const ep = (customEndpoint || settings.endpoint || FASTAPI_ANALYZE_URL).trim();
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 6000);
-        const res = await fetch(ep, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subject: "Connection Test",
-            sender: "test@phishguard.local",
-            reply_to: "",
-            body: "Connection diagnostic ping.",
-            urls: [],
-            headers: "",
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const j = await res.json();
-        const p = Number(j.p_phish ?? j.probability ?? j.score);
-        if (isNaN(p) || p < 0 || p > 1) throw new Error("Missing valid p_phish in [0,1]");
-        setServiceStatus("ok");
-        showToast(`Connected to model service (${j.model_version || "v1.0"})`);
-        return { ok: true, version: j.model_version || "v1.0" };
-      } catch (err: any) {
+        try {
+          const response = await analyzeEmailWithBackend(
+            {
+              subject: "Connection Test",
+              sender: "test@phishguard.local",
+              body: "Connection diagnostic ping.",
+              headers: "",
+            },
+            ep,
+            controller.signal
+          );
+          setServiceStatus("ok");
+          showToast(`Connected to model service (${response.p_phish.toFixed(3)})`);
+          return { ok: true, version: "PAHF-Net" };
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (err: unknown) {
         setServiceStatus("err");
-        const msg = err.name === "AbortError" ? "timed out" : err.message;
+        const msg =
+          err instanceof Error && err.name === "AbortError"
+            ? "timed out"
+            : err instanceof Error
+              ? err.message
+              : String(err);
         showToast("Service unreachable: " + msg, true);
         return { ok: false, error: msg };
       }
@@ -944,7 +948,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
   // Call Model Service
   const callService = useCallback(
     async (email: ScanEmailInput) => {
-      if (!settings.useService || !settings.endpoint.trim()) return null;
+      if (!settings.useService) return null;
       try {
         setUsage((prev) => {
           const next = { ...prev, calls: prev.calls + 1 };
@@ -956,29 +960,40 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
 
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
-        const res = await fetch(settings.endpoint.trim(), {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subject: email.subject,
-            sender: email.from,
-            reply_to: email.replyTo,
-            body: email.body,
-            urls: email.urls.split(/\s+/).filter(Boolean),
-            headers: email.headers,
-          }),
-          signal: controller.signal,
-        });
-        clearTimeout(timeout);
-        if (!res.ok) throw new Error("HTTP " + res.status);
-        const j = await res.json();
-        const p = Number(j.p_phish ?? j.probability ?? j.score);
-        if (isNaN(p) || p < 0 || p > 1) throw new Error("response has no p_phish in [0,1]");
-        setServiceStatus("ok");
-        return { p, version: j.model_version || "service-v1.0" };
-      } catch (err: any) {
+        try {
+          const response = await analyzeEmailWithBackend(
+            {
+              subject: email.subject,
+              sender: email.from,
+              reply_to: email.replyTo,
+              body: email.body,
+              urls: email.urls.split(/\s+/).filter(Boolean),
+              headers: email.headers,
+            },
+            settings.endpoint || FASTAPI_ANALYZE_URL,
+            controller.signal
+          );
+          setServiceStatus("ok");
+          return {
+            p: response.p_phish,
+            riskScore: response.risk_score,
+            isPhishing: response.is_phishing,
+            indicators: response.indicators,
+            verdict: response.verdict,
+            version: "PAHF-Net",
+          };
+        } finally {
+          clearTimeout(timeout);
+        }
+      } catch (err: unknown) {
         setServiceStatus("err");
-        return { error: err.name === "AbortError" ? "timed out" : err.message };
+        throw new Error(
+          err instanceof Error && err.name === "AbortError"
+            ? "PhishGuard backend request timed out."
+            : err instanceof Error
+              ? err.message
+              : String(err)
+        );
       }
     },
     [settings.endpoint, settings.useService]
@@ -991,23 +1006,67 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
       const core = analyzeEmailCore(email, prior);
       const svcRes = await callService(email);
 
-      const P = svcRes && !("error" in svcRes) ? svcRes.p : sig(BIAS + K * Object.values(core.sum).reduce((a, b) => a + b, 0));
-      const isService = !!(svcRes && !("error" in svcRes));
-      const modelVer = isService ? (svcRes as { version: string }).version : "local-preview";
+      const localP = sig(BIAS + K * Object.values(core.sum).reduce((a, b) => a + b, 0));
+      const P = svcRes ? svcRes.p : localP;
+      const isService = !!svcRes;
+      const modelVer = svcRes ? svcRes.version : "local-preview";
+      const serviceRows: FeatureRow[] = svcRes
+        ? svcRes.indicators.map((indicator, index) => {
+            const category = (indicator.category || "").toLowerCase();
+            const branch: FeatureRow["b"] = category.includes("url")
+              ? "url"
+              : category.includes("sender") || category.includes("metadata")
+                ? "metadata"
+                : category.includes("financial")
+                  ? "financial"
+                  : "security";
+            const impact =
+              typeof indicator.score_impact === "number" ? indicator.score_impact : 0;
+            return {
+              id: indicator.id || `API-${index + 1}`,
+              b: branch,
+              name: indicator.title || "Threat indicator",
+              w: impact / 100,
+              disp: indicator.severity || "info",
+              hit: indicator.description || "",
+              contrib: impact / 100,
+            };
+          })
+        : core.rows;
+      const serviceSums = { financial: 0, security: 0, url: 0, metadata: 0 };
+      serviceRows.forEach((row) => {
+        serviceSums[row.b] += row.contrib;
+      });
 
       const id = "PG-" + (2000 + usage.scans + 1 + (Math.floor(Date.now() / 1000) % 1000));
       const newScan: ScanItem = {
         ...core,
+        rows: serviceRows,
+        sum: isService ? serviceSums : core.sum,
         id,
         ts: Date.now(),
         src: "user",
         T: settings.T,
         P,
-        localP: sig(BIAS + K * Object.values(core.sum).reduce((a, b) => a + b, 0)),
+        localP,
         engine: isService ? "service" : "local",
         modelVersion: modelVer,
-        decision: P >= settings.T ? "PHISHING" : "SAFE",
-        risk: P >= settings.T ? "High" : "Low",
+        decision: svcRes
+          ? svcRes.isPhishing
+            ? "PHISHING"
+            : "SAFE"
+          : P >= settings.T
+            ? "PHISHING"
+            : "SAFE",
+        riskScore: svcRes?.riskScore,
+        indicators: svcRes?.indicators,
+        risk: svcRes
+          ? svcRes.riskScore >= 70
+            ? "High"
+            : "Low"
+          : P >= settings.T
+            ? "High"
+            : "Low",
       };
 
       setScans((prev) => {

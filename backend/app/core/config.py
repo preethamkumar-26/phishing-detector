@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     MODEL_TYPE: str = "auto"
     MODEL_DIR: str = "saved_models"
-    MODEL_FILENAME: str = "model.pkl"
+    MODEL_FILENAME: str = "pahf_net.pt"
     VECTORIZER_FILENAME: str = "vectorizer.pkl"
 
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

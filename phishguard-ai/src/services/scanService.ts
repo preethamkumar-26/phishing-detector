@@ -5,14 +5,21 @@ import { DEMO_RECENT_SCANS } from "@/data/demo-data";
 let sessionScans: ScanRecord[] = [...DEMO_RECENT_SCANS];
 
 const FASTAPI_BASE_URL =
-  process.env.NEXT_PUBLIC_FASTAPI_URL || "http://127.0.0.1:8000";
+  (process.env.NEXT_PUBLIC_FASTAPI_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+export const FASTAPI_ANALYZE_URL = `${FASTAPI_BASE_URL}/api/v1/analyze`;
 
 export interface ScanInputPayload {
   content?: string;
   body?: string;
+  text?: string;
+  emailText?: string;
   subject?: string;
   sender?: string;
-  headers?: Record<string, string>;
+  from?: string;
+  reply_to?: string;
+  replyTo?: string;
+  urls?: string[] | string;
+  headers?: Record<string, string> | string;
 }
 
 export interface AnalyzeEmailInput {
@@ -21,32 +28,61 @@ export interface AnalyzeEmailInput {
   body: string;
 }
 
-interface FastAPIAnalysisResponse {
+export interface FastAPIAnalysisResponse {
+  success: boolean;
   scan_id: string;
-  scanId: string;
-  timestamp: string;
   is_phishing: boolean;
-  classification: "legitimate" | "suspicious" | "phishing";
+  verdict: string;
   confidence_score: number;
-  confidenceScore: number;
+  risk_score: number;
+  p_phish: number;
   indicators: Array<{
-    title: string;
-    description: string;
-    severity: string;
+    id?: string;
+    category?: string;
+    score_impact?: number;
+    title?: string;
+    description?: string;
+    severity?: string;
   }>;
   explainability: {
-    summary: string;
+    summary?: string;
   };
-  model_metadata: {
-    model_name: string;
-    modelName: string;
-  };
-  modelMetadata: {
-    model_name: string;
-    modelName: string;
-  };
-  processing_time_ms: number;
-  processingTimeMs: number;
+}
+
+function isFastAPIAnalysisResponse(value: unknown): value is FastAPIAnalysisResponse {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Record<string, unknown>;
+  const indicatorsValid =
+    Array.isArray(data.indicators) &&
+    data.indicators.every(
+      (indicator) =>
+        !!indicator &&
+        typeof indicator === "object" &&
+        (!("title" in indicator) || typeof indicator.title === "string") &&
+        (!("description" in indicator) || typeof indicator.description === "string") &&
+        (!("severity" in indicator) || typeof indicator.severity === "string") &&
+        (!("category" in indicator) || typeof indicator.category === "string") &&
+        (!("score_impact" in indicator) || typeof indicator.score_impact === "number")
+    );
+
+  return (
+    data.success === true &&
+    typeof data.scan_id === "string" &&
+    typeof data.is_phishing === "boolean" &&
+    typeof data.verdict === "string" &&
+    typeof data.confidence_score === "number" &&
+    data.confidence_score >= 0 &&
+    data.confidence_score <= 1 &&
+    typeof data.risk_score === "number" &&
+    data.risk_score >= 0 &&
+    data.risk_score <= 100 &&
+    typeof data.p_phish === "number" &&
+    data.p_phish >= 0 &&
+    data.p_phish <= 1 &&
+    indicatorsValid &&
+    !!data.explainability &&
+    typeof data.explainability === "object"
+  );
 }
 
 function getEvidenceSeverity(severity: string): EvidenceItem["severity"] {
@@ -62,27 +98,47 @@ function getEvidenceSeverity(severity: string): EvidenceItem["severity"] {
 }
 
 export async function analyzeEmailWithBackend(
-  payload: ScanInputPayload
+  payload: ScanInputPayload,
+  endpoint = FASTAPI_ANALYZE_URL,
+  signal?: AbortSignal
 ): Promise<FastAPIAnalysisResponse> {
-  const response = await fetch(`${FASTAPI_BASE_URL}/api/v1/analyze`, {
+  const response = await fetch(endpoint, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
+    signal,
     body: JSON.stringify({
-      content: payload.content ?? payload.body ?? "",
+      content:
+        payload.content ??
+        payload.body ??
+        payload.text ??
+        payload.emailText ??
+        "",
       subject: payload.subject ?? "",
-      sender: payload.sender ?? "",
+      sender: payload.sender ?? payload.from ?? "",
+      reply_to: payload.reply_to ?? payload.replyTo ?? "",
+      urls: payload.urls ?? [],
       headers: payload.headers ?? {},
     }),
   });
 
-  const data = await response.json();
+  const data: unknown = await response.json();
 
   if (!response.ok) {
+    const detail =
+      data && typeof data === "object" && "detail" in data
+        ? (data as { detail?: unknown }).detail
+        : undefined;
     throw new Error(
-      data.detail || "Failed to analyze email via PhishGuard FastAPI Backend"
+      typeof detail === "string"
+        ? detail
+        : "Failed to analyze email via PhishGuard FastAPI Backend"
     );
+  }
+
+  if (!isFastAPIAnalysisResponse(data)) {
+    throw new Error("FastAPI returned an invalid scan response.");
   }
 
   return data;
@@ -98,30 +154,24 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<ScanResult
     sender: input.sender,
   });
 
-  const prediction: PredictionType =
-    data.classification === "suspicious"
-      ? "needs_review"
-      : data.classification === "phishing" || data.is_phishing
-        ? "phishing"
-        : "safe";
-  const modelMetadata = data.model_metadata || data.modelMetadata;
-  const confidence = (data.confidence_score ?? data.confidenceScore) * 100;
+  const prediction: PredictionType = data.is_phishing ? "phishing" : "safe";
   const evidence: EvidenceItem[] = data.indicators.map((indicator) => ({
-    text: indicator.title,
-    reason: indicator.description,
-    severity: getEvidenceSeverity(indicator.severity),
+    text: indicator.title || "Threat indicator",
+    reason: indicator.description || data.verdict,
+    severity: getEvidenceSeverity(indicator.severity || "medium"),
   }));
 
   const result: ScanResult = {
-    scanId: data.scan_id || data.scanId,
+    scanId: data.scan_id,
     prediction,
-    confidence,
+    confidence: data.confidence_score * 100,
+    riskScore: data.risk_score,
+    pPhish: data.p_phish,
     summary: data.explainability.summary,
     evidence,
-    modelVersion: modelMetadata.model_name || modelMetadata.modelName,
-    processingTimeMs: data.processing_time_ms ?? data.processingTimeMs,
+    modelVersion: "PAHF-Net",
     isDemo: false,
-    timestamp: data.timestamp,
+    timestamp: new Date().toISOString(),
     subject: input.subject || (input.body.slice(0, 40) + "…"),
     sender: input.sender || "Unspecified",
     body: input.body,
@@ -139,9 +189,11 @@ export function saveScanToHistory(result: ScanResult): ScanRecord {
     subject: result.subject || "Email Analysis",
     sender: result.sender,
     prediction: result.prediction,
-    confidence: result.confidence || 95.0,
+    confidence: result.confidence ?? 0,
+    riskScore: result.riskScore,
+    pPhish: result.pPhish,
     timestamp: result.timestamp || new Date().toISOString(),
-    modelVersion: result.modelVersion || "PhishGuard-5BF-ResNet-Demo-v1.0",
+    modelVersion: result.modelVersion || "PAHF-Net",
     isDemo: result.isDemo,
     bodySnippet: result.body?.slice(0, 120) || "",
     evidenceCount: result.evidence.length,

@@ -122,7 +122,8 @@ export default function SettingsPage() {
               <div>
                 <div className="t">Use model service</div>
                 <div className="d">
-                  If the endpoint can&apos;t be reached, scans fall back to the local preview and are labelled as such.
+                  Enabled scans use the FastAPI model. Connection or response errors are surfaced instead of silently
+                  replacing the model result.
                 </div>
               </div>
               <label className="switch">
@@ -141,14 +142,15 @@ export default function SettingsPage() {
               <input
                 className="input mono"
                 id="s-ep"
-                placeholder="http://localhost:8000/api/v1/predict"
+                placeholder="http://127.0.0.1:8000/api/v1/analyze"
                 value={endpoint}
                 onChange={(e) => setEndpoint(e.target.value)}
               />
             </div>
             <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
-              Request: <span className="mono">&#123;subject, sender, reply_to, body, urls, headers&#125;</span> · Response:{" "}
-              <span className="mono">&#123;p_phish, model_version&#125;</span>
+              Request: <span className="mono">&#123;subject, sender, content, headers&#125;</span> · Response:{" "}
+              <span className="mono">&#123;success, scan_id, is_phishing, verdict, confidence_score, risk_score, p_phish,
+                indicators, explainability&#125;</span>
             </p>
 
             <div className="row" style={{ justifyContent: "flex-end", marginTop: 14 }}>

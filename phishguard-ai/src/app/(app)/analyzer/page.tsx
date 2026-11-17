@@ -161,8 +161,11 @@ export default function AnalyzerPage() {
         setSelectedScanId(result.id);
         router.push("/explainability");
       }
-    } catch {
-      showToast("Analysis encountered an error.", true);
+    } catch (error: unknown) {
+      showToast(
+        error instanceof Error ? error.message : "Analysis encountered an error.",
+        true
+      );
     } finally {
       setRunning(false);
       setCurrentStep(-1);

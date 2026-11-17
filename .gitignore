@@ -3,6 +3,8 @@ venv/
 
 # Ignore heavy dataset files
 data/
+!phishguard-ai/src/data/
+!phishguard-ai/src/data/**
 *.parquet
 
 # Ignore DeBERTa model checkpoints
@@ -22,3 +24,12 @@ out/
 *.db-journal
 
 
+# Python & Virtual Environments
+backend/.venv/
+__pycache__/
+*.pyc
+
+# Node.js & Next.js
+node_modules/
+phishguard-ai/node_modules/
+.next/

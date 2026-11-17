@@ -1,94 +1,66 @@
-from typing import Dict, List, Optional
-from pydantic import BaseModel, Field, model_validator
+from typing import Any
+
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class EmailScanRequest(BaseModel):
-    content: Optional[str] = Field(default=None, description="Primary email body content")
-    body: Optional[str] = Field(default=None, description="Alias for email body content")
-    text: Optional[str] = Field(default=None, description="Alias for raw email text")
-    emailText: Optional[str] = Field(default=None, description="CamelCase alias for email text")
-    subject: Optional[str] = Field(default="", description="Email subject line")
-    sender: Optional[str] = Field(default="", description="Sender email address or header")
-    headers: Optional[Dict[str, str]] = Field(default_factory=dict, description="Optional raw email headers")
+    model_config = ConfigDict(extra="ignore")
 
-    @model_validator(mode="after")
-    def resolve_email_body(self) -> "EmailScanRequest":
-        resolved = next(
+    content: str = ""
+    subject: str = ""
+    sender: str = ""
+    reply_to: str = ""
+    urls: list[str] | str | None = None
+    headers: dict[str, Any] | str | None = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_frontend_aliases(cls, value: Any) -> Any:
+        if not isinstance(value, dict):
+            return value
+
+        payload = value.copy()
+        content = next(
             (
                 candidate.strip()
-                for candidate in (self.content, self.body, self.text, self.emailText)
-                if candidate and candidate.strip()
+                for name in ("content", "body", "text", "emailText", "email_text", "email_body")
+                if isinstance(candidate := payload.get(name), str) and candidate.strip()
             ),
             "",
         )
-        if not resolved and not (self.subject or "").strip():
-            raise ValueError("Email content (content, body, text, or subject) cannot be empty.")
-        self.content = resolved
+        if content:
+            payload["content"] = content
+
+        if not str(payload.get("sender") or "").strip():
+            payload["sender"] = payload.get("from") or payload.get("emailFrom") or ""
+
+        if not str(payload.get("subject") or "").strip():
+            payload["subject"] = payload.get("emailSubject") or ""
+
+        if not str(payload.get("reply_to") or "").strip():
+            payload["reply_to"] = payload.get("replyTo") or ""
+
+        if "headers" not in payload:
+            payload["headers"] = payload.get("emailHeaders")
+
+        return payload
+
+    @model_validator(mode="after")
+    def require_email_content_or_subject(self) -> "EmailScanRequest":
+        if not self.content.strip() and not self.subject.strip():
+            raise ValueError("Email content or subject cannot be empty.")
         return self
 
 
-class FlaggedTokenSchema(BaseModel):
-    token: str
-    weight: float = Field(..., ge=0.0, le=1.0)
-    category: str
-    reason: str
+class ScanResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
 
-
-class UrlSignalSchema(BaseModel):
-    url: str
-    domain: str
-    is_suspicious: bool
-    isSuspicious: bool
-    risk_score: int = Field(..., ge=0, le=100)
-    riskScore: int = Field(..., ge=0, le=100)
-    reasons: List[str]
-
-
-class RiskIndicatorSchema(BaseModel):
-    id: str
-    title: str
-    description: str
-    severity: str  # "low" | "medium" | "high" | "critical"
-    category: str  # "text" | "url" | "sender" | "metadata"
-    score_impact: int
-
-
-class ExplainabilitySchema(BaseModel):
-    summary: str
-    flagged_tokens: List[FlaggedTokenSchema]
-    flaggedTokens: List[FlaggedTokenSchema]
-    url_signals: List[UrlSignalSchema]
-    urlSignals: List[UrlSignalSchema]
-    feature_contributions: Dict[str, float]
-    featureContributions: Dict[str, float]
-
-
-class ModelMetadataSchema(BaseModel):
-    engine: str
-    model_name: str
-    modelName: str
-    device: str
-    version: str
-
-
-class EmailScanResponse(BaseModel):
-    success: bool = True
+    success: bool
     scan_id: str
-    scanId: str
-    timestamp: str
     is_phishing: bool
-    isPhishing: bool
-    verdict: str  # "Safe" | "Suspicious" | "Malicious"
-    classification: str  # "legitimate" | "suspicious" | "phishing"
-    confidence_score: float = Field(..., ge=0.0, le=1.0)
-    confidenceScore: float = Field(..., ge=0.0, le=1.0)
-    risk_score: int = Field(..., ge=0, le=100)
-    riskScore: int = Field(..., ge=0, le=100)
-    indicators: List[RiskIndicatorSchema]
-    explainability: ExplainabilitySchema
-    model_metadata: ModelMetadataSchema
-    modelMetadata: ModelMetadataSchema
-    processing_time_ms: float
-    processingTimeMs: float
-
-    
+    verdict: str
+    confidence_score: float = Field(ge=0.0, le=1.0)
+    risk_score: float = Field(ge=0.0, le=100.0)
+    p_phish: float = Field(ge=0.0, le=1.0)
+    indicators: list[dict[str, Any]] = Field(default_factory=list)
+    explainability: dict[str, Any] = Field(default_factory=dict)

@@ -12,6 +12,8 @@ export type ScanResult = {
   scanId: string;
   prediction: PredictionType;
   confidence?: number;
+  riskScore?: number;
+  pPhish?: number;
   summary?: string;
   evidence: EvidenceItem[];
   modelVersion?: string;
@@ -29,6 +31,8 @@ export type ScanRecord = {
   sender?: string;
   prediction: PredictionType;
   confidence: number;
+  riskScore?: number;
+  pPhish?: number;
   timestamp: string;
   modelVersion: string;
   isDemo: boolean;

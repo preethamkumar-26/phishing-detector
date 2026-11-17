@@ -1,0 +1,27 @@
+{
+  "model_name": "PAHF-Net (DeBERTa-v3-base + Availability-Gated Fusion + Class-Conditional GRL)",
+  "encoder": "microsoft/deberta-v3-base",
+  "primary_variant": "masked",
+  "max_len": 256,
+  "head_tokens": 192,
+  "tail_tokens": 62,
+  "dims": {
+    "url": 6,
+    "struct": 28,
+    "ling": 9,
+    "avail": 4
+  },
+  "fusion_mode": "gated",
+  "active_branches": [
+    "url",
+    "struct",
+    "ling"
+  ],
+  "n_benign_sources": 10,
+  "n_mal_sources": 11,
+  "temperature": 1.218,
+  "thr_opt_f1": 0.255,
+  "thr_fpr1": 0.0331,
+  "thr_low": 0.2872,
+  "thr_high": 0.5
+}
