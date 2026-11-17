@@ -124,7 +124,7 @@ export function ProfileSummaryCard() {
         <DialogHeader>
           <DialogTitle>Sign Out</DialogTitle>
           <DialogDescription>
-            Sign out of your PhishGuard AI account on this browser.
+            Sign out of your PhishIntel account on this browser.
           </DialogDescription>
         </DialogHeader>
         {signOutError && <p role="alert" className="mt-4 text-xs text-red-500">{signOutError}</p>}

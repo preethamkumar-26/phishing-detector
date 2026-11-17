@@ -133,7 +133,7 @@ export async function analyzeEmailWithBackend(
     throw new Error(
       typeof detail === "string"
         ? detail
-        : "Failed to analyze email via PhishGuard FastAPI Backend"
+        : "Failed to analyze email via PhishIntel FastAPI Backend"
     );
   }
 
@@ -145,7 +145,7 @@ export async function analyzeEmailWithBackend(
 }
 
 /**
- * Analyzes an email using the PhishGuard FastAPI backend.
+ * Analyzes an email using the PhishIntel FastAPI backend.
  */
 export async function analyzeEmail(input: AnalyzeEmailInput): Promise<ScanResult> {
   const data = await analyzeEmailWithBackend({

@@ -20,8 +20,8 @@ export function sanitizeInternalDestination(destination?: string | null): string
   }
 
   try {
-    const parsed = new URL(trimmed, "https://phishguard.local");
-    if (parsed.origin !== "https://phishguard.local") return null;
+    const parsed = new URL(trimmed, "https://phishintel.local");
+    if (parsed.origin !== "https://phishintel.local" && parsed.origin !== "https://phishguard.local") return null;
     if (!ALLOWED_INTERNAL_ROUTES.has(parsed.pathname)) return null;
 
     if (parsed.pathname === "/analyzer") {
@@ -46,7 +46,7 @@ export function getAuthGateCopy(
   mode: AuthModalMode
 ): { heading: string; description: string } {
   const safeDest = sanitizeInternalDestination(destination);
-  const heading = "Welcome to PhishGuard AI";
+  const heading = "Welcome to PhishIntel";
 
   if (!safeDest || safeDest === "/dashboard") {
     return {

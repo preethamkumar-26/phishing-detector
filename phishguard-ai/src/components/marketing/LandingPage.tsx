@@ -117,7 +117,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
             </div>
             <div>
               <span className="font-bold text-lg tracking-tight text-[var(--text-primary)]">
-                PhishGuard <span className="text-[var(--primary-accent)]">AI</span>
+                PhishIntel
               </span>
               <span className="hidden sm:inline-block ml-2 text-[11px] uppercase font-semibold tracking-wide px-2 py-0.5 rounded-full bg-blue-500/10 text-[var(--primary-accent)] border border-blue-500/20">
                 Research Prototype
@@ -324,7 +324,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
             <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)]">
-              How PhishGuard AI Works
+              How PhishIntel Works
             </h2>
             <p className="mt-2 text-sm text-[var(--text-muted)]">
               Three straightforward steps from raw email text to actionable security verdict.
@@ -420,7 +420,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
               <Shield className="w-4 h-4" />
             </div>
             <div>
-              <span className="font-bold text-sm text-[var(--text-primary)]">PhishGuard AI</span>
+              <span className="font-bold text-sm text-[var(--text-primary)]">PhishIntel</span>
               <p className="text-[11px] text-[var(--text-muted)]">
                 Explainable AI-Based Phishing Email Detection Prototype
               </p>
@@ -466,13 +466,13 @@ export function LandingPage({ className = "" }: LandingPageProps) {
         <DialogHeader>
           <DialogTitle>Contact the Research Team</DialogTitle>
           <DialogDescription>
-            PhishGuard AI is an academic and industry research initiative exploring transparent phishing email detection.
+            PhishIntel is an academic and industry research initiative exploring transparent phishing email detection.
           </DialogDescription>
         </DialogHeader>
         <div className="py-4 space-y-3 text-xs">
           <div className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] space-y-1">
             <span className="font-bold text-[var(--text-primary)] block">Project Inquiries:</span>
-            <p className="text-[var(--text-muted)]">research@phishguard-ai.internal</p>
+            <p className="text-[var(--text-muted)]">research@phishintel.internal</p>
           </div>
           <div className="p-3 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] space-y-1">
             <span className="font-bold text-[var(--text-primary)] block">Lab Location:</span>

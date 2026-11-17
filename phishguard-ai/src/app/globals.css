@@ -39,6 +39,12 @@
   /* Compatibility bindings */
   --bg-primary: var(--shell);
   --text-primary: var(--ink);
+  --bg-surface: var(--card);
+  --bg-elevated: var(--card-2);
+  --bg-elevated-hover: var(--card-3);
+  --border-color: var(--line);
+  --text-muted: var(--muted);
+  --primary-accent: var(--accent);
 }
 
 * {
@@ -289,6 +295,31 @@ a {
   height: 2.5px;
   background: var(--accent);
   border-radius: 2px 2px 0 0;
+}
+
+/* =====================================================================
+   Liquid Glass Navbar Integration
+   ===================================================================== */
+.main-liquid-navbar {
+  margin: 0 auto;
+  --n-tint: rgba(227, 229, 214, 0.40);
+  --n-fg: var(--ink);
+  --n-fg-soft: var(--muted);
+  --n-rim: rgba(255, 255, 255, 0.65);
+}
+
+.main-liquid-navbar .nimbus-item {
+  height: 38px;
+  padding: 0 13px;
+  font-size: 13px;
+  font-weight: 500;
+  gap: 6px;
+  color: var(--ink-2);
+}
+
+.main-liquid-navbar .nimbus-item:hover,
+.main-liquid-navbar .nimbus-item[aria-current="page"] {
+  color: var(--ink);
 }
 
 .tools {
@@ -1165,39 +1196,6 @@ input[type=range]::-moz-range-thumb {
   color: var(--dark-muted);
   margin-left: 6px;
   font-weight: 400;
-}
-
-.dots {
-  display: flex;
-  gap: 14px;
-  margin-top: 10px;
-}
-
-.dots div {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-  color: var(--dark-muted);
-}
-
-.dots b {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: #fff;
-  font: 500 10.5px var(--m);
-  display: grid;
-  place-items: center;
-}
-
-.dots span {
-  border-top: 1px solid var(--dark-line);
-  padding-top: 6px;
-  width: 26px;
-  text-align: center;
 }
 
 .hero-center {
@@ -2193,6 +2191,30 @@ pre.schema {
   color: var(--muted);
 }
 
+a.res-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  padding: 12px 8px;
+  margin: 0 -8px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  a.res-link:hover {
+    background: var(--card-2);
+  }
+  a.res-link:hover .t {
+    color: var(--accent);
+  }
+}
+
+a.res-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 kbd {
   font: 500 11px var(--m);
   background: var(--card-2);
@@ -2300,11 +2322,12 @@ kbd {
     padding: 8px 12px 6px;
     gap: 8px 12px;
   }
-  .tabs {
+  .tabs, .main-liquid-navbar {
     order: 3;
     width: 100%;
-    margin: 0;
+    margin: 0 auto;
     padding: 2px 0 4px;
+    justify-content: center;
   }
   .tools {
     margin-left: auto;
@@ -2358,6 +2381,658 @@ kbd {
   .big {
     font-size: 38px;
   }
+}
+
+/* ================= Permanent Delete "Thrown in Bin" Animation & Row Menu ================= */
+@keyframes rowBinDrop {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0deg);
+    background-color: rgba(216, 69, 43, 0.08);
+  }
+  25% {
+    opacity: 0.95;
+    transform: scale(0.97) translateY(-6px) rotate(-1.2deg);
+    background-color: rgba(216, 69, 43, 0.14);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.88) translateY(12px) rotate(2.4deg);
+    background-color: rgba(216, 69, 43, 0.18);
+    filter: blur(0.3px);
+  }
+  75% {
+    opacity: 0.35;
+    transform: scale(0.72) translateY(28px) rotate(4deg);
+    filter: blur(1.5px);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.5) translateY(44px) rotate(6deg);
+    filter: blur(3px);
+  }
+}
+
+@keyframes binBadgePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.5) translateY(-50%) rotate(-15deg);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1.15) translateY(-50%) rotate(0deg);
+  }
+  80% {
+    opacity: 1;
+    transform: scale(1) translateY(-50%) rotate(0deg);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8) translateY(-40%) rotate(10deg);
+  }
+}
+
+tr.row-binning {
+  position: relative;
+  animation: rowBinDrop 500ms cubic-bezier(0.25, 0.8, 0.25, 1) forwards !important;
+  pointer-events: none;
+}
+
+tr.row-binning td {
+  border-color: transparent !important;
+}
+
+.binning-indicator {
+  position: absolute;
+  right: 60px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--r-sm);
+  background: var(--phish);
+  color: #fff;
+  font-size: 11.5px;
+  font-weight: 500;
+  box-shadow: 0 4px 14px rgba(216, 69, 43, 0.35);
+  animation: binBadgePop 480ms ease forwards;
+  pointer-events: none;
+  z-index: 20;
+}
+
+.row-act-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  border: 1px solid transparent;
+  transition: all 150ms ease;
+  cursor: pointer;
+}
+
+.row-act-btn:hover {
+  background: var(--card-2);
+  color: var(--ink);
+  border-color: var(--line-2);
+  transform: scale(1.06);
+}
+
+.row-act-btn:active {
+  transform: scale(0.96);
+}
+
+.row-menu {
+  position: absolute;
+  right: 10px;
+  top: calc(100% - 6px);
+  z-index: 50;
+  min-width: 172px;
+  padding: 5px;
+  background: var(--card);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  box-shadow: 0 10px 24px -4px rgba(28, 31, 26, 0.14), 0 2px 6px -1px rgba(28, 31, 26, 0.06);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  animation: fadeInMenu 120ms ease-out;
+}
+
+@keyframes fadeInMenu {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.row-menu-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: background-color 140ms ease, color 140ms ease;
+  white-space: nowrap;
+}
+
+.row-menu-item:hover {
+  background: var(--card-2);
+  color: var(--ink);
+}
+
+.row-menu-item-destructive {
+  color: var(--phish);
+}
+
+.row-menu-item-destructive:hover {
+  background: rgba(216, 69, 43, 0.08);
+  color: var(--phish);
+}
+
+.row-menu-item-destructive .trash-ico,
+.row-menu-item-destructive .trash-icon {
+  transition: transform 150ms ease;
+}
+
+.row-menu-item-destructive:hover .trash-ico,
+.row-menu-item-destructive:hover .trash-icon {
+  transform: rotate(-12deg) scale(1.15);
+}
+
+.row-menu-divider {
+  height: 1px;
+  background: var(--line-2);
+  margin: 3px 0;
+}
+
+.bin-dialog-ico {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--r-sm);
+  background: rgba(216, 69, 43, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* =====================================================================
+   Enhanced Destructive Confirmation Modal
+   ===================================================================== */
+.pg-dialog-backdrop {
+  background: rgba(20, 24, 20, 0.44) !important;
+  backdrop-filter: blur(6px) !important;
+  -webkit-backdrop-filter: blur(6px) !important;
+  animation: pgBackdropFadeIn 180ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pgBackdropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.del-modal-panel {
+  background: var(--card) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 16px !important;
+  padding: 0 !important;
+  box-shadow: 0 24px 60px -12px rgba(28, 31, 26, 0.28), 0 6px 18px rgba(28, 31, 26, 0.08) !important;
+  overflow: hidden !important;
+  animation: delModalScaleIn 200ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes delModalScaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.del-modal-content {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.del-modal-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.del-modal-icon-badge {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(216, 69, 43, 0.12);
+  border: 1px solid rgba(216, 69, 43, 0.25);
+  color: var(--phish);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.del-modal-title {
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  color: var(--ink) !important;
+  line-height: 1.3 !important;
+  margin: 0 !important;
+}
+
+.del-modal-subtitle {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 3px;
+}
+
+.del-modal-close-btn {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: var(--card-2);
+  border: 1px solid var(--line-2);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 140ms ease;
+  margin-left: auto;
+  margin-top: -2px;
+  flex-shrink: 0;
+}
+
+.del-modal-close-btn:hover {
+  background: var(--card-3);
+  color: var(--ink);
+  border-color: var(--line);
+}
+
+.del-modal-card {
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.del-modal-card-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.del-modal-card-id {
+  font-size: 11px;
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: var(--card-3);
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.del-modal-card-subject {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.35;
+  word-break: break-word;
+}
+
+.del-modal-card-sender {
+  font-size: 12px;
+  color: var(--muted);
+  word-break: break-all;
+}
+
+.del-modal-warning {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgba(216, 69, 43, 0.06);
+  border: 1px solid rgba(216, 69, 43, 0.16);
+}
+
+.del-modal-warning-icon {
+  color: var(--phish);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.del-modal-desc {
+  font-size: 12px !important;
+  color: var(--ink-2) !important;
+  line-height: 1.45 !important;
+  margin: 0 !important;
+}
+
+.del-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-2);
+}
+
+.del-btn-cancel {
+  padding: 8px 16px !important;
+  font-size: 13px !important;
+  border-radius: var(--r) !important;
+  background: var(--card-2) !important;
+  border: 1px solid var(--line) !important;
+  color: var(--ink) !important;
+  font-weight: 500 !important;
+  cursor: pointer;
+  transition: all 140ms ease !important;
+}
+
+.del-btn-cancel:hover {
+  background: var(--card-3) !important;
+  transform: translateY(-1px);
+}
+
+.del-btn-danger {
+  padding: 8px 18px !important;
+  font-size: 13px !important;
+  border-radius: var(--r) !important;
+  background: var(--phish) !important;
+  border: 1px solid transparent !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  box-shadow: 0 2px 10px rgba(216, 69, 43, 0.28) !important;
+  cursor: pointer;
+  transition: all 140ms ease !important;
+}
+
+.del-btn-danger:hover:not(:disabled) {
+  background: #c33b22 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(216, 69, 43, 0.38) !important;
+}
+
+.del-btn-danger:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.del-btn-danger:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.spin-del {
+  animation: spinAroundDel 800ms linear infinite;
+}
+
+@keyframes spinAroundDel {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* =====================================================================
+   HeroUI Animated Pagination Component (Milestone 27 / WL-063)
+   ===================================================================== */
+.pagination-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.pagination-info {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.pagination__content {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 6px;
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: 9999px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+
+.pagination__item {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pagination__link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 32px;
+  height: 32px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--ink-soft);
+  border-radius: 9999px;
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  outline: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: color 150ms ease, background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease;
+}
+
+.pagination__link:hover:not([data-disabled="true"]):not(:disabled) {
+  color: var(--ink);
+  background: var(--card-3);
+  transform: translateY(-1px);
+}
+
+.pagination__link:active:not([data-disabled="true"]):not(:disabled) {
+  transform: translateY(0) scale(0.96);
+}
+
+.pagination__link[data-active="true"],
+.pagination__link[aria-current="page"] {
+  background: var(--ink) !important;
+  color: var(--card) !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(11, 19, 43, 0.2) !important;
+  animation: paginationPagePop 260ms cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+[data-theme="dark"] .pagination__link[data-active="true"],
+[data-theme="dark"] .pagination__link[aria-current="page"] {
+  background: #f1f7ff !important;
+  color: #0b132b !important;
+  box-shadow: 0 0 12px rgba(241, 247, 255, 0.28) !important;
+}
+
+.pagination__link--nav {
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.pagination__link--nav svg {
+  transition: transform 160ms ease;
+}
+
+.pagination__link--nav[data-slot="pagination-previous"]:hover:not([data-disabled="true"]):not(:disabled) svg {
+  transform: translateX(-2px);
+}
+
+.pagination__link--nav[data-slot="pagination-next"]:hover:not([data-disabled="true"]):not(:disabled) svg {
+  transform: translateX(2px);
+}
+
+.pagination__link[data-disabled="true"],
+.pagination__link:disabled {
+  opacity: 0.38 !important;
+  cursor: not-allowed !important;
+  pointer-events: none;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+@keyframes paginationPagePop {
+  0% {
+    transform: scale(0.82);
+    opacity: 0.7;
+  }
+  60% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* =====================================================================
+   Export PDF Button & Hovering Effect (Milestone 28 / WL-064)
+   ===================================================================== */
+.btn-export {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  color: var(--ink);
+  background: var(--card-2);
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 180ms cubic-bezier(0.2, 0.75, 0.25, 1),
+              box-shadow 180ms cubic-bezier(0.2, 0.75, 0.25, 1),
+              border-color 180ms ease,
+              color 180ms ease,
+              background-color 180ms ease;
+  box-shadow: 0 1px 3px rgba(28, 31, 26, 0.05);
+}
+
+.btn-export::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(239, 106, 30, 0.14) 0%, rgba(239, 106, 30, 0.04) 60%, transparent 100%);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  z-index: -1;
+}
+
+.btn-export:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  color: var(--accent-2, #D65A10);
+  background: var(--card-3);
+  box-shadow: 0 5px 16px rgba(239, 106, 30, 0.22), 0 2px 4px rgba(28, 31, 26, 0.06);
+}
+
+.btn-export:hover:not(:disabled)::before {
+  opacity: 1;
+}
+
+.btn-export:hover:not(:disabled) .export-icon {
+  transform: translateY(1.5px);
+  stroke: var(--accent);
+}
+
+.btn-export:active:not(:disabled) {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 1px 3px rgba(28, 31, 26, 0.08);
+}
+
+.btn-export:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+.export-icon {
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1), stroke 180ms ease;
+  color: currentColor;
+  flex-shrink: 0;
+}
+
+.spin-export {
+  animation: spinExport 750ms linear infinite;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+
+@keyframes spinExport {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+[data-theme="dark"] .btn-export {
+  background: var(--dark-2, #1B1F1C);
+  border-color: var(--dark-line, rgba(236, 238, 229, 0.12));
+  color: var(--dark-ink, #ECEEE5);
+}
+
+[data-theme="dark"] .btn-export:hover:not(:disabled) {
+  background: var(--dark-3, #242925);
+  border-color: var(--accent);
+  color: #FFA566;
+  box-shadow: 0 5px 18px rgba(239, 106, 30, 0.28);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -56,7 +56,7 @@ export default function EvaluationPage() {
         <div>
           <h1>Model evaluation</h1>
           <p>
-            PhishGuard metrics appear only when a versioned evaluation artifact is loaded.
+            PhishIntel metrics appear only when a versioned evaluation artifact is loaded.
           </p>
         </div>
         <div className="actions">
@@ -77,9 +77,9 @@ export default function EvaluationPage() {
         </div>
       </div>
 
-      {/* PhishGuard Section */}
+      {/* PhishIntel Section */}
       <div className="eyebrow" style={{ marginBottom: 8 }}>
-        PhishGuard
+        PhishIntel
       </div>
 
       {/* 4 Metric Cards */}

@@ -165,7 +165,7 @@ export const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
     scenarioTitle: "Package Dispatch Interruption",
     senderName: "Global Parcel Express",
     senderEmail: "tracking-update@parcel-dispatch-center.xyz",
-    recipient: "resident@phishguard-demo.local",
+    recipient: "resident@phishintel-demo.local",
     subject: "Delivery Attempt Failed — Confirm Details",
     dateLabel: "Example message",
     bodyParts: [
@@ -218,8 +218,8 @@ export const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
     displayLabel: "Legitimate email",
     scenarioTitle: "Internal Team Collaboration",
     senderName: "Sarah Chen (Project Coordinator)",
-    senderEmail: "sarah.chen@phishguard-internal.org",
-    recipient: "research-team@phishguard-internal.org",
+    senderEmail: "sarah.chen@phishintel-internal.org",
+    recipient: "research-team@phishintel-internal.org",
     subject: "Meeting Agenda for Thursday",
     dateLabel: "Example message",
     bodyParts: [
@@ -234,7 +234,7 @@ export const SHOWCASE_EXAMPLES: ShowcaseExample[] = [
     ],
     inertLink: {
       label: "Internal Workspace",
-      value: "https://workspace.phishguard-internal.org/notes/arch-q4",
+      value: "https://workspace.phishintel-internal.org/notes/arch-q4",
       isSuspicious: false,
     },
     evidencePoints: [
@@ -402,7 +402,7 @@ export function AnimatedEmailShowcase() {
             <span>Interactive detection demo</span>
           </div>
           <h3 className="text-lg sm:text-xl font-bold tracking-tight text-[var(--text-primary)]">
-            See How PhishGuard AI Detects Threats
+            See How PhishIntel Detects Threats
           </h3>
           <p className="text-xs sm:text-sm text-[var(--text-muted)] mt-1">
             Explore curated sample emails and observe how suspicious signals are identified in sequence.
@@ -419,7 +419,7 @@ export function AnimatedEmailShowcase() {
             <span className="w-3 h-3 rounded-full bg-amber-500/80" />
             <span className="w-3 h-3 rounded-full bg-emerald-500/80" />
             <span className="ml-2 text-xs font-mono text-[var(--text-muted)] hidden sm:inline">
-              phishguard-ai.internal / showcase
+              phishintel.internal / showcase
             </span>
           </div>
 

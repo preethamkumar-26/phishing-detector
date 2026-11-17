@@ -1,8 +1,17 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { usePhishGuard, ScanItem } from "@/context/PhishGuardContext";
+import {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/Dialog";
+import { Button } from "@/components/ui/Button";
+import { ThePagination } from "@/components/ui/the-pagination";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -29,7 +38,7 @@ const senderShort = (f: string) => {
 
 export default function HistoryPage() {
   const router = useRouter();
-  const { scans, setSelectedScanId, clearUserScans, formatP } = usePhishGuard();
+  const { scans, setSelectedScanId, clearUserScans, deleteScan, formatP, showToast } = usePhishGuard();
 
   const [query, setQuery] = useState("");
   const [decisionFilter, setDecisionFilter] = useState<"all" | "PHISHING" | "SAFE">("all");
@@ -37,9 +46,97 @@ export default function HistoryPage() {
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const [nowTime, setNowTime] = useState<number>(BASELINE_TIME);
 
-  React.useEffect(() => {
+  // Per-record delete & overflow menu state
+  const [menuOpenScanId, setMenuOpenScanId] = useState<string | null>(null);
+  const [deletingScan, setDeletingScan] = useState<ScanItem | null>(null);
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [binningScanId, setBinningScanId] = useState<string | null>(null);
+
+  // Export PDF state
+  const [isExporting, setIsExporting] = useState(false);
+
+  useEffect(() => {
     setNowTime(Date.now());
   }, []);
+
+  // Close overflow menus on outside click or Escape
+  useEffect(() => {
+    const handleGlobalClick = () => {
+      setMenuOpenScanId(null);
+    };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setMenuOpenScanId(null);
+      }
+    };
+    window.addEventListener("click", handleGlobalClick);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("click", handleGlobalClick);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, []);
+
+  const handleConfirmDelete = async () => {
+    if (!deletingScan || isDeleting) return;
+    const target = deletingScan;
+    setIsDeleting(true);
+
+    // 1. Close the dialog
+    setDeleteConfirmOpen(false);
+
+    // 2. Trigger the "thrown in bin" animation on the target row
+    setBinningScanId(target.id);
+
+    // 3. Play the smooth binning animation for 500ms
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
+    // 4. Perform the permanent deletion
+    await deleteScan(target.id);
+
+    // 5. Clean up states
+    setBinningScanId(null);
+    setDeletingScan(null);
+    setIsDeleting(false);
+  };
+
+  // Export PDF Report handler
+  const handleExportPdf = async () => {
+    if (isExporting) return;
+    const targetScans = filteredScans.length ? filteredScans : scans;
+    if (!targetScans.length) {
+      showToast("No scan records available to export", true);
+      return;
+    }
+
+    setIsExporting(true);
+    try {
+      const { exportHistoryPdf } = await import("@/lib/exportHistoryPdf");
+
+      const filterParts: string[] = [];
+      if (decisionFilter !== "all") filterParts.push(`Decision: ${decisionFilter}`);
+      if (sourceFilter !== "all") filterParts.push(`Source: ${sourceFilter}`);
+      if (query.trim()) filterParts.push(`Query: "${query.trim()}"`);
+
+      exportHistoryPdf({
+        scans: targetScans,
+        filterLabel: filterParts.length ? filterParts.join(", ") : undefined,
+        query: query.trim() || undefined,
+      });
+
+      showToast(`Scan history exported to PDF (${targetScans.length} records)`);
+    } catch (err) {
+      console.error("PDF export failed:", err);
+      showToast("Failed to generate PDF report", true);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  // Pagination settings (10 items per page limit)
+  const PAGE_SIZE = 10;
+  const [currentPage, setCurrentPage] = useState(1);
 
   // Filtered rows
   const filteredScans = useMemo(() => {
@@ -52,6 +149,27 @@ export default function HistoryPage() {
       return matchDec && matchSrc && matchQuery;
     });
   }, [decisionFilter, query, scans, sourceFilter]);
+
+  // Total pages
+  const totalPages = Math.ceil(filteredScans.length / PAGE_SIZE) || 1;
+
+  // Auto-adjust page if current page exceeds total pages (e.g. after deletion or filter)
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [currentPage, totalPages]);
+
+  // Reset to page 1 on query or filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [query, decisionFilter, sourceFilter]);
+
+  // Paginated visible scans
+  const paginatedScans = useMemo(() => {
+    const start = (currentPage - 1) * PAGE_SIZE;
+    return filteredScans.slice(start, start + PAGE_SIZE);
+  }, [filteredScans, currentPage]);
 
   // Overall KPIs
   const kpis = useMemo(() => {
@@ -86,7 +204,33 @@ export default function HistoryPage() {
             Every analysis with its decision, score and the threshold in force at the time. Expand a row for evidence.
           </p>
         </div>
-        <div className="actions">
+        <div className="actions" style={{ display: "flex", gap: "10px", alignItems: "center" }}>
+          <button
+            type="button"
+            className="btn btn-export"
+            onClick={handleExportPdf}
+            disabled={isExporting || scans.length === 0}
+            title="Export forensic scan audit report to PDF format"
+            aria-label="Export scan history to PDF format"
+          >
+            {isExporting ? (
+              <>
+                <svg className="spin-export" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                <span>Exporting...</span>
+              </>
+            ) : (
+              <>
+                <svg className="export-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Export</span>
+              </>
+            )}
+          </button>
           <button type="button" className="btn btn-line" onClick={clearUserScans}>
             Clear my scans
           </button>
@@ -154,7 +298,12 @@ export default function HistoryPage() {
           </select>
 
           <span className="mono muted" style={{ marginLeft: "auto", fontSize: "12px" }}>
-            {filteredScans.length} of {scans.length}
+            {filteredScans.length === 0
+              ? "0 scans"
+              : `Showing ${(currentPage - 1) * PAGE_SIZE + 1}–${Math.min(
+                  currentPage * PAGE_SIZE,
+                  filteredScans.length
+                )} of ${filteredScans.length}${filteredScans.length !== scans.length ? ` (filtered from ${scans.length})` : ""}`}
           </span>
         </div>
 
@@ -169,11 +318,12 @@ export default function HistoryPage() {
                 <th className="num">T</th>
                 <th>Engine</th>
                 <th className="num">Time</th>
+                <th style={{ width: 44, textAlign: "right" }} aria-label="Actions"></th>
               </tr>
             </thead>
             <tbody>
-              {filteredScans.length ? (
-                filteredScans.map((s) => {
+              {paginatedScans.length ? (
+                paginatedScans.map((s) => {
                   const isExpanded = expandedRowId === s.id;
                   const isPhish = s.decision === "PHISHING";
                   const topInd = s.rows
@@ -184,7 +334,7 @@ export default function HistoryPage() {
                   return (
                     <React.Fragment key={s.id}>
                       <tr
-                        className="clickable"
+                        className={`clickable ${binningScanId === s.id ? "row-binning" : ""}`}
                         tabIndex={0}
                         aria-expanded={isExpanded}
                         onClick={() => setExpandedRowId(isExpanded ? null : s.id)}
@@ -194,7 +344,16 @@ export default function HistoryPage() {
                           }
                         }}
                       >
-                        <td className="mono" style={{ fontSize: "12px" }}>
+                        <td className="mono" style={{ fontSize: "12px", position: "relative" }}>
+                          {binningScanId === s.id && (
+                            <div className="binning-indicator" role="status" aria-label="Scan binned">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                <polyline points="3 6 5 6 21 6" />
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                              </svg>
+                              <span>Binned</span>
+                            </div>
+                          )}
                           {s.id}
                         </td>
                         <td>
@@ -233,12 +392,92 @@ export default function HistoryPage() {
                         <td className="num muted" title={fmtAbs(s.ts)}>
                           {fmtRel(s.ts, nowTime)}
                         </td>
+                        <td style={{ textAlign: "right", position: "relative" }} onClick={(e) => e.stopPropagation()}>
+                          <div style={{ position: "relative", display: "inline-block" }}>
+                            <button
+                              type="button"
+                              className="row-act-btn"
+                              aria-label={`Actions for scan ${s.id}`}
+                              aria-haspopup="menu"
+                              aria-expanded={menuOpenScanId === s.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setMenuOpenScanId(menuOpenScanId === s.id ? null : s.id);
+                              }}
+                            >
+                              <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="12" cy="5" r="2" />
+                                <circle cx="12" cy="12" r="2" />
+                                <circle cx="12" cy="19" r="2" />
+                              </svg>
+                            </button>
+
+                            {menuOpenScanId === s.id && (
+                              <div
+                                className="row-menu"
+                                role="menu"
+                                aria-label={`Actions for scan ${s.id}`}
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="row-menu-item"
+                                  onClick={() => {
+                                    setMenuOpenScanId(null);
+                                    handleOpenScan(s.id);
+                                  }}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <circle cx="12" cy="12" r="10" />
+                                    <line x1="12" y1="16" x2="12" y2="12" />
+                                    <line x1="12" y1="8" x2="12.01" y2="8" />
+                                  </svg>
+                                  <span>Open explanation</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="row-menu-item"
+                                  onClick={() => {
+                                    setMenuOpenScanId(null);
+                                    handleLoadIntoAnalyzer(s);
+                                  }}
+                                >
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polygon points="5 3 19 12 5 21 5 3" />
+                                  </svg>
+                                  <span>Load into analyzer</span>
+                                </button>
+                                <div className="row-menu-divider" role="separator" />
+                                <button
+                                  type="button"
+                                  role="menuitem"
+                                  className="row-menu-item row-menu-item-destructive"
+                                  onClick={() => {
+                                    setMenuOpenScanId(null);
+                                    setDeletingScan(s);
+                                    setDeleteConfirmOpen(true);
+                                  }}
+                                >
+                                  <svg className="trash-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                    <polyline points="3 6 5 6 21 6" />
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                                    <line x1="10" y1="11" x2="10" y2="17" />
+                                    <line x1="14" y1="11" x2="14" y2="17" />
+                                  </svg>
+                                  <span>Delete</span>
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
                       </tr>
 
                       {/* Expandable detail row */}
                       {isExpanded && (
                         <tr className="detail">
-                          <td colSpan={7}>
+                          <td colSpan={8}>
                             <div className="grid g-2-1" style={{ gap: 20 }}>
                               <div>
                                 <div className="lbl" style={{ marginBottom: 8 }}>
@@ -311,7 +550,7 @@ export default function HistoryPage() {
                 })
               ) : (
                 <tr>
-                  <td colSpan={7} style={{ padding: 36, textAlign: "center" }} className="muted">
+                  <td colSpan={8} style={{ padding: 36, textAlign: "center" }} className="muted">
                     No scans match these filters.
                   </td>
                 </tr>
@@ -319,7 +558,143 @@ export default function HistoryPage() {
             </tbody>
           </table>
         </div>
+
+        {totalPages > 1 && (
+          <div className="pagination-footer">
+            <ThePagination
+              page={currentPage}
+              totalPages={totalPages}
+              onChange={(p) => setCurrentPage(p)}
+            />
+            <div className="pagination-info mono">
+              Page {currentPage} of {totalPages}
+            </div>
+          </div>
+        )}
       </div>
+
+      {/* Explicit Permanent Deletion Confirmation Dialog */}
+      <Dialog
+        open={deleteConfirmOpen}
+        onOpenChange={(open) => {
+          if (!isDeleting) {
+            setDeleteConfirmOpen(open);
+            if (!open) setDeletingScan(null);
+          }
+        }}
+        className="del-modal-panel sm:max-w-[480px]"
+      >
+        <div className="del-modal-content">
+          {/* Header with Danger Pill Badge & Close button */}
+          <div className="del-modal-header">
+            <div className="del-modal-icon-badge" aria-hidden="true">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                <line x1="10" y1="11" x2="10" y2="17" />
+                <line x1="14" y1="11" x2="14" y2="17" />
+              </svg>
+            </div>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <DialogTitle className="del-modal-title">Delete scan record?</DialogTitle>
+              <div className="del-modal-subtitle">
+                This item will be permanently removed from your workspace.
+              </div>
+            </div>
+            <button
+              type="button"
+              className="del-modal-close-btn"
+              disabled={isDeleting}
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setDeletingScan(null);
+              }}
+              aria-label="Close dialog"
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          {/* Record Callout Card */}
+          {deletingScan && (
+            <div className="del-modal-card">
+              <div className="del-modal-card-top">
+                <span className="del-modal-card-id mono">{deletingScan.id}</span>
+                <span
+                  className={`verdict ${deletingScan.decision === "PHISHING" ? "v-phish" : "v-safe"}`}
+                  style={{ fontSize: "11px", padding: "2px 8px" }}
+                >
+                  {deletingScan.decision === "PHISHING" ? "Phishing" : "Safe"}
+                </span>
+                <span className="mono muted" style={{ fontSize: "11px", marginLeft: "auto" }}>
+                  P: {formatP(deletingScan.P)}
+                </span>
+              </div>
+              <div className="del-modal-card-subject">
+                {deletingScan.email.subject || "Untitled Email Analysis"}
+              </div>
+              <div className="del-modal-card-sender">
+                {senderShort(deletingScan.email.from)}
+              </div>
+            </div>
+          )}
+
+          {/* Warning Note */}
+          <div className="del-modal-warning">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="del-modal-warning-icon">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <DialogDescription className="del-modal-desc">
+              All associated indicator breakdown scores, forensic spans, and audit statistics for this scan will be permanently purged. This action cannot be reversed.
+            </DialogDescription>
+          </div>
+
+          {/* Actions Footer */}
+          <div className="del-modal-footer">
+            <button
+              type="button"
+              className="btn del-btn-cancel"
+              disabled={isDeleting}
+              onClick={() => {
+                setDeleteConfirmOpen(false);
+                setDeletingScan(null);
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn del-btn-danger"
+              disabled={isDeleting}
+              onClick={handleConfirmDelete}
+            >
+              {isDeleting ? (
+                <>
+                  <svg className="spin-del" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                  </svg>
+                  <span>Deleting...</span>
+                </>
+              ) : (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <polyline points="3 6 5 6 21 6" />
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                    <line x1="10" y1="11" x2="10" y2="17" />
+                    <line x1="14" y1="11" x2="14" y2="17" />
+                  </svg>
+                  <span>Delete permanently</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </Dialog>
     </div>
   );
 }

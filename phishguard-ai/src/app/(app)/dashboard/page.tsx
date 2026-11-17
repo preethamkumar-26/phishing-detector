@@ -185,30 +185,6 @@ export default function OverviewPage() {
               <circle cx={sparkSvg.lx} cy={sparkSvg.ly} r="3" fill="#ECEEE5" />
             </svg>
           </div>
-
-          <div style={{ marginTop: "auto" }}>
-            <div className="lbl" style={{ fontSize: "12.5px" }}>
-              Flags by feature branch · 24h
-            </div>
-            <div className="dots">
-              <div>
-                <b>4</b>
-                <span>F</span>
-              </div>
-              <div>
-                <b>6</b>
-                <span>S</span>
-              </div>
-              <div>
-                <b>3</b>
-                <span>U</span>
-              </div>
-              <div>
-                <b>2</b>
-                <span>M</span>
-              </div>
-            </div>
-          </div>
         </div>
 
         {/* Center column: Radar SVG */}
@@ -643,7 +619,7 @@ export default function OverviewPage() {
           <span className="mk">LS</span>
           <div>
             <div className="k">Last scan</div>
-            <div className="v mono" style={{ fontSize: "12.5px" }}>
+            <div className="v mono" style={{ fontSize: "12.5px" }} suppressHydrationWarning>
               {lastScan ? fmtAbs(lastScan.ts) : "—"}
             </div>
           </div>
@@ -720,7 +696,7 @@ export default function OverviewPage() {
                         </span>
                       </td>
                       <td className="num">{formatP(s.P)}</td>
-                      <td className="num muted">{fmtRel(s.ts, nowTime)}</td>
+                      <td className="num muted" suppressHydrationWarning>{fmtRel(s.ts, nowTime)}</td>
                     </tr>
                   );
                 })}

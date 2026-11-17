@@ -1,4 +1,4 @@
-// Client-side navigation & KPI animation state tracker for PhishGuard AI
+// Client-side navigation & KPI animation state tracker for PhishIntel
 
 let previousPath: string | null = null;
 let currentPath: string | null = null;

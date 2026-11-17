@@ -151,6 +151,7 @@ interface PhishGuardContextValue {
   testServiceConnection: (endpoint?: string) => Promise<{ ok: boolean; version?: string; error?: string }>;
   runScan: (email: ScanEmailInput) => Promise<ScanItem>;
   clearUserScans: () => void;
+  deleteScan: (scanId: string) => Promise<{ success: boolean; error?: string }>;
   toasts: ToastItem[];
   showToast: (msg: string, warn?: boolean) => void;
   formatP: (p: number) => string;
@@ -698,6 +699,51 @@ export const SAMPLE_EMAILS: Array<{
     body: "Dear employee,\n\nOur records show your salary deposit for November could not be processed. To avoid suspension of your payroll account, re-authenticate your credentials within 24 hours.\n\nClick here to log in: http://secured-login-portal.net/hr/verify?session=88231&redirect=https://intranet-auth.example\n\nFailure to verify will delay your payment.\n\nHR Payroll Team",
     headers: "Received: from unknown (HELO mx01)\nReceived: from relay.mail-verify.co\nReturn-Path: <bounce@mail-verify.co>\nX-Originating-IP: 185.220.101.4",
   },
+  {
+    mins: 5,
+    subject: "Action Required: Microsoft 365 MFA Re-registration",
+    from: "IT Identity Support <admin@mso365-security-portal.com>",
+    replyTo: "support@mso365-security-portal.com",
+    body: "Your Multi-Factor Authentication session expires today. If you do not update your authenticator app within 6 hours, your Microsoft 365 access will be blocked.\n\nUpdate authentication now: https://mso365-security-portal.com/mfa-verify?auth=token9910",
+    headers: "Received: from vps-9011.hosted-mail.net\nReturn-Path: <bounce@mso365-security-portal.com>",
+  },
+  {
+    mins: 4,
+    subject: "GitHub Security: Dependency vulnerabilities detected in repository",
+    from: "GitHub <notifications@github.com>",
+    body: "We found 1 high severity vulnerability on repository main branch. Dependabot has created a security advisory and opened a pull request with the recommended fix.\n\nReview pull request: https://github.com/org/repo/security/dependabot",
+    headers: "Received: from mail.github.com\nReturn-Path: <noreply@github.com>",
+  },
+  {
+    mins: 3,
+    subject: "DocuSign: Please review and sign Confidential Settlement Agreement",
+    from: "DocuSign Service <signing@docusign-contracts-sign.net>",
+    replyTo: "settlement@docusign-contracts-sign.net",
+    body: "You have been requested by Legal Counsel to review and sign document #DOC-881920.\n\nAccess DocuSign envelope: http://docusign-contracts-sign.net/sign/doc881920?recipient=verify\n\nThis envelope expires in 24 hours.",
+    headers: "Received: from out4.docusign-contracts-sign.net\nReturn-Path: <bounce@docusign-contracts-sign.net>",
+  },
+  {
+    mins: 2,
+    subject: "IT Operations: Scheduled VPN gateway maintenance this Saturday",
+    from: "Enterprise IT Services <it-helpdesk@meridian-holdings.com>",
+    body: "Please note that the Asia-Pacific regional VPN gateway will undergo scheduled software upgrades this Saturday from 02:00 to 04:00 UTC. Secondary gateways will remain fully operational during this window.\n\nMeridian IT Operations",
+    headers: "Received: from mail.meridian-holdings.com\nReturn-Path: <it-helpdesk@meridian-holdings.com>",
+  },
+  {
+    mins: 1,
+    subject: "Stripe: Payout of $14,280.00 is on its way to your bank account",
+    from: "Stripe <notifications@stripe.com>",
+    body: "A payout of $14,280.00 (USD) is scheduled to arrive in your designated account ending in 4108 within 1-2 business days. Summary of daily transactions and platform fees is available in your Stripe Dashboard.\n\nStripe Payments Europe",
+    headers: "Received: from smtp.stripe.com\nReturn-Path: <bounce@stripe.com>",
+  },
+  {
+    mins: 0.5,
+    subject: "Urgent Notice: DHL Express package delivery attempt failed",
+    from: "DHL Express Delivery <tracking@dhl-express-dispatch.top>",
+    replyTo: "support@dhl-express-dispatch.top",
+    body: "Your shipment #DHL-9921894 could not be delivered due to an incorrect postal code. Confirm your address and pay the redelivery clearance charge of $3.50 within 48 hours to avoid package return to sender.\n\nResolve shipment: http://dhl-express-dispatch.top/redeliver?ref=pkg9921894",
+    headers: "Received: from relay-host.isp.net\nReturn-Path: <bounce@dhl-express-dispatch.top>",
+  },
 ];
 
 const BASELINE_TIMESTAMP = 1794747600000; // 15 Nov 2026 12:00:00 UTC
@@ -779,9 +825,9 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
 
     // 2. Profile
     try {
-      const sessionEmail = localStorage.getItem("phishguard-session");
+      const sessionEmail = localStorage.getItem("phishintel-session") || localStorage.getItem("phishguard-session");
       if (sessionEmail) {
-        const rawUsers = localStorage.getItem("phishguard-users");
+        const rawUsers = localStorage.getItem("phishintel-users") || localStorage.getItem("phishguard-users");
         if (rawUsers) {
           const users = JSON.parse(rawUsers);
           const u = users.find((x: { email: string }) => x.email.toLowerCase() === sessionEmail.toLowerCase());
@@ -799,7 +845,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
         if (savedProfile) {
           const parsed = JSON.parse(savedProfile);
           if (parsed.role === "Security analyst") parsed.role = "";
-          if (parsed.org === "PhishGuard Labs") parsed.org = "";
+          if (parsed.org === "PhishGuard Labs" || parsed.org === "PhishIntel Labs") parsed.org = "";
           if (parsed.team === "Threat Intelligence") parsed.team = "";
           if (parsed.name === "Analyst") parsed.name = "";
           setProfile((prev) => ({ ...prev, ...parsed }));
@@ -1128,6 +1174,54 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
     showToast("Cleared user scans");
   }, [logActivity, showToast]);
 
+  // Delete a single scan permanently
+  const deleteScan = useCallback(
+    async (scanId: string): Promise<{ success: boolean; error?: string }> => {
+      try {
+        const sessionUser =
+          typeof window !== "undefined"
+            ? localStorage.getItem("phishintel-session") || localStorage.getItem("phishguard-session")
+            : null;
+
+        // Backend delete if authenticated session exists
+        if (sessionUser) {
+          const res = await fetch(`/api/account/scan?scanId=${encodeURIComponent(scanId)}`, {
+            method: "DELETE",
+            headers: {
+              "x-user-email": sessionUser,
+            },
+          });
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.error || `Server responded with status ${res.status}`);
+          }
+        }
+
+        // Reconcile client scans state and localStorage
+        setScans((prev) => {
+          const next = prev.filter((s) => s.id !== scanId);
+          try {
+            const userOnly = next.filter((s) => s.src === "user");
+            localStorage.setItem("pg.scans", JSON.stringify(userOnly));
+          } catch {}
+          return next;
+        });
+
+        // Reconcile selection state
+        setSelectedScanId((current) => (current === scanId ? null : current));
+
+        logActivity(`Permanently deleted scan ${scanId}`);
+        showToast("Scan record permanently deleted");
+        return { success: true };
+      } catch (err) {
+        const error = err instanceof Error ? err.message : "Failed to delete scan";
+        showToast(error, true);
+        return { success: false, error };
+      }
+    },
+    [logActivity, showToast]
+  );
+
   const selectedScan = useMemo(() => {
     return scans.find((s) => s.id === selectedScanId) || scans[0] || null;
   }, [scans, selectedScanId]);
@@ -1152,6 +1246,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
         testServiceConnection,
         runScan,
         clearUserScans,
+        deleteScan,
         toasts,
         showToast,
         formatP,
@@ -1169,3 +1264,7 @@ export function usePhishGuard() {
   }
   return ctx;
 }
+
+export const PhishIntelContext = PhishGuardContext;
+export const PhishIntelProvider = PhishGuardProvider;
+export const usePhishIntel = usePhishGuard;

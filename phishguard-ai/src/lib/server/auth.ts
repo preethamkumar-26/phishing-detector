@@ -199,9 +199,9 @@ export function authenticateRequest(req: Request): DbUser {
     }
   }
 
-  // 2. Check phishguard_session cookie
+  // 2. Check phishintel_session or phishguard_session cookie
   const cookieHeader = req.headers.get("cookie") || "";
-  const match = cookieHeader.match(/phishguard_session=([^;]+)/);
+  const match = cookieHeader.match(/(?:phishintel_session|phishguard_session)=([^;]+)/);
   if (match) {
     const token = decodeURIComponent(match[1].trim());
     const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;

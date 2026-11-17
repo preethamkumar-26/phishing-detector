@@ -426,7 +426,7 @@ export default function ProfilePage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `phishguard-account-export-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `phishintel-account-export-${new Date().toISOString().slice(0, 10)}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -581,7 +581,7 @@ export default function ProfilePage() {
                 >
                   <div style={{ fontWeight: 500, fontSize: 13.5 }}>Local Guest Mode</div>
                   <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
-                    You are currently using PhishGuard AI without a signed-in account. Threat detection, feature
+                    You are currently using PhishIntel without a signed-in account. Threat detection, feature
                     ablation, and explainability work locally in your browser. To persist custom analyst credentials,
                     personal bio, and cloud settings, please sign in or register an account.
                   </div>
@@ -894,7 +894,7 @@ export default function ProfilePage() {
                 <div className="set-row">
                   <div>
                     <div className="t">Default start destination</div>
-                    <div className="d">The primary console screen opened when launching PhishGuard AI.</div>
+                    <div className="d">The primary console screen opened when launching PhishIntel.</div>
                   </div>
                   <select
                     className="select"

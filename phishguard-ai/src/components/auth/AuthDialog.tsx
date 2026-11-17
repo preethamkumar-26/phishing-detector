@@ -141,7 +141,7 @@ export function AuthDialog({
             </div>
             <div>
               <span className="text-[10px] font-bold uppercase tracking-wider text-[var(--primary-accent)] block leading-none mb-1">
-                PhishGuard AI
+                PhishIntel
               </span>
               <DialogTitle className="leading-tight">{heading}</DialogTitle>
             </div>

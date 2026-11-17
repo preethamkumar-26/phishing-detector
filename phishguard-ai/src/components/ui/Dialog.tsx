@@ -205,7 +205,7 @@ export function Dialog({
       >
         <div
           data-state={state}
-          className="pg-dialog-backdrop fixed inset-0 bg-[#050814]/65 backdrop-blur-sm"
+          className="pg-dialog-backdrop fixed inset-0 bg-[rgba(20,24,20,0.44)] backdrop-blur-sm"
           onClick={requestClose}
           aria-hidden="true"
         />
@@ -219,7 +219,7 @@ export function Dialog({
           data-state={state}
           onKeyDown={handlePanelKeyDown}
           className={cn(
-            "pg-dialog-panel relative z-10 w-full overflow-y-auto border border-[var(--border-color)] bg-[var(--bg-surface)] p-6 shadow-2xl shadow-black/60 outline-none",
+            "pg-dialog-panel relative z-10 w-full overflow-y-auto border border-[var(--border-color)] bg-[var(--bg-surface)] text-[var(--text-primary)] p-6 shadow-[0_24px_60px_-12px_rgba(28,31,26,0.30)] outline-none",
             mobileSheet
               ? "max-h-[92dvh] rounded-t-2xl pb-[max(1.5rem,env(safe-area-inset-bottom))] sm:max-h-[calc(100vh-2rem)] sm:max-w-[440px] sm:rounded-2xl sm:pb-6"
               : "max-h-[calc(100vh-2rem)] max-w-lg rounded-2xl",

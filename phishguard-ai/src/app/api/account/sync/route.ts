@@ -25,6 +25,13 @@ export async function POST(req: Request) {
         token: session.token,
       });
 
+      response.cookies.set("phishintel_session", session.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30, // 30 days
+      });
       response.cookies.set("phishguard_session", session.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -59,6 +66,13 @@ export async function POST(req: Request) {
         token: session.token,
       });
 
+      response.cookies.set("phishintel_session", session.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
+      });
       response.cookies.set("phishguard_session", session.token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === "production",
@@ -72,6 +86,7 @@ export async function POST(req: Request) {
 
     if (action === "logout") {
       const response = NextResponse.json({ success: true });
+      response.cookies.delete("phishintel_session");
       response.cookies.delete("phishguard_session");
       return response;
     }
@@ -87,6 +102,13 @@ export async function POST(req: Request) {
         success: true,
         user: { id: existing.id, name: existing.name, email: existing.email },
         token: session.token,
+      });
+      response.cookies.set("phishintel_session", session.token, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+        path: "/",
+        maxAge: 60 * 60 * 24 * 30,
       });
       response.cookies.set("phishguard_session", session.token, {
         httpOnly: true,

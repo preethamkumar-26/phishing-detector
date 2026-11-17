@@ -58,7 +58,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         <footer className="foot" role="contentinfo">
           <span>Overview figures reflect the sample workspace and are illustrative.</span>
-          <span className="mono">PhishGuard AI · research build</span>
+          <span className="mono">PhishIntel · research build</span>
         </footer>
       </div>
 

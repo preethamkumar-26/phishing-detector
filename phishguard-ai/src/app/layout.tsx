@@ -17,7 +17,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PhishGuard AI — Email Threat Analysis",
+  title: "PhishIntel — Email Threat Analysis",
   description:
     "Restrained editorial/technical security console for email threat analysis featuring structured 5-branch feature extraction and validation-calibrated threshold decision.",
 };
