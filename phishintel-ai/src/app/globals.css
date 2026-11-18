@@ -1088,7 +1088,7 @@ input[type=range]::-moz-range-thumb {
 
 .meter-row {
   display: grid;
-  grid-template-columns: 118px 1fr 40px;
+  grid-template-columns: minmax(130px, 1.2fr) minmax(60px, 1fr) auto;
   gap: 12px;
   align-items: center;
   font-size: 12.5px;
@@ -1115,6 +1115,7 @@ input[type=range]::-moz-range-thumb {
   text-align: right;
   font-family: var(--m);
   font-size: 12px;
+  white-space: nowrap;
 }
 
 /* ---------- dark panel ---------- */
@@ -1523,6 +1524,8 @@ input[type=range]::-moz-range-thumb {
   font-size: 12px;
   color: var(--muted);
   align-items: center;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 .legend i {
@@ -1776,11 +1779,17 @@ input[type=range]::-moz-range-thumb {
 
 .abl {
   display: grid;
-  grid-template-columns: 150px 1fr 62px;
+  grid-template-columns: minmax(180px, max-content) minmax(60px, 1fr) auto;
   gap: 12px;
   align-items: center;
   font-size: 12.5px;
   padding: 4px 0;
+  min-width: 0;
+}
+
+.abl > span:first-child {
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .abl .track {
@@ -1788,6 +1797,7 @@ input[type=range]::-moz-range-thumb {
   background: rgba(236, 238, 229, 0.07);
   border-radius: 1px;
   position: relative;
+  min-width: 40px;
 }
 
 .abl .track i {
@@ -1800,6 +1810,9 @@ input[type=range]::-moz-range-thumb {
 .abl .v {
   text-align: right;
   font: 400 12px var(--m);
+  white-space: nowrap;
+  min-width: max-content;
+  justify-self: end;
 }
 
 .ind {
@@ -2382,7 +2395,8 @@ kbd {
     grid-column: 2 / 4;
   }
   .abl {
-    grid-template-columns: 110px 1fr 56px;
+    grid-template-columns: minmax(170px, max-content) minmax(50px, 1fr) auto;
+    gap: 10px;
   }
   .profile-grid {
     grid-template-columns: 1fr;
@@ -2410,6 +2424,17 @@ kbd {
   }
   .big {
     font-size: 38px;
+  }
+  .abl {
+    grid-template-columns: 1fr auto;
+    gap: 4px 8px;
+  }
+  .abl > span:first-child {
+    white-space: normal;
+  }
+  .abl .track {
+    grid-column: 1 / -1;
+    margin: 2px 0 4px;
   }
 }
 
