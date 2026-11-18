@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState, useMemo, useRef, useEffect, useCallback } from "react";
-import { useRouter } from "next/navigation";
-import { usePhishGuard, SAMPLE_EMAILS, ScanItem } from "@/context/PhishGuardContext";
+import React, { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { usePhishGuard, SAMPLE_EMAILS, ScanItem, buildInitialScans } from "@/context/PhishGuardContext";
 
 const ANALYZER_SAMPLES = {
   phish: 4, // "Your Meridian Bank account has been locked"
@@ -27,8 +27,20 @@ const fmtAbs = (ts: number) => {
 };
 
 export default function AnalyzerPage() {
+  return (
+    <Suspense fallback={null}>
+      <AnalyzerContent />
+    </Suspense>
+  );
+}
+
+function AnalyzerContent() {
   const router = useRouter();
-  const { runScan, settings, setSelectedScanId, showToast, formatP } = usePhishGuard();
+  const searchParams = useSearchParams();
+  const loadId = searchParams.get("load");
+  const appliedLoadRef = useRef<string | null>(null);
+
+  const { runScan, settings, setSelectedScanId, showToast, formatP, scans } = usePhishGuard();
 
   const [subject, setSubject] = useState("");
   const [from, setFrom] = useState("");
@@ -42,6 +54,9 @@ export default function AnalyzerPage() {
   const [running, setRunning] = useState(false);
   const [currentStep, setCurrentStep] = useState<number>(-1);
   const [scanResult, setScanResult] = useState<ScanItem | null>(null);
+  const [loadedFromScanId, setLoadedFromScanId] = useState<string | null>(null);
+  const [loadNotice, setLoadNotice] = useState<{ message: string; type: "info" | "warning" } | null>(null);
+  const [isLoadingScan, setIsLoadingScan] = useState(false);
   const [isDragOver, setIsDragOver] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -60,9 +75,92 @@ export default function AnalyzerPage() {
     return (headers.match(/^[A-Za-z-]+:/gm) || []).length;
   }, [headers]);
 
+  // Handle handoff from Scan History (?load=<scanId>)
+  useEffect(() => {
+    if (!loadId) return;
+    if (appliedLoadRef.current === loadId) return;
+    appliedLoadRef.current = loadId;
+
+    setIsLoadingScan(true);
+
+    const resolveScan = async () => {
+      // 1. Check loaded scans from context
+      let target: ScanItem | undefined = scans.find((s) => s.id === loadId);
+
+      // 2. Check localStorage if scans state has not populated yet
+      if (!target) {
+        try {
+          const raw = localStorage.getItem("pg.scans");
+          if (raw) {
+            const parsed: ScanItem[] = JSON.parse(raw);
+            target = parsed.find((s) => s.id === loadId);
+          }
+        } catch {}
+      }
+
+      // 3. Check reference sample scans
+      if (!target) {
+        const initial = buildInitialScans(settings.T);
+        target = initial.find((s) => s.id === loadId);
+      }
+
+      // 4. Check backend API for user scans
+      if (!target) {
+        try {
+          const res = await fetch(`/api/account/scan?scanId=${encodeURIComponent(loadId)}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data?.scan) {
+              target = data.scan;
+            }
+          }
+        } catch {}
+      }
+
+      if (target) {
+        const email = target.email;
+        const hasBody = Boolean(email?.body && email.body.trim());
+
+        setSubject(email?.subject || "");
+        setFrom(email?.from || "");
+        setReplyTo(email?.replyTo || "");
+        setBody(email?.body || "");
+        setUrls(Array.isArray(target.urls) ? target.urls.join(" ") : "");
+        setHeaders(email?.headers || "");
+        if (email?.headers) setHeadersOpen(true);
+        setActiveSample(null);
+        setScanResult(target);
+        setLoadedFromScanId(target.id);
+
+        if (!hasBody) {
+          setLoadNotice({
+            message: "Original message wasn't saved for this scan.",
+            type: "warning",
+          });
+        } else {
+          setLoadNotice(null);
+          showToast(`Loaded scan ${target.id} into analyzer`);
+        }
+      } else {
+        setLoadNotice({
+          message: "That scan is no longer available",
+          type: "warning",
+        });
+      }
+
+      setIsLoadingScan(false);
+      // Clean up query param without page reload
+      router.replace("/analyzer");
+    };
+
+    resolveScan();
+  }, [loadId, router, scans, settings.T, showToast]);
+
   // Fill form with sample
   const handleLoadSample = (sampleKey: "phish" | "bec" | "safe") => {
     setActiveSample(sampleKey);
+    setLoadedFromScanId(null);
+    setLoadNotice(null);
     const s = SAMPLE_EMAILS[ANALYZER_SAMPLES[sampleKey]];
     setSubject(s.subject || "");
     setFrom(s.from || "");
@@ -83,6 +181,9 @@ export default function AnalyzerPage() {
     setHeaders("");
     setActiveSample(null);
     setScanResult(null);
+    setLoadedFromScanId(null);
+    setLoadNotice(null);
+    appliedLoadRef.current = null;
     bodyTextareaRef.current?.focus();
   };
 
@@ -102,11 +203,9 @@ export default function AnalyzerPage() {
         b = decodeURIComponent(escape(atob(b.replace(/\s/g, ""))));
       } catch {}
     }
-    const hdrLines = unfolded
-      .split(/\r?\n/)
-      .filter((l) => /^(received|return-path|message-id|x-originating-ip|authentication-results|dkim-signature|x-mailer):/i.test(l))
-      .join("\n");
-    return { subject: h("Subject"), from: h("From"), replyTo: h("Reply-To"), body: b, headers: hdrLines };
+    // Retain every original header. Provider-specific transport evidence such as
+    // X-Google-Smtp-Source and X-Yahoo headers is needed for source detection.
+    return { subject: h("Subject"), from: h("From"), replyTo: h("Reply-To"), body: b, headers: head.trim() };
   };
 
   const handleFile = (file?: File | null) => {
@@ -124,6 +223,8 @@ export default function AnalyzerPage() {
       setBody(parsed.body || "");
       setHeaders(parsed.headers || "");
       if (parsed.headers) setHeadersOpen(true);
+      setLoadedFromScanId(null);
+      setLoadNotice(null);
       showToast("Loaded " + file.name);
     };
     reader.readAsText(file);
@@ -140,6 +241,8 @@ export default function AnalyzerPage() {
 
     setRunning(true);
     setScanResult(null);
+    setLoadedFromScanId(null);
+    setLoadNotice(null);
     setCurrentStep(0);
 
     try {
@@ -284,7 +387,46 @@ export default function AnalyzerPage() {
       {/* Main Two-Column Analyzer Grid */}
       <div className="az">
         {/* Left Column: Input Form Card */}
-        <div className="card">
+        <div className={`card ${isLoadingScan ? "opacity-60 pointer-events-none" : ""}`} style={{ position: "relative" }}>
+          {/* Notice Banner */}
+          {loadNotice && (
+            <div
+              role="alert"
+              className="load-notice"
+              style={{
+                padding: "10px 14px",
+                borderRadius: 8,
+                marginBottom: 16,
+                background: loadNotice.type === "warning" ? "rgba(239, 68, 68, 0.12)" : "rgba(59, 130, 246, 0.12)",
+                border: loadNotice.type === "warning" ? "1px solid rgba(239, 68, 68, 0.35)" : "1px solid rgba(59, 130, 246, 0.35)",
+                color: loadNotice.type === "warning" ? "#fca5a5" : "#93c5fd",
+                fontSize: "13px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 12,
+              }}
+            >
+              <span>{loadNotice.message}</span>
+              <button
+                type="button"
+                onClick={() => setLoadNotice(null)}
+                style={{
+                  background: "none",
+                  border: "none",
+                  color: "inherit",
+                  cursor: "pointer",
+                  padding: "0 4px",
+                  fontSize: "18px",
+                  lineHeight: 1,
+                }}
+                aria-label="Dismiss notice"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {/* File Dropzone */}
           <div
             className={`drop ${isDragOver ? "over" : ""}`}
@@ -546,6 +688,31 @@ export default function AnalyzerPage() {
           {/* Result view */}
           {!running && scanResult && (
             <>
+              {loadedFromScanId && (
+                <div
+                  className="badge-loaded-scan"
+                  style={{
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    background: "rgba(99, 102, 241, 0.18)",
+                    border: "1px solid rgba(99, 102, 241, 0.4)",
+                    color: "#c7d2fe",
+                    borderRadius: 6,
+                    padding: "4px 10px",
+                    fontSize: "11.5px",
+                    fontFamily: "var(--font-jetbrains-mono), monospace",
+                    marginBottom: 14,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Loaded from scan {loadedFromScanId} · stored result
+                </div>
+              )}
               <div className="res-top">
                 <div>
                   <div className="eyebrow" style={{ color: "var(--dark-muted)" }}>

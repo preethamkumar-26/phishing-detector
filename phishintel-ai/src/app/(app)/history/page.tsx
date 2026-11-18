@@ -189,9 +189,9 @@ export default function HistoryPage() {
   };
 
   const handleLoadIntoAnalyzer = (s: ScanItem) => {
-    // Navigate to analyzer with prefilled query
     setSelectedScanId(s.id);
-    router.push("/analyzer");
+    setMenuOpenScanId(null);
+    router.push(`/analyzer?load=${encodeURIComponent(s.id)}`);
   };
 
   return (
@@ -450,9 +450,17 @@ export default function HistoryPage() {
                                   type="button"
                                   role="menuitem"
                                   className="row-menu-item"
+                                  title={s.email?.body ? "Load this email into the analyzer" : "Original message wasn't saved for this scan"}
                                   onClick={() => {
                                     setMenuOpenScanId(null);
                                     handleLoadIntoAnalyzer(s);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      setMenuOpenScanId(null);
+                                      handleLoadIntoAnalyzer(s);
+                                    }
                                   }}
                                 >
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -568,6 +576,7 @@ export default function HistoryPage() {
                                   <button
                                     type="button"
                                     className="btn btn-line btn-sm"
+                                    title={s.email?.body ? "Load this email into the analyzer" : "Original message wasn't saved for this scan"}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleLoadIntoAnalyzer(s);

@@ -744,7 +744,7 @@ const BASELINE_TIMESTAMP = 1794747600000; // 15 Nov 2026 12:00:00 UTC
 
 let CACHED_INITIAL_SCANS: ScanItem[] | null = null;
 
-function buildInitialScans(T = 0.5): ScanItem[] {
+export function buildInitialScans(T = 0.5): ScanItem[] {
   if (CACHED_INITIAL_SCANS && T === 0.5) {
     return CACHED_INITIAL_SCANS;
   }
@@ -938,6 +938,9 @@ export function PhishGuardProvider({
           localStorage.setItem("pg.scans", JSON.stringify(userScans));
         } catch {}
         setScans(userScans.sort((a, b) => b.ts - a.ts));
+      } else if (localStorage.getItem("pg.scans") === null) {
+        const initial = buildInitialScans(0.5);
+        setScans(initial);
       }
     } catch {}
   }, []);
@@ -1173,8 +1176,14 @@ export function PhishGuardProvider({
           body: JSON.stringify({
             scanId: newScan.id,
             subject: newScan.email.subject,
+            from: newScan.email.from,
+            replyTo: newScan.email.replyTo,
+            body: newScan.email.body,
+            urls: newScan.urls,
+            headers: newScan.email.headers,
             prediction: newScan.decision === "PHISHING" ? "phishing" : "safe",
             confidence: +(newScan.P * 100).toFixed(1),
+            payload: newScan,
           }),
         }).catch(() => {});
       } catch {}
@@ -1189,6 +1198,15 @@ export function PhishGuardProvider({
     setScans([]);
     try {
       localStorage.removeItem("pg.scans");
+      const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
+      if (sessionUser) {
+        fetch("/api/account/scan?clearAll=true", {
+          method: "DELETE",
+          headers: {
+            "x-user-email": sessionUser,
+          },
+        }).catch(() => {});
+      }
     } catch {}
     logActivity("Cleared scan history");
     showToast("Cleared scan history");

@@ -83,13 +83,49 @@ export function getDb(): DatabaseSync {
       user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       scan_id TEXT NOT NULL,
       subject TEXT,
+      from_email TEXT,
+      reply_to TEXT,
+      body TEXT,
+      urls TEXT,
+      headers TEXT,
+      input_origin TEXT,
       prediction TEXT NOT NULL,
       confidence REAL,
+      payload_json TEXT,
       created_at TEXT NOT NULL
     );
 
     CREATE INDEX IF NOT EXISTS idx_user_scans ON user_scans(user_id, created_at DESC);
   `);
+
+  // Idempotent migration for existing databases
+  try {
+    const userScansCols = db.prepare("PRAGMA table_info(user_scans)").all() as Array<{ name: string }>;
+    const colNames = new Set(userScansCols.map((c) => c.name));
+    if (!colNames.has("from_email")) {
+      db.exec("ALTER TABLE user_scans ADD COLUMN from_email TEXT;");
+    }
+    if (!colNames.has("reply_to")) {
+      db.exec("ALTER TABLE user_scans ADD COLUMN reply_to TEXT;");
+    }
+    if (!colNames.has("body")) {
+      db.exec("ALTER TABLE user_scans ADD COLUMN body TEXT;");
+    }
+    if (!colNames.has("urls")) {
+      db.exec("ALTER TABLE user_scans ADD COLUMN urls TEXT;");
+    }
+    if (!colNames.has("headers")) {
+      db.exec("ALTER TABLE user_scans ADD COLUMN headers TEXT;");
+    }
+    if (!colNames.has("input_origin")) {
+      db.exec("ALTER TABLE user_scans ADD COLUMN input_origin TEXT;");
+    }
+    if (!colNames.has("payload_json")) {
+      db.exec("ALTER TABLE user_scans ADD COLUMN payload_json TEXT;");
+    }
+  } catch (err) {
+    console.error("Migration error on user_scans table:", err);
+  }
 
   dbInstance = db;
   return dbInstance;
