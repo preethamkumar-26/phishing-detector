@@ -1,7 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from starlette.concurrency import run_in_threadpool
 
+from app.schemas.evaluation import EvaluationMetricsResponse
 from app.schemas.scan import EmailScanRequest, ScanResponse
+from app.services.evaluation_service import EvaluationArtifactError, evaluation_service
 from app.services.model_service import model_service
 
 router = APIRouter()
@@ -32,3 +34,14 @@ async def get_model_status():
         "model_name": model_service.model_name,
         "device": str(model_service.device)
     }
+
+
+@router.get("/evaluation-metrics", response_model=EvaluationMetricsResponse)
+async def get_evaluation_metrics():
+    try:
+        return evaluation_service.get_metrics()
+    except EvaluationArtifactError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="The evaluation metrics artifact is invalid or unreadable.",
+        ) from exc

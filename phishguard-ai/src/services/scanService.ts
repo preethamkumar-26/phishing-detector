@@ -1,4 +1,5 @@
 import { ScanResult, ScanRecord, PredictionType, EvidenceItem } from "@/types/scan";
+import { EvaluationMetricsResponse } from "@/types/evaluation";
 import { DEMO_RECENT_SCANS } from "@/data/demo-data";
 
 // In-memory session store initialized with demo records
@@ -7,6 +8,8 @@ let sessionScans: ScanRecord[] = [...DEMO_RECENT_SCANS];
 const FASTAPI_BASE_URL =
   (process.env.NEXT_PUBLIC_FASTAPI_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
 export const FASTAPI_ANALYZE_URL = `${FASTAPI_BASE_URL}/api/v1/analyze`;
+export const FASTAPI_EVALUATION_METRICS_URL =
+  `${FASTAPI_BASE_URL}/api/v1/evaluation-metrics`;
 
 export interface ScanInputPayload {
   content?: string;
@@ -83,6 +86,93 @@ function isFastAPIAnalysisResponse(value: unknown): value is FastAPIAnalysisResp
     !!data.explainability &&
     typeof data.explainability === "object"
   );
+}
+
+function isEvaluationMetricsResponse(value: unknown): value is EvaluationMetricsResponse {
+  if (!value || typeof value !== "object") return false;
+  const data = value as Record<string, unknown>;
+  if (data.status === "unavailable") {
+    return (
+      data.reason === "artifact_not_found" &&
+      data.artifact === "evaluation_metrics.json"
+    );
+  }
+  if (data.status !== "available" || !data.metrics || typeof data.metrics !== "object") {
+    return false;
+  }
+
+  const metrics = data.metrics as Record<string, unknown>;
+  const scoreKeys = ["accuracy", "precision", "recall", "f1_score", "auc_roc"];
+  const validScore = (score: unknown) =>
+    typeof score === "number" && Number.isFinite(score) && score >= 0 && score <= 1;
+  const validMetrics =
+    scoreKeys.every((key) => validScore(metrics[key])) &&
+    typeof metrics.inference_latency_ms === "number" &&
+    Number.isFinite(metrics.inference_latency_ms) &&
+    metrics.inference_latency_ms >= 0;
+  const ranking = data.model_ranking;
+  const validRanking =
+    Array.isArray(ranking) &&
+    ranking.every((entry) => {
+      if (!entry || typeof entry !== "object") return false;
+      const item = entry as Record<string, unknown>;
+      return (
+        typeof item.model_name === "string" &&
+        typeof item.rank === "number" &&
+        Number.isInteger(item.rank) &&
+        item.rank >= 1 &&
+        scoreKeys.every((key) => validScore(item[key])) &&
+        (item.inference_latency_ms == null ||
+          (typeof item.inference_latency_ms === "number" &&
+            Number.isFinite(item.inference_latency_ms) &&
+            item.inference_latency_ms >= 0))
+      );
+    });
+
+  return (
+    data.schema_version === 1 &&
+    typeof data.model_name === "string" &&
+    typeof data.model_version === "string" &&
+    typeof data.dataset === "string" &&
+    typeof data.dataset_version === "string" &&
+    typeof data.split === "string" &&
+    typeof data.threshold === "number" &&
+    validScore(data.threshold) &&
+    typeof data.evaluated_at === "string" &&
+    typeof data.sample_count === "number" &&
+    Number.isInteger(data.sample_count) &&
+    data.sample_count > 0 &&
+    validMetrics &&
+    validRanking
+  );
+}
+
+export async function fetchEvaluationMetrics(
+  signal?: AbortSignal
+): Promise<EvaluationMetricsResponse> {
+  const response = await fetch(FASTAPI_EVALUATION_METRICS_URL, {
+    cache: "no-store",
+    signal,
+  });
+  const data: unknown = await response.json();
+
+  if (!response.ok) {
+    const detail =
+      data && typeof data === "object" && "detail" in data
+        ? (data as { detail?: unknown }).detail
+        : undefined;
+    throw new Error(
+      typeof detail === "string"
+        ? detail
+        : "Failed to fetch PAHF-Net evaluation metrics."
+    );
+  }
+
+  if (!isEvaluationMetricsResponse(data)) {
+    throw new Error("FastAPI returned an invalid evaluation metrics response.");
+  }
+
+  return data;
 }
 
 function getEvidenceSeverity(severity: string): EvidenceItem["severity"] {

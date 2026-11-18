@@ -11,11 +11,7 @@ const ANALYZER_SAMPLES = {
 };
 
 const STEPS = [
-  ["Parse & normalise", "MIME · HTML → text"],
-  ["Financial · security cues", "18 + 19 features"],
-  ["URL & metadata", "20 + 11 features"],
-  ["Fuse & score", "836-d → P_phish"],
-  ["Threshold & evidence", "P ≥ T"],
+  ["PAHF-Net inference", "Request sent to model service"],
 ];
 
 const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"'\])]+/gi;
@@ -140,12 +136,7 @@ export default function AnalyzerPage() {
 
     setRunning(true);
     setScanResult(null);
-
-    // Step-by-step UI progress indicator
-    for (let i = 0; i < STEPS.length; i++) {
-      setCurrentStep(i);
-      await new Promise((r) => setTimeout(r, 160 + Math.random() * 80));
-    }
+    setCurrentStep(0);
 
     try {
       const result = await runScan({
