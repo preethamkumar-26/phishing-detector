@@ -203,11 +203,9 @@ function AnalyzerContent() {
         b = decodeURIComponent(escape(atob(b.replace(/\s/g, ""))));
       } catch {}
     }
-    const hdrLines = unfolded
-      .split(/\r?\n/)
-      .filter((l) => /^(received|return-path|message-id|x-originating-ip|authentication-results|dkim-signature|x-mailer):/i.test(l))
-      .join("\n");
-    return { subject: h("Subject"), from: h("From"), replyTo: h("Reply-To"), body: b, headers: hdrLines };
+    // Retain every original header. Provider-specific transport evidence such as
+    // X-Google-Smtp-Source and X-Yahoo headers is needed for source detection.
+    return { subject: h("Subject"), from: h("From"), replyTo: h("Reply-To"), body: b, headers: head.trim() };
   };
 
   const handleFile = (file?: File | null) => {

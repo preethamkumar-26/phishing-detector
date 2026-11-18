@@ -3,7 +3,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { usePhishGuard, ScanItem } from "@/context/PhishGuardContext";
+import { usePhishGuard } from "@/context/PhishGuardContext";
+import { classifyMailSource, MailSourceType } from "@/lib/mailSource";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -21,52 +22,6 @@ const fmtRel = (ts: number, now: number) => {
   if (h < 24) return h + " h ago";
   return Math.round(h / 24) + " d ago";
 };
-
-type MailSourceType = "Outlook" | "Gmail" | "Yahoo" | "MAPI" | "Other";
-
-function classifyMailSource(scan: ScanItem): MailSourceType {
-  const headers = (scan.email.headers || {}) as Record<string, string>;
-  const headerKeys = Object.keys(headers).map((k) => k.toLowerCase());
-  const headerVals = Object.values(headers).map((v) => String(v).toLowerCase()).join(" ");
-  const from = (scan.email.from || "").toLowerCase();
-
-  // MAPI check
-  if (
-    headers["x-mailer"]?.toLowerCase().includes("mapi") ||
-    headerVals.includes("mapi") ||
-    (scan as any).origin === "mapi"
-  ) {
-    return "MAPI";
-  }
-  // Outlook check
-  if (
-    headerKeys.some((k) => k.startsWith("x-ms-exchange")) ||
-    headers["x-mailer"]?.toLowerCase().includes("outlook") ||
-    headerVals.includes("outlook.com") ||
-    headerVals.includes("office365") ||
-    from.includes("@outlook.com") ||
-    from.includes("@hotmail.com")
-  ) {
-    return "Outlook";
-  }
-  // Gmail check
-  if (
-    headerKeys.some((k) => k.includes("google") || k === "x-gm-message-state") ||
-    headerVals.includes("google.com") ||
-    from.includes("@gmail.com")
-  ) {
-    return "Gmail";
-  }
-  // Yahoo check
-  if (
-    headerKeys.some((k) => k.startsWith("x-ymail") || k.startsWith("x-yahoo")) ||
-    headerVals.includes("yahoo.com") ||
-    from.includes("@yahoo.com")
-  ) {
-    return "Yahoo";
-  }
-  return "Other";
-}
 
 export default function OverviewPage() {
   const router = useRouter();
@@ -176,7 +131,7 @@ export default function OverviewPage() {
       Other: 0,
     };
     for (const s of windowScans) {
-      const src = classifyMailSource(s);
+      const src = classifyMailSource({ headers: s.email.headers, from: s.email.from });
       counts[src] = (counts[src] || 0) + 1;
     }
     return counts;
