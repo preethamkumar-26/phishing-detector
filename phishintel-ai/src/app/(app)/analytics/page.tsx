@@ -1,28 +1,62 @@
 "use client";
 
-import React, { useRef, useMemo } from "react";
+import React, { useRef, useMemo, useState, useEffect } from "react";
 import { usePhishGuard } from "@/context/PhishGuardContext";
+import { validateAndComputeArtifact, ProcessedEvalArtifact } from "@/lib/evalArtifact";
 
 export default function EvaluationPage() {
   const { evalArtifact, setEvalArtifact, logActivity, showToast } = usePhishGuard();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [artifactHistory, setArtifactHistory] = useState<ProcessedEvalArtifact[]>([]);
+  const [activeVersion, setActiveVersion] = useState<string>("");
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("pg.eval.history");
+      if (raw) {
+        const hist: ProcessedEvalArtifact[] = JSON.parse(raw);
+        if (Array.isArray(hist) && hist.length > 0) {
+          setArtifactHistory(hist);
+          if (!evalArtifact && hist[0]) {
+            setEvalArtifact(hist[0] as any);
+            setActiveVersion(hist[0].model_version);
+          }
+        }
+      }
+    } catch {}
+  }, []);
+
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
     const reader = new FileReader();
     reader.onload = () => {
       try {
         const json = JSON.parse(String(reader.result));
-        const missing = ["model_version", "dataset", "split", "threshold", "date", "n"].filter(
-          (k) => json[k] == null
-        );
-        setEvalArtifact(json);
-        logActivity("Loaded evaluation artifact " + (json.model_version || file.name));
-        showToast(
-          missing.length ? "Loaded. Missing fields: " + missing.join(", ") : "Evaluation artifact loaded",
-          !!missing.length
-        );
+        const res = validateAndComputeArtifact(json);
+
+        if (!res.success || !res.artifact) {
+          showToast(`Invalid evaluation artifact: ${res.error}`, true);
+          return;
+        }
+
+        const computed = res.artifact;
+        setEvalArtifact(computed as any);
+        setActiveVersion(computed.model_version);
+
+        setArtifactHistory((prev) => {
+          const filtered = prev.filter((x) => x.model_version !== computed.model_version);
+          const next = [computed, ...filtered];
+          try {
+            localStorage.setItem("pg.eval.history", JSON.stringify(next));
+          } catch {}
+          return next;
+        });
+
+        logActivity(`Loaded evaluation artifact ${computed.model_version} (${computed.dataset})`);
+        showToast(`Evaluation artifact loaded: ${computed.model_version} (n=${computed.n})`);
       } catch (err: any) {
         showToast("Could not parse JSON: " + err.message, true);
       }
@@ -31,7 +65,16 @@ export default function EvaluationPage() {
     e.target.value = "";
   };
 
-  const a = evalArtifact;
+  const handleSelectVersion = (version: string) => {
+    const found = artifactHistory.find((x) => x.model_version === version);
+    if (found) {
+      setEvalArtifact(found as any);
+      setActiveVersion(found.model_version);
+      showToast(`Switched active evaluation to ${found.model_version}`);
+    }
+  };
+
+  const a = evalArtifact as any as ProcessedEvalArtifact | null;
   const cm = a?.confusion;
 
   // ROC Curve SVG construction
@@ -59,7 +102,23 @@ export default function EvaluationPage() {
             PhishIntel metrics appear only when a versioned evaluation artifact is loaded.
           </p>
         </div>
-        <div className="actions">
+        <div className="actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          {artifactHistory.length > 1 && (
+            <select
+              value={activeVersion}
+              onChange={(e) => handleSelectVersion(e.target.value)}
+              className="btn btn-line"
+              style={{ padding: "8px 12px", fontSize: "13px" }}
+              aria-label="Select loaded artifact version"
+            >
+              {artifactHistory.map((h) => (
+                <option key={h.model_version} value={h.model_version}>
+                  {h.model_version} ({h.split})
+                </option>
+              ))}
+            </select>
+          )}
+
           <button
             type="button"
             className="btn btn-dark"
@@ -79,20 +138,20 @@ export default function EvaluationPage() {
 
       {/* PhishIntel Section */}
       <div className="eyebrow" style={{ marginBottom: 8 }}>
-        PhishIntel
+        PAHF-Net Benchmarks & Metrics
       </div>
 
       {/* 4 Metric Cards */}
       <div className="grid g4" id="eval-metrics">
         {[
-          { label: "Accuracy", key: "accuracy" },
-          { label: "Precision", key: "precision" },
-          { label: "Recall", key: "recall" },
-          { label: "F1 score", key: "f1" },
-        ].map(({ label, key }) => {
+          { label: "Accuracy", key: "accuracy", tip: "Overall proportion of correct classifications" },
+          { label: "Precision", key: "precision", tip: "True Phishing / (True Phishing + False Phishing)" },
+          { label: "Recall", key: "recall", tip: "True Phishing / (True Phishing + False Safe)" },
+          { label: "F1 score", key: "f1", tip: "Harmonic mean of precision and recall" },
+        ].map(({ label, key, tip }) => {
           const val = a && typeof (a as any)[key] === "number" ? (a as any)[key] : null;
           return (
-            <div key={key} className="card metric">
+            <div key={key} className="card metric" title={tip}>
               <div className="row between">
                 <span className="lbl">{label}</span>
                 {val !== null && <span className="tag">{a?.split || "test"}</span>}
@@ -108,7 +167,11 @@ export default function EvaluationPage() {
                 )}
               </div>
               <div className="muted" style={{ fontSize: "12px", marginTop: 8 }}>
-                {val === null ? "No evaluation artifact loaded" : a?.model_version || ""}
+                {val === null ? (
+                  "No evaluation artifact loaded"
+                ) : (
+                  `${a?.model_version || "PAHF-Net"} · n=${a?.n?.toLocaleString() ?? 0}`
+                )}
               </div>
             </div>
           );
@@ -257,7 +320,7 @@ export default function EvaluationPage() {
           <div className="card-head">
             <div>
               <h3>Evaluation record</h3>
-              <p>Each reported value needs these fields.</p>
+              <p>Schema v1 specification verification.</p>
             </div>
           </div>
           <dl className="kv" id="eval-meta">
@@ -275,7 +338,7 @@ export default function EvaluationPage() {
                 <React.Fragment key={k}>
                   <dt>{l}</dt>
                   <dd style={val != null ? {} : { color: "#A6AA9A" }}>
-                    {val != null ? (k === "n" ? Number(val).toLocaleString() : val) : "required"}
+                    {val != null ? (k === "n" ? Number(val).toLocaleString() : String(val)) : "required"}
                   </dd>
                 </React.Fragment>
               );

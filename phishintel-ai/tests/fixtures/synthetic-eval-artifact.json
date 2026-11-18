@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "model_version": "PAHF-Net-v1.2-eval",
+  "dataset": "FinancePhish-Bench-2026",
+  "dataset_version": "v2.4",
+  "split": "test",
+  "threshold": 0.5,
+  "evaluation_date": "2026-11-18",
+  "sample_size": 20,
+  "predictions": [
+    { "y_true": 1, "y_score": 0.982 },
+    { "y_true": 1, "y_score": 0.941 },
+    { "y_true": 1, "y_score": 0.915 },
+    { "y_true": 1, "y_score": 0.887 },
+    { "y_true": 1, "y_score": 0.842 },
+    { "y_true": 1, "y_score": 0.793 },
+    { "y_true": 1, "y_score": 0.751 },
+    { "y_true": 1, "y_score": 0.684 },
+    { "y_true": 1, "y_score": 0.591 },
+    { "y_true": 1, "y_score": 0.320 },
+    { "y_true": 0, "y_score": 0.620 },
+    { "y_true": 0, "y_score": 0.440 },
+    { "y_true": 0, "y_score": 0.310 },
+    { "y_true": 0, "y_score": 0.280 },
+    { "y_true": 0, "y_score": 0.190 },
+    { "y_true": 0, "y_score": 0.150 },
+    { "y_true": 0, "y_score": 0.110 },
+    { "y_true": 0, "y_score": 0.080 },
+    { "y_true": 0, "y_score": 0.040 },
+    { "y_true": 0, "y_score": 0.020 }
+  ]
+}
