@@ -130,7 +130,7 @@ export function TopBar() {
   );
 
   return (
-    <header className="topbar-wrap" role="banner">
+    <header className="topbar-wrap" role="banner" data-shell="topbar">
       <div className="topbar">
         {/* Brand logo & title */}
         <Link href="/dashboard" className="brand" aria-label="PhishIntel home">

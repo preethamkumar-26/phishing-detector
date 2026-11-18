@@ -49,7 +49,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   return (
-    <div className="shell-root min-h-screen flex flex-col justify-between">
+    <div className="shell-root min-h-screen flex flex-col justify-between" data-shell="root">
       <TopBar />
       <div className="shell flex-1 flex flex-col justify-between">
         <main className="page" id="main-content">
