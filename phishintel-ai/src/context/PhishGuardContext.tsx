@@ -748,7 +748,12 @@ export const SAMPLE_EMAILS: Array<{
 
 const BASELINE_TIMESTAMP = 1794747600000; // 15 Nov 2026 12:00:00 UTC
 
+let CACHED_INITIAL_SCANS: ScanItem[] | null = null;
+
 function buildInitialScans(T = 0.5): ScanItem[] {
+  if (CACHED_INITIAL_SCANS && T === 0.5) {
+    return CACHED_INITIAL_SCANS;
+  }
   const now = BASELINE_TIMESTAMP;
   const out: ScanItem[] = [];
   SAMPLE_EMAILS.forEach((s, i) => {
@@ -780,7 +785,11 @@ function buildInitialScans(T = 0.5): ScanItem[] {
       risk: P >= T ? "High" : "Low",
     });
   });
-  return out.sort((a, b) => b.ts - a.ts);
+  const sorted = out.sort((a, b) => b.ts - a.ts);
+  if (T === 0.5) {
+    CACHED_INITIAL_SCANS = sorted;
+  }
+  return sorted;
 }
 
 const DEFAULT_SETTINGS: SettingsState = {

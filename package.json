@@ -3,10 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "npm --prefix phishguard-ai run dev",
-    "build": "npm --prefix phishguard-ai run build",
-    "start": "npm --prefix phishguard-ai run start",
-    "lint": "npm --prefix phishguard-ai run lint"
+    "dev": "npm --prefix phishintel-ai run dev",
+    "build": "npm --prefix phishintel-ai run build",
+    "start": "npm --prefix phishintel-ai run start",
+    "lint": "npm --prefix phishintel-ai run lint"
   }
 }
 

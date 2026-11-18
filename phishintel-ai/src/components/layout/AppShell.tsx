@@ -48,6 +48,36 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [router]);
 
+  // Proactively warm up all primary section routes in browser idle time
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const routes = [
+      "/dashboard",
+      "/analyzer",
+      "/explainability",
+      "/analytics",
+      "/history",
+      "/profile",
+      "/settings",
+    ];
+
+    const warmRoutes = () => {
+      routes.forEach((r) => {
+        try {
+          router.prefetch(r);
+        } catch {}
+      });
+    };
+
+    if ("requestIdleCallback" in window) {
+      const handle = (window as any).requestIdleCallback(warmRoutes, { timeout: 1200 });
+      return () => (window as any).cancelIdleCallback(handle);
+    } else {
+      const timer = setTimeout(warmRoutes, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [router]);
+
   return (
     <div className="shell-root min-h-screen flex flex-col justify-between">
       <TopBar />
