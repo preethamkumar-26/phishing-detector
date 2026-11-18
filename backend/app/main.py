@@ -18,7 +18,7 @@ async def lifespan(app: FastAPI):
         f"name='{model_service.model_name}', device='{model_service.device}'"
     )
     yield
-    logger.info("Shutting down PhishGuard AI Backend...")
+    logger.info("Shutting down PhishIntel Backend...")
     if torch_cuda_available():
         import torch
         torch.cuda.empty_cache()
@@ -69,6 +69,7 @@ async def root():
     }
 
 
+@app.get("/health", tags=["System"])
 @app.get("/healthz", tags=["System"])
 async def root_healthz():
     return {

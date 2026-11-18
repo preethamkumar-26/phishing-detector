@@ -105,7 +105,8 @@ The current research plan covers several model families:
 
 - **Classical ML:** Logistic Regression, Naive Bayes, Random Forest, SVM, Gradient Boosting, MLP, and KNN;
 - **Transformer models:** BERT or DistilBERT-based classifiers;
-- **Hybrid neural models:** CNN-LSTM and BERT-Attention-CNN-BiGRU variants;
+- **Hybrid neural models:** CNN-LSTM and BERT-Attention-CNN-BiGRU baseline variants;
+- **Approved Extension (PAHF-Net):** Availability-Gated Hierarchical Fusion (DeBERTa-v3 256d + 3×32d encoders) with Class-Conditional Domain Adversarial Training (DANN);
 - **Retrieval-based models:** DPR-style embeddings with cosine similarity and vector search; and
 - **LLM robustness tests:** evaluation on synthetic or LLM-generated phishing samples where ethically and legally appropriate.
 
