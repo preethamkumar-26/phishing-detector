@@ -13,11 +13,10 @@ interface ThemeContextValue {
 
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 const STORAGE_KEY = "phishintel-theme";
-const LEGACY_STORAGE_KEY = "phishguard-theme";
 
 function getStoredTheme(): Theme | null {
   try {
-    const storedTheme = window.localStorage.getItem(STORAGE_KEY) || window.localStorage.getItem(LEGACY_STORAGE_KEY);
+    const storedTheme = window.localStorage.getItem(STORAGE_KEY);
     return storedTheme === "light" || storedTheme === "dark" ? storedTheme : null;
   } catch (error) {
     console.warn("Unable to read the saved theme preference.", error);

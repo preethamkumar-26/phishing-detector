@@ -79,7 +79,7 @@ export function AnalysisResultsPanel({
               </span>
             </CardTitle>
             <CardDescription>
-              Multi-branch feature fusion &amp; custom residual network verdicts
+              Availability-Gated Hierarchical Fusion &amp; DANN verdicts
             </CardDescription>
           </div>
           {result && (
@@ -187,7 +187,7 @@ export function AnalysisResultsPanel({
             <div className="pt-2">
               <span className="inline-flex items-center gap-1.5 text-[11px] text-[var(--text-muted)] bg-[var(--bg-elevated)] px-3 py-1.5 rounded-xl border border-[var(--border-color)]">
                 <Layers className="w-3.5 h-3.5 text-[var(--primary-accent)]" />
-                5-Branch Feature Fusion Pipeline Ready
+                PAHF-Net Availability-Gated Fusion Pipeline Ready
               </span>
             </div>
           </div>

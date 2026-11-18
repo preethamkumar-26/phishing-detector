@@ -33,8 +33,6 @@ interface AuthActions {
 
 const USERS_KEY = "phishintel-users";
 const SESSION_KEY = "phishintel-session";
-const LEGACY_USERS_KEY = "phishguard-users";
-const LEGACY_SESSION_KEY = "phishguard-session";
 const INITIAL_SNAPSHOT: AuthSnapshot = { status: "loading", user: null };
 const AuthContext = createContext<AuthActions | null>(null);
 
@@ -52,7 +50,7 @@ function notify() {
 }
 
 function readUsers(): StoredUser[] {
-  const rawUsers = window.localStorage.getItem(USERS_KEY) || window.localStorage.getItem(LEGACY_USERS_KEY);
+  const rawUsers = window.localStorage.getItem(USERS_KEY);
   if (!rawUsers) return [];
 
   const users: unknown = JSON.parse(rawUsers);
@@ -88,7 +86,7 @@ function readUsers(): StoredUser[] {
 
 function refreshSnapshot() {
   try {
-    const email = window.localStorage.getItem(SESSION_KEY) || window.localStorage.getItem(LEGACY_SESSION_KEY);
+    const email = window.localStorage.getItem(SESSION_KEY);
     const user = email
       ? readUsers().find((storedUser) => storedUser.email === email)
       : undefined;
@@ -115,7 +113,6 @@ function refreshSnapshot() {
     } else {
       if (email) {
         window.localStorage.removeItem(SESSION_KEY);
-        window.localStorage.removeItem(LEGACY_SESSION_KEY);
       }
       snapshot = { status: "unauthenticated", user: null };
     }
@@ -137,8 +134,6 @@ function initialize() {
     if (
       event.key === USERS_KEY ||
       event.key === SESSION_KEY ||
-      event.key === LEGACY_USERS_KEY ||
-      event.key === LEGACY_SESSION_KEY ||
       event.key === null
     ) {
       lastManualSignOutAt = 0;
@@ -291,10 +286,8 @@ function signOut() {
   try {
     lastManualSignOutAt = Date.now();
     window.localStorage.removeItem(SESSION_KEY);
-    window.localStorage.removeItem(LEGACY_SESSION_KEY);
     try {
       document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
-      document.cookie = "phishguard_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
       fetch("/api/account/sync", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

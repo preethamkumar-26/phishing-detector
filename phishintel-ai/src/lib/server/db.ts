@@ -9,7 +9,7 @@ function getDbPath(): string {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
-  return path.join(dir, "phishguard.db");
+  return path.join(dir, "phishintel.db");
 }
 
 export function getDb(): DatabaseSync {

@@ -205,7 +205,7 @@ export function saveScanToHistory(result: ScanResult): ScanRecord {
 
   // Async record scan in backend account activity
   try {
-    const userEmail = typeof window !== "undefined" ? window.localStorage.getItem("phishguard-session") : null;
+    const userEmail = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
     fetch("/api/account/scan", {
       method: "POST",
       headers: {

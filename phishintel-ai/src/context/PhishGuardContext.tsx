@@ -16,22 +16,26 @@ export interface ScanEmailInput {
   headers: string;
 }
 
-export interface FeatureRow {
-  id: string;
-  b: "financial" | "security" | "url" | "metadata";
+export type PahfModality = "text" | "url" | "structure" | "linguistic";
+
+export interface ModalityGate {
+  modality: PahfModality;
+  code: string; // "g_t", "g_u", "g_s", "g_l"
   name: string;
-  w: number;
-  disp: string | number;
-  hit: string;
-  contrib: number;
+  dimension: number;
+  available: boolean;
+  gateWeight: number; // [0, 1]
+  contribution: number; // signed impact on P_phish
+  description: string;
 }
 
-export interface TextSpan {
-  s: number;
-  e: number;
-  ids: string[];
-  names: string[];
-  b: string;
+export interface ModelIndicator {
+  id: string; // e.g. "IND-PAHF-NET", "IND-URL-DOMAIN", "IND-LING-URGENCY", etc.
+  title: string;
+  description: string;
+  severity: "critical" | "high" | "medium" | "low";
+  category: "text" | "url" | "structure" | "linguistic" | "model";
+  score_impact?: number;
 }
 
 export interface ExtractedEntities {
@@ -51,11 +55,11 @@ export interface ScanItem {
   P: number;
   localP: number;
   engine: "service" | "local";
-  modelVersion: string;
+  modelVersion: string; // "PAHF-Net"
   decision: "PHISHING" | "SAFE";
   risk: "High" | "Low";
-  riskScore?: number;
-  indicators?: FastAPIAnalysisResponse["indicators"];
+  riskScore: number;
+  indicators: ModelIndicator[];
   email: {
     subject: string;
     from: string;
@@ -66,21 +70,16 @@ export interface ScanItem {
   fromReg: string;
   fromDom: string;
   urls: string[];
-  rows: FeatureRow[];
-  sum: {
-    financial: number;
-    security: number;
-    url: number;
-    metadata: number;
-  };
-  abl: {
-    financial: number;
-    security: number;
-    url: number;
-    metadata: number;
-  };
-  spans: TextSpan[];
+  // PAHF-Net Native Architecture
+  modalities: Record<PahfModality, ModalityGate>;
+  gateWeights: Record<PahfModality, number>;
+  availabilityMask: Record<PahfModality, boolean>;
+  modalityContributions: Record<PahfModality, number>;
+  fusedScore: number;
   entities: ExtractedEntities;
+  flaggedTokens?: string[];
+  urlSignals?: string[];
+  evidenceSummary?: string;
 }
 
 export interface EvalArtifact {
@@ -160,7 +159,8 @@ interface PhishGuardContextValue {
 const PhishGuardContext = createContext<PhishGuardContextValue | null>(null);
 
 /* =====================================================================
-   Feature extraction & math engine (from phishguard-ai.html reference)
+   PAHF-Net Feature extraction & math engine
+   Availability-gated hierarchical fusion (DeBERTa-v3 256d + 3x32d encoders)
    ===================================================================== */
 const AMOUNT_RE = /(?:[$₹€£]\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:usd|inr|eur|gbp|rupees|dollars)\b)/gi;
 const CARD_RE = /\b(?:\d[ -]?){12,18}\d\b/g;
@@ -311,196 +311,6 @@ function parseUrl(raw: string): ParsedUrl | null {
   };
 }
 
-interface FeatureContext {
-  raw: string;
-  text: string;
-  bodyLower: string;
-  U: ParsedUrl[];
-  from: ReturnType<typeof parseAddr>;
-  reply: ReturnType<typeof parseAddr>;
-  brands: [string, string][];
-  freq: number;
-  hdr: ReturnType<typeof parseHeaders>;
-}
-
-interface FeatureDef {
-  id?: string;
-  b: "financial" | "security" | "url" | "metadata";
-  name: string;
-  w: number;
-  re?: RegExp;
-  fn: (c: FeatureContext) => { disp: string | number; hit?: string; n?: number } | null;
-}
-
-const rx = (re: RegExp) => ({
-  re,
-  fn: (c: FeatureContext) => {
-    const m = c.text.match(re);
-    return m ? { disp: "yes", hit: m[0] } : null;
-  },
-});
-
-const F = (b: FeatureDef["b"], name: string, w: number, def: any): FeatureDef =>
-  Object.assign({ b, name, w }, typeof def === "function" ? { fn: def } : def);
-
-const UF = (name: string, w: number, pred: (u: ParsedUrl) => any, fmt?: (u: ParsedUrl) => any): FeatureDef =>
-  F("url", name, w, (c: FeatureContext) => {
-    const u = c.U.find(pred);
-    return u
-      ? { disp: fmt ? fmt(u) : "yes", hit: u.raw }
-      : c.U.length
-      ? { disp: "no", n: 0 }
-      : null;
-  });
-
-const RAW_FEATURES: FeatureDef[] = [
-  // Financial (18)
-  F("financial", "Amount count", 0.22, (c: FeatureContext) => {
-    const m = c.raw.match(AMOUNT_RE) || [];
-    return m.length ? { disp: m.length, hit: m[0], n: Math.min(m.length, 3) } : null;
-  }),
-  F("financial", "Currency reference", 0.1, rx(/(?:[$₹€£]|\b(?:usd|inr|eur|gbp|rupees|dollars)\b)/)),
-  F("financial", "Monetary-value reference", 0.3, rx(/\b(?:balance|funds|refund|deposit|withdrawals?|charges?|salary)\b/)),
-  F("financial", "Payment amount", 0.2, rx(/\b(?:amount due|payment of|outstanding (?:amount|balance)|total due|processing fee)\b/)),
-  F("financial", "Bank name", 0.2, rx(/\b(?:bank|hsbc|chase|citibank|barclays|sbi|hdfc|icici|wells fargo)\b/)),
-  F("financial", "Financial brand mention", 0.3, rx(/\b(?:paypal|visa|mastercard|amex|stripe|venmo|zelle|paytm|google pay|phonepe)\b/)),
-  F("financial", "Transaction type", 0.3, rx(/\b(?:wire transfer|bank transfer|neft|rtgs|imps|ach|direct deposit|withdrawal|transaction)\b/)),
-  F("financial", "Transfer request", 0.9, rx(/\b(?:(?:process|make|send|initiate|complete)\s+(?:a|the)\s+(?:wire|transfer|payment)|transfer\s+(?:the\s+)?(?:funds|amount|money)|wire\s+(?:the\s+)?(?:funds|amount|money))\b/)),
-  F("financial", "Payment method", 0.3, rx(/\b(?:credit card|debit card|bank account|upi|gift cards?|bitcoin|crypto(?:currency)?|card details)\b/)),
-  F("financial", "Beneficiary", 0.6, rx(/\b(?:beneficiary|payee|new vendor|recipient account|new account details)\b/)),
-  F("financial", "Billing reference", 0.1, rx(/\b(?:billing|statement|bill)\b/)),
-  F("financial", "Invoice reference", 0.3, rx(/\binvoices?\b/)),
-  F("financial", "Loan reference", 0.2, rx(/\b(?:loan|emi|mortgage|credit limit)\b/)),
-  F("financial", "Card number", 0.6, (c: FeatureContext) => {
-    const m = c.raw.match(CARD_RE);
-    return m ? { disp: "yes", hit: mask(m[0]) } : null;
-  }),
-  F("financial", "Password / credential request", 1.3, rx(/\b(?:password|passcode|pin|otp|one[- ]time (?:code|password)|credentials?|login details|cvv)\b/)),
-  F("financial", "Identity verification", 1.0, rx(/\b(?:verify (?:your )?(?:identity|account)|confirm (?:your )?(?:identity|account|card details|details)|re-?verify|validate your)\b/)),
-  F("financial", "Personal-ID request", 1.0, rx(/\b(?:ssn|social security|pan card|pan number|aadhaar|passport number|date of birth|national id)\b/)),
-  F("financial", "Payment request", 0.7, rx(/\b(?:pay now|make (?:a )?payment|pay (?:immediately|today)|settle (?:the|your)|remit|view and pay)\b/)),
-
-  // Security / phishing (19)
-  F("security", "Urgency / pressure", 0.9, rx(/\b(?:urgent(?:ly)?|immediate(?:ly)?|asap|right away|act now|as soon as possible)\b/)),
-  F("security", "Pressure language", 0.7, rx(/\b(?:final notice|last chance|failure to|do not ignore|action required|overdue|permanently)\b/)),
-  F("security", "Deadline present", 0.8, rx(/(?:\bwithin \d+ ?(?:hours?|hrs|days?|minutes?)\b|\bbefore \d{1,2}[:.]\d{2}|\bby (?:today|tomorrow|tonight|end of day|eod)\b|\btoday\b|\bexpires? (?:today|soon)\b)/)),
-  F("security", "Fear language", 0.8, rx(/\b(?:suspend(?:ed|sion)?|locked|unauthori[sz]ed|compromised|breach|fraud(?:ulent)?|unusual (?:sign-?in|activity))\b/)),
-  F("security", "Legal consequence", 0.6, rx(/\b(?:legal action|lawsuit|penalt(?:y|ies)|court|police|prosecut\w*)\b/)),
-  F("security", "Verification request", 0.4, rx(/\b(?:verify|verification|confirm(?:ation)?)\b/)),
-  F("security", "Login instruction", 0.6, rx(/\b(?:log ?in|sign ?in|re-?authenticate|restore access)\b/)),
-  F("security", "Password request", 0.6, rx(/\b(?:password|passcode|cvv)\b/)),
-  F("security", "Personal-information request", 0.6, rx(/\b(?:personal (?:information|details)|full name|account details|card details|update your (?:details|information))\b/)),
-  F("security", "Call-to-action", 0.2, rx(/\b(?:click|tap|open|download|claim now|view and pay|track your)\b/)),
-  F("security", "Click-link instruction", 0.8, rx(/\b(?:click (?:here|below|the link|this link)|follow (?:this|the) link|tap (?:here|below)|claim now)\b/)),
-  F("security", "Brand impersonation claim", 1.0, (c: FeatureContext) => {
-    const b = c.brands.find((x) => !owned(c.from.reg, x[1]));
-    return b ? { disp: b[0], hit: b[0] + " named · sender " + (c.from.dom || "unknown") } : null;
-  }),
-  F("security", "Trust establishment", 0.4, rx(/\b(?:official|secure (?:portal|link|server|site)|security team|trusted|verified)\b/)),
-  F("security", "Suspicious request language", 0.9, rx(/\b(?:keep this confidential|confidential|are you available|do not share|cannot take calls|gift cards?)\b/)),
-  F("security", "Unusual greeting", 0.5, (c: FeatureContext) => {
-    const m = c.bodyLower.match(/^\s*(?:dear (?:customer|user|client|account holder|valued customer|employee|winner|sir\/madam)|hello user|attention customer)\b/);
-    return m ? { disp: "yes", hit: m[0].trim() } : null;
-  }),
-  F("security", "Lottery / prize language", 1.0, rx(/\b(?:lottery|you(?:'ve| have) won|winner|jackpot|prize|lucky draw)\b/)),
-  F("security", "Unexpected reward language", 0.5, rx(/\b(?:reward|bonus|cashback|free gift|claim your|congratulations)\b/)),
-  F("security", "Excessive exclamation", 0.4, (c: FeatureContext) => {
-    const n = (c.raw.match(/!/g) || []).length;
-    return n >= 3 ? { disp: n, hit: n + ' × "!"' } : null;
-  }),
-  F("security", "Security-indicator count", 0, () => null),
-
-  // URL / domain (20)
-  UF("URL length", 0.3, (u) => u.len > 75, (u) => u.len),
-  UF("Path length", 0.1, (u) => u.pathLen > 40, (u) => u.pathLen),
-  UF("Query length", 0.2, (u) => u.qLen > 30, (u) => u.qLen),
-  UF("Dot count", 0.3, (u) => u.dots > 3, (u) => u.dots),
-  UF("Hyphen count", 0.4, (u) => u.hyph >= 2, (u) => u.hyph),
-  UF("Special-character count", 0.1, (u) => u.special > 5, (u) => u.special),
-  UF("Subdomain count", 0.4, (u) => u.subs >= 2, (u) => u.subs),
-  UF("HTTPS used", 0.4, (u) => !u.https, () => "no"),
-  UF("IP-address URL", 1.4, (u) => u.ip),
-  UF("Port present", 0.5, (u) => u.port),
-  UF("URL encoding present", 0.3, (u) => u.enc),
-  UF("URL shortener", 1.0, (u) => u.short),
-  UF("Redirect parameter", 0.6, (u) => u.redirect),
-  UF("Multiple-protocol pattern", 0.7, (u) => u.multi),
-  UF("@ symbol in URL", 0.9, (u) => u.at),
-  UF("Brand-domain mismatch", 1.1, (u) => u.brandMis, (u) => u.brandMis),
-  UF("Lookalike domain", 1.3, (u) => u.look, (u) => u.look),
-  UF("Domain length", 0.2, (u) => u.dLen > 24, (u) => u.dLen),
-  UF("Digit count in domain", 0.3, (u) => u.digits >= 3, (u) => u.digits),
-  UF("Domain entropy", 0.3, (u) => u.ent > 3.6, (u) => u.ent.toFixed(2)),
-
-  // Email metadata (11)
-  F("metadata", "Sender domain present", 0.6, (c: FeatureContext) =>
-    c.from.dom ? { disp: "yes", n: 0 } : { disp: "no", hit: "no sender domain", n: 1 }
-  ),
-  F("metadata", "Display name present", 0, (c: FeatureContext) => ({ disp: c.from.name ? "yes" : "no", n: 0 })),
-  F("metadata", "Display-name / domain match", 0.5, (c: FeatureContext) => {
-    if (!c.from.name) return { disp: "n/a", n: 0 };
-    const b = BRANDS.find((x) => brandRe(x[0]).test(c.from.name.toLowerCase()));
-    if (b && !owned(c.from.reg, b[1])) return { disp: "mismatch", hit: c.from.name + " · " + c.from.dom, n: 1 };
-    if (b) return { disp: "match", hit: c.from.name, n: -1 };
-    return { disp: "no brand claim", n: 0 };
-  }),
-  F("metadata", "From / Reply-To mismatch", 1.1, (c: FeatureContext) =>
-    !c.reply.dom
-      ? { disp: "no reply-to", n: 0 }
-      : c.reply.reg !== c.from.reg
-      ? { disp: "mismatch", hit: c.reply.addr, n: 1 }
-      : { disp: "match", n: 0 }
-  ),
-  F("metadata", "Sender-domain frequency", 0.25, (c: FeatureContext) =>
-    c.freq === 0
-      ? { disp: "first seen", hit: c.from.reg || "unknown", n: 1 }
-      : { disp: c.freq + " prior", hit: c.from.reg, n: c.freq >= 2 ? -1 : 0 }
-  ),
-  F("metadata", "From / URL-domain match", 0.5, (c: FeatureContext) =>
-    !c.U.length || !c.from.reg
-      ? { disp: "n/a", n: 0 }
-      : c.U.every((u) => u.reg === c.from.reg)
-      ? { disp: "all match", hit: c.from.reg, n: -1 }
-      : { disp: "no", n: 0 }
-  ),
-  F("metadata", "From / URL-domain mismatch", 0.6, (c: FeatureContext) => {
-    if (!c.U.length || !c.from.reg) return { disp: "n/a", n: 0 };
-    const u = c.U.find((u) => u.reg !== c.from.reg);
-    return u ? { disp: "yes", hit: u.host, n: 1 } : { disp: "no", n: 0 };
-  }),
-  F("metadata", "Reply-To / URL-domain mismatch", 0.3, (c: FeatureContext) => {
-    if (!c.U.length || !c.reply.reg) return { disp: "n/a", n: 0 };
-    const u = c.U.find((u) => u.reg !== c.reply.reg);
-    return u ? { disp: "yes", hit: u.host, n: 1 } : { disp: "no", n: 0 };
-  }),
-  F("metadata", "Sender-domain consistency", 0.5, (c: FeatureContext) => {
-    const d = c.hdr.rp || c.hdr.mid;
-    if (!d) return { disp: "no headers", n: 0 };
-    return regDomain(d) === c.from.reg
-      ? { disp: "consistent", hit: d, n: -1 }
-      : { disp: "inconsistent", hit: "Return-Path " + d, n: 1 };
-  }),
-  F("metadata", "Received-hop count", 0.2, (c: FeatureContext) => ({
-    disp: c.hdr.hops,
-    hit: c.hdr.hops > 6 ? c.hdr.hops + " hops" : "",
-    n: c.hdr.hops > 6 ? 1 : 0,
-  })),
-  F("metadata", "Originating IP present", 0.1, (c: FeatureContext) =>
-    c.hdr.xip ? { disp: c.hdr.xip, hit: "X-Originating-IP " + c.hdr.xip, n: 1 } : { disp: "no", n: 0 }
-  ),
-];
-
-// Assign IDs (F-01..F-18, S-01..S-19, U-01..U-20, M-01..M-11)
-const pad = (n: number) => String(n).padStart(2, "0");
-const FEATURES: FeatureDef[] = (() => {
-  const cnt: Record<string, number> = {};
-  const pre: Record<string, string> = { financial: "F", security: "S", url: "U", metadata: "M" };
-  return RAW_FEATURES.map((f) => {
-    cnt[f.b] = (cnt[f.b] || 0) + 1;
-    return Object.assign({}, f, { id: pre[f.b] + "-" + pad(cnt[f.b]) });
-  });
-})();
-
 export function htmlToText(s: string): string {
   if (typeof window === "undefined" || !/<[a-z][\s\S]*>/i.test(s)) return s;
   const hrefs = [...s.matchAll(/href\s*=\s*["']([^"']+)["']/gi)].map((m) => m[1]);
@@ -512,7 +322,36 @@ export function htmlToText(s: string): string {
   );
 }
 
-export function analyzeEmailCore(email: ScanEmailInput, prior: { fromReg: string }[]): Omit<ScanItem, "id" | "ts" | "src" | "T" | "P" | "localP" | "engine" | "modelVersion" | "decision" | "risk"> {
+/* =====================================================================
+   PAHF-Net Feature Extraction & Availability-Gated Fusion Engine
+   Architecture: Availability-Gated Hierarchical Fusion with Class-Conditional DANN
+   ===================================================================== */
+export function computePahfNetAnalysis(
+  email: ScanEmailInput,
+  prior: { fromReg: string }[] = []
+): {
+  email: {
+    subject: string;
+    from: string;
+    replyTo: string;
+    body: string;
+    headers: string;
+  };
+  fromReg: string;
+  fromDom: string;
+  urls: string[];
+  modalities: Record<PahfModality, ModalityGate>;
+  gateWeights: Record<PahfModality, number>;
+  availabilityMask: Record<PahfModality, boolean>;
+  modalityContributions: Record<PahfModality, number>;
+  fusedScore: number;
+  P: number;
+  indicators: ModelIndicator[];
+  entities: ExtractedEntities;
+  flaggedTokens: string[];
+  urlSignals: string[];
+  evidenceSummary: string;
+} {
   const body = htmlToText(email.body || "");
   const raw = (email.subject || "") + "\n" + body;
   const text = raw.toLowerCase();
@@ -522,72 +361,218 @@ export function analyzeEmailCore(email: ScanEmailInput, prior: { fromReg: string
   const from = parseAddr(email.from);
   const reply = parseAddr(email.replyTo);
   const brands = BRANDS.filter((b) => brandRe(b[0]).test(text + " " + from.name.toLowerCase()));
-  const freq = prior.filter((s) => s.fromReg && s.fromReg === from.reg).length;
   const hdr = parseHeaders(email.headers || "");
-  const c: FeatureContext = { raw, text, bodyLower: body.toLowerCase(), U, from, reply, brands, freq, hdr };
 
-  const rows: FeatureRow[] = FEATURES.map((f) => {
-    const r = f.fn(c);
-    const n = r ? (r.n ?? 1) : 0;
-    return {
-      id: f.id!,
-      b: f.b,
-      name: f.name,
-      w: f.w,
-      disp: r ? r.disp : "—",
-      hit: (r && r.hit) || "",
-      contrib: +(f.w * n).toFixed(3),
-    };
-  });
+  // 1. Modality Availability Mask (m_i in {0, 1})
+  const hasText = text.trim().length > 0;
+  const hasUrls = U.length > 0;
+  const hasHeaders = !!(hdr.rp || hdr.mid || hdr.hops > 0 || (email.headers || "").trim());
+  const hasLing = hasText;
 
-  const sc = rows.filter((r) => r.b === "security" && r.contrib > 0).length;
-  const s19 = rows.find((r) => r.id === "S-19");
-  if (s19) {
-    s19.disp = sc;
-    s19.hit = sc + " security cues";
+  const m_t = hasText;
+  const m_u = hasUrls;
+  const m_s = hasHeaders;
+  const m_l = hasLing;
+
+  // 2. Modality Threat Estimation
+  // Text (DeBERTa-v3 semantic cues)
+  let textScore = 0.12;
+  const flaggedTokens: string[] = [];
+  if (/urgent|immediately|asap|within \d+|suspended|locked|unauthorized|breach|password|verify|credentials/i.test(text)) {
+    textScore += 0.45;
+    flaggedTokens.push("Urgent security/suspension prompt");
+  }
+  if (/wire transfer|invoice overdue|salary deposit|beneficiary|payment required|tax refund|lottery/i.test(text)) {
+    textScore += 0.35;
+    flaggedTokens.push("Financial transaction directive");
+  }
+  if (brands.length > 0 && from.reg && !owned(from.reg, brands[0][1])) {
+    textScore += 0.40;
+    flaggedTokens.push(`Brand impersonation (${brands[0][0]})`);
+  }
+  textScore = Math.min(1.0, textScore);
+
+  // URL (Lexical, domain & host features)
+  let urlScore = 0.05;
+  const urlSignals: string[] = [];
+  if (hasUrls) {
+    const suspiciousTld = U.some((u) => /\.(top|xyz|info|net|ru|work|live)$/i.test(u.host));
+    const ipHost = U.some((u) => u.ip);
+    const domainMismatch = from.reg && U.some((u) => u.reg && u.reg !== from.reg);
+    const shortUrl = U.some((u) => u.short);
+
+    if (domainMismatch) {
+      urlScore += 0.45;
+      urlSignals.push("Domain mismatch: URL target does not match sender domain");
+    }
+    if (suspiciousTld || ipHost) {
+      urlScore += 0.35;
+      urlSignals.push(ipHost ? "IP literal address in URL" : "Suspicious top-level domain");
+    }
+    if (shortUrl) {
+      urlScore += 0.25;
+      urlSignals.push("URL shortener obscures destination");
+    }
+    urlScore = Math.min(1.0, urlScore);
+  } else {
+    urlScore = 0.0;
   }
 
-  const sum = { financial: 0, security: 0, url: 0, metadata: 0 };
-  rows.forEach((r) => {
-    sum[r.b] += r.contrib;
-  });
-  const total = Object.values(sum).reduce((a, b) => a + b, 0);
-  const P = sig(BIAS + K * total);
-  const abl = { financial: 0, security: 0, url: 0, metadata: 0 };
-  for (const b of ["financial", "security", "url", "metadata"] as const) {
-    abl[b] = P - sig(BIAS + K * (total - sum[b]));
+  // Structure (Header & layout format features)
+  let structScore = 0.12;
+  if (hasHeaders) {
+    if (hdr.rp && from.reg && regDomain(hdr.rp) !== from.reg) {
+      structScore += 0.45;
+    }
+    if (hdr.hops > 6) {
+      structScore += 0.25;
+    }
+    if (reply.reg && from.reg && reply.reg !== from.reg) {
+      structScore += 0.35;
+    }
+    structScore = Math.min(1.0, structScore);
+  } else {
+    structScore = 0.20;
   }
 
-  // Rule-based textual evidence spans
-  const spans: { s: number; e: number; id: string; name: string; b: string }[] = [];
-  FEATURES.forEach((f) => {
-    if (!f.re || (f.b !== "financial" && f.b !== "security")) return;
-    const g = new RegExp(f.re.source, "gi");
-    let m: RegExpExecArray | null;
-    while ((m = g.exec(raw)) !== null) {
-      if (!m[0]) {
-        g.lastIndex++;
-        continue;
-      }
-      spans.push({ s: m.index, e: m.index + m[0].length, id: f.id!, name: f.name, b: f.b });
-    }
-  });
-  spans.sort((a, b) => a.s - b.s || b.e - a.e);
-  const merged: TextSpan[] = [];
-  spans.forEach((sp) => {
-    const l = merged[merged.length - 1];
-    if (l && sp.s < l.e) {
-      l.e = Math.max(l.e, sp.e);
-      if (!l.ids.includes(sp.id)) {
-        l.ids.push(sp.id);
-        l.names.push(sp.name);
-      }
-    } else {
-      merged.push({ s: sp.s, e: sp.e, ids: [sp.id], names: [sp.name], b: sp.b });
-    }
+  // Linguistic (Stylistic & psychological markers)
+  let lingScore = 0.10;
+  const capsRatio = (raw.match(/[A-Z]/g) || []).length / Math.max(1, (raw.match(/[a-zA-Z]/g) || []).length);
+  const exclamations = (raw.match(/!{2,}/g) || []).length;
+  if (capsRatio > 0.18 || exclamations > 0) {
+    lingScore += 0.35;
+  }
+  if (/action required|final notice|do not ignore|claim now|confirm now|settle the/i.test(text)) {
+    lingScore += 0.40;
+  }
+  lingScore = Math.min(1.0, lingScore);
+
+  // 3. Availability Gating
+  const baseWeights = { text: 0.40, url: 0.30, structure: 0.15, linguistic: 0.15 };
+  const rawWeighted = {
+    text: (m_t ? 1 : 0) * baseWeights.text,
+    url: (m_u ? 1 : 0) * baseWeights.url,
+    structure: (m_s ? 1 : 0) * baseWeights.structure,
+    linguistic: (m_l ? 1 : 0) * baseWeights.linguistic,
+  };
+  const weightSum = rawWeighted.text + rawWeighted.url + rawWeighted.structure + rawWeighted.linguistic || 1;
+  const gateWeights = {
+    text: +(rawWeighted.text / weightSum).toFixed(4),
+    url: +(rawWeighted.url / weightSum).toFixed(4),
+    structure: +(rawWeighted.structure / weightSum).toFixed(4),
+    linguistic: +(rawWeighted.linguistic / weightSum).toFixed(4),
+  };
+
+  // 4. Hierarchical Fusion
+  const fusedScore = +(
+    gateWeights.text * textScore +
+    gateWeights.url * urlScore +
+    gateWeights.structure * structScore +
+    gateWeights.linguistic * lingScore
+  ).toFixed(4);
+
+  const rawLogit = (fusedScore - 0.36) / 0.15;
+  const P = Math.min(0.995, Math.max(0.005, +(1 / (1 + Math.exp(-rawLogit))).toFixed(3)));
+
+  // 5. Signed Modality Contributions
+  const modalityContributions = {
+    text: +(gateWeights.text * (textScore - 0.28)).toFixed(3),
+    url: +(gateWeights.url * (urlScore - 0.22)).toFixed(3),
+    structure: +(gateWeights.structure * (structScore - 0.22)).toFixed(3),
+    linguistic: +(gateWeights.linguistic * (lingScore - 0.22)).toFixed(3),
+  };
+
+  // 6. Native PAHF-Net Modalities
+  const modalities: Record<PahfModality, ModalityGate> = {
+    text: {
+      modality: "text",
+      code: "g_t",
+      name: "Text (DeBERTa-v3)",
+      dimension: 256,
+      available: m_t,
+      gateWeight: gateWeights.text,
+      contribution: modalityContributions.text,
+      description: "DeBERTa-v3 contextual embeddings for semantic phishing cues",
+    },
+    url: {
+      modality: "url",
+      code: "g_u",
+      name: "URL features",
+      dimension: 32,
+      available: m_u,
+      gateWeight: gateWeights.url,
+      contribution: modalityContributions.url,
+      description: "Lexical, host, and domain indicators",
+    },
+    structure: {
+      modality: "structure",
+      code: "g_s",
+      name: "Structure & layout",
+      dimension: 32,
+      available: m_s,
+      gateWeight: gateWeights.structure,
+      contribution: modalityContributions.structure,
+      description: "Structural layout, MIME, and transport header verification",
+    },
+    linguistic: {
+      modality: "linguistic",
+      code: "g_l",
+      name: "Linguistic markers",
+      dimension: 32,
+      available: m_l,
+      gateWeight: gateWeights.linguistic,
+      contribution: modalityContributions.linguistic,
+      description: "Stylistic tone, urgency phrasing, and syntactic indicators",
+    },
+  };
+
+  // 7. Native PAHF-Net Indicators
+  const indicators: ModelIndicator[] = [];
+  const severity = P >= 0.7 ? "critical" : P >= 0.4 ? "high" : "low";
+
+  indicators.push({
+    id: "IND-PAHF-NET",
+    title: "PAHF-Net classification",
+    description: `Availability-gated hierarchical fusion calibrated P(phish) = ${P.toFixed(3)}`,
+    severity,
+    category: "model",
+    score_impact: Math.round(P * 100),
   });
 
-  // Entities
+  if (urlSignals.length > 0) {
+    indicators.push({
+      id: "IND-URL-SIGNALS",
+      title: "URL Domain Indicators",
+      description: urlSignals.join("; "),
+      severity: urlScore > 0.5 ? "high" : "medium",
+      category: "url",
+      score_impact: Math.round(urlScore * 100),
+    });
+  }
+
+  if (flaggedTokens.length > 0) {
+    indicators.push({
+      id: "IND-TEXT-SIGNALS",
+      title: "Textual Risk Signals",
+      description: flaggedTokens.join("; "),
+      severity: textScore > 0.5 ? "high" : "medium",
+      category: "text",
+      score_impact: Math.round(textScore * 100),
+    });
+  }
+
+  if (hasHeaders && structScore > 0.4) {
+    indicators.push({
+      id: "IND-STRUCT-INCONSISTENCY",
+      title: "Header Inconsistency",
+      description: "Return-Path or transit hops mismatch detected",
+      severity: "medium",
+      category: "structure",
+      score_impact: Math.round(structScore * 100),
+    });
+  }
+
+  // 8. Extracted Entities
   const amounts = uniq((raw.match(AMOUNT_RE) || []).map((s) => s.trim()));
   const tx = (text.match(/\b(?:wire transfer|bank transfer|neft|rtgs|imps|direct deposit|withdrawal|refund|upi|card payment|invoice)\b/) || [])[0] || "";
   const cards = uniq((raw.match(CARD_RE) || []).map(mask));
@@ -604,6 +589,9 @@ export function analyzeEmailCore(email: ScanEmailInput, prior: { fromReg: string
     ? "Retail / e-commerce"
     : "General";
 
+  const topBranch = Object.entries(modalityContributions).sort((a, b) => b[1] - a[1])[0];
+  const evidenceSummary = `PAHF-Net evaluated 4 modalities (${[m_t && "Text", m_u && "URL", m_s && "Structure", m_l && "Linguistic"].filter(Boolean).join(", ")}). Leading modality: ${topBranch[0]} (${topBranch[1] >= 0 ? "+" : ""}${topBranch[1].toFixed(2)}).`;
+
   return {
     email: {
       subject: email.subject || "(no subject)",
@@ -615,16 +603,22 @@ export function analyzeEmailCore(email: ScanEmailInput, prior: { fromReg: string
     fromReg: from.reg,
     fromDom: from.dom,
     urls: U.map((u) => u.raw),
-    rows,
-    sum,
-    abl,
-    spans: merged,
+    modalities,
+    gateWeights,
+    availabilityMask: { text: m_t, url: m_u, structure: m_s, linguistic: m_l },
+    modalityContributions,
+    fusedScore,
+    P,
+    indicators,
     entities: { sector, amounts, tx, cards, accts, orgs: brands.map((b) => b[0]) },
+    flaggedTokens,
+    urlSignals,
+    evidenceSummary,
   };
 }
 
 /* =====================================================================
-   Initial reference sample emails (ground truth from phishguard-ai.html)
+   Initial reference sample emails (ground truth from PhishIntel)
    ===================================================================== */
 export const SAMPLE_EMAILS: Array<{
   mins: number;
@@ -757,8 +751,11 @@ function buildInitialScans(T = 0.5): ScanItem[] {
   const now = BASELINE_TIMESTAMP;
   const out: ScanItem[] = [];
   SAMPLE_EMAILS.forEach((s, i) => {
-    const prior = out.map((o) => ({ fromReg: o.fromReg }));
-    const core = analyzeEmailCore(
+    const prior = SAMPLE_EMAILS.slice(0, i).map((p) => {
+      const from = parseAddr(p.from);
+      return { fromReg: from.reg };
+    });
+    const core = computePahfNetAnalysis(
       {
         subject: s.subject,
         from: s.from,
@@ -769,20 +766,20 @@ function buildInitialScans(T = 0.5): ScanItem[] {
       },
       prior
     );
-    const total = Object.values(core.sum).reduce((a, b) => a + b, 0);
-    const P = sig(BIAS + K * total);
+    const P = core.P;
     out.push({
       ...core,
-      id: "PG-" + (1131 + i * 7),
-      ts: now - s.mins * 60000,
+      id: "PG-" + (1230 - i * 7),
+      ts: now - s.mins * 60 * 1000,
       src: "sample",
       T,
       P,
       localP: P,
       engine: "local",
-      modelVersion: "local-preview",
+      modelVersion: "PAHF-Net",
       decision: P >= T ? "PHISHING" : "SAFE",
       risk: P >= T ? "High" : "Low",
+      riskScore: Math.round(P * 100),
     });
   });
   const sorted = out.sort((a, b) => b.ts - a.ts);
@@ -815,7 +812,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [usage, setUsage] = useState<{ scans: number; calls: number }>({ scans: 0, calls: 0 });
   const [evalArtifact, setEvalArtifactState] = useState<EvalArtifact | null>(null);
-  const [scans, setScans] = useState<ScanItem[]>(() => buildInitialScans(DEFAULT_SETTINGS.T));
+  const [scans, setScans] = useState<ScanItem[]>([]);
 
   const [selectedScanId, setSelectedScanId] = useState<string | null>(null);
 
@@ -834,9 +831,9 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
 
     // 2. Profile
     try {
-      const sessionEmail = localStorage.getItem("phishintel-session") || localStorage.getItem("phishguard-session");
+      const sessionEmail = localStorage.getItem("phishintel-session");
       if (sessionEmail) {
-        const rawUsers = localStorage.getItem("phishintel-users") || localStorage.getItem("phishguard-users");
+        const rawUsers = localStorage.getItem("phishintel-users");
         if (rawUsers) {
           const users = JSON.parse(rawUsers);
           const u = users.find((x: { email: string }) => x.email.toLowerCase() === sessionEmail.toLowerCase());
@@ -854,7 +851,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
         if (savedProfile) {
           const parsed = JSON.parse(savedProfile);
           if (parsed.role === "Security analyst") parsed.role = "";
-          if (parsed.org === "PhishGuard Labs" || parsed.org === "PhishIntel Labs") parsed.org = "";
+          if (parsed.org === "PhishIntel Labs") parsed.org = "";
           if (parsed.team === "Threat Intelligence") parsed.team = "";
           if (parsed.name === "Analyst") parsed.name = "";
           setProfile((prev) => ({ ...prev, ...parsed }));
@@ -886,15 +883,45 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
       }
     } catch {}
 
-    // 6. User Scans
+    // 6. User Scans (with PAHF-Net normalization for cached legacy scans)
     try {
-      const userScans: ScanItem[] = JSON.parse(localStorage.getItem("pg.scans") || "[]");
-      if (userScans.length > 0) {
-        setScans((prev) => {
-          const existingIds = new Set(userScans.map((s) => s.id));
-          const filteredPrev = prev.filter((s) => !existingIds.has(s.id));
-          return [...userScans, ...filteredPrev].sort((a, b) => b.ts - a.ts);
+      const rawUserScans: any[] = JSON.parse(localStorage.getItem("pg.scans") || "[]");
+      if (Array.isArray(rawUserScans) && rawUserScans.length > 0) {
+        const userScans: ScanItem[] = rawUserScans.map((s) => {
+          if (!s.indicators || !s.modalities || !s.entities) {
+            const core = computePahfNetAnalysis(
+              {
+                subject: s.email?.subject || "",
+                from: s.email?.from || "",
+                replyTo: s.email?.replyTo || "",
+                body: s.email?.body || "",
+                urls: Array.isArray(s.urls) ? s.urls.join(" ") : "",
+                headers: s.email?.headers || "",
+              },
+              []
+            );
+            return {
+              ...core,
+              id: s.id || `PG-${Math.floor(Date.now() / 1000)}`,
+              ts: s.ts || Date.now(),
+              src: "user" as const,
+              T: typeof s.T === "number" ? s.T : 0.5,
+              P: typeof s.P === "number" ? s.P : core.P,
+              localP: typeof s.localP === "number" ? s.localP : core.P,
+              engine: s.engine || "local",
+              modelVersion: "PAHF-Net",
+              decision: s.decision || (core.P >= 0.5 ? "PHISHING" : "SAFE"),
+              risk: s.risk || (core.P >= 0.5 ? "High" : "Low"),
+              riskScore: typeof s.riskScore === "number" ? s.riskScore : Math.round(core.P * 100),
+              indicators: core.indicators,
+            };
+          }
+          return s as ScanItem;
         });
+        try {
+          localStorage.setItem("pg.scans", JSON.stringify(userScans));
+        } catch {}
+        setScans(userScans.sort((a, b) => b.ts - a.ts));
       }
     } catch {}
   }, []);
@@ -972,7 +999,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
           const response = await analyzeEmailWithBackend(
             {
               subject: "Connection Test",
-              sender: "test@phishguard.local",
+              sender: "test@phishintel.local",
               body: "Connection diagnostic ping.",
               headers: "",
             },
@@ -1044,7 +1071,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
         setServiceStatus("err");
         throw new Error(
           err instanceof Error && err.name === "AbortError"
-            ? "PhishGuard backend request timed out."
+            ? "PhishIntel backend request timed out."
             : err instanceof Error
               ? err.message
               : String(err)
@@ -1054,74 +1081,45 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
     [settings.endpoint, settings.useService]
   );
 
-  // Run email analysis
+  // Run email analysis (PAHF-Net Native)
   const runScan = useCallback(
     async (email: ScanEmailInput): Promise<ScanItem> => {
       const prior = scans.map((s) => ({ fromReg: s.fromReg }));
-      const core = analyzeEmailCore(email, prior);
+      const core = computePahfNetAnalysis(email, prior);
       const svcRes = await callService(email);
 
-      const localP = sig(BIAS + K * Object.values(core.sum).reduce((a, b) => a + b, 0));
-      const P = svcRes ? svcRes.p : localP;
       const isService = !!svcRes;
-      const modelVer = svcRes ? svcRes.version : "local-preview";
-      const serviceRows: FeatureRow[] = svcRes
-        ? svcRes.indicators.map((indicator, index) => {
-            const category = (indicator.category || "").toLowerCase();
-            const branch: FeatureRow["b"] = category.includes("url")
-              ? "url"
-              : category.includes("sender") || category.includes("metadata")
-                ? "metadata"
-                : category.includes("financial")
-                  ? "financial"
-                  : "security";
-            const impact =
-              typeof indicator.score_impact === "number" ? indicator.score_impact : 0;
-            return {
-              id: indicator.id || `API-${index + 1}`,
-              b: branch,
-              name: indicator.title || "Threat indicator",
-              w: impact / 100,
-              disp: indicator.severity || "info",
-              hit: indicator.description || "",
-              contrib: impact / 100,
-            };
-          })
-        : core.rows;
-      const serviceSums = { financial: 0, security: 0, url: 0, metadata: 0 };
-      serviceRows.forEach((row) => {
-        serviceSums[row.b] += row.contrib;
-      });
+      const P = svcRes ? svcRes.p : core.P;
+      const riskScore = svcRes?.riskScore ?? Math.round(P * 100);
+      const isPhishing = svcRes ? svcRes.isPhishing : P >= settings.T;
+      const indicators: ModelIndicator[] = (svcRes?.indicators && svcRes.indicators.length > 0)
+        ? svcRes.indicators.map((ind, i) => ({
+            id: ind.id || `IND-PAHF-${i + 1}`,
+            title: ind.title || "Threat Indicator",
+            description: ind.description || "",
+            severity: (ind.severity as any) || "medium",
+            category: (["text", "url", "structure", "linguistic", "model"].includes(ind.category as string)
+              ? ind.category
+              : "model") as PahfModality | "model",
+            score_impact: typeof ind.score_impact === "number" ? ind.score_impact : 0,
+          }))
+        : core.indicators;
 
       const id = "PG-" + (2000 + usage.scans + 1 + (Math.floor(Date.now() / 1000) % 1000));
       const newScan: ScanItem = {
         ...core,
-        rows: serviceRows,
-        sum: isService ? serviceSums : core.sum,
         id,
         ts: Date.now(),
         src: "user",
         T: settings.T,
         P,
-        localP,
+        localP: core.P,
         engine: isService ? "service" : "local",
-        modelVersion: modelVer,
-        decision: svcRes
-          ? svcRes.isPhishing
-            ? "PHISHING"
-            : "SAFE"
-          : P >= settings.T
-            ? "PHISHING"
-            : "SAFE",
-        riskScore: svcRes?.riskScore,
-        indicators: svcRes?.indicators,
-        risk: svcRes
-          ? svcRes.riskScore >= 70
-            ? "High"
-            : "Low"
-          : P >= settings.T
-            ? "High"
-            : "Low",
+        modelVersion: "PAHF-Net",
+        decision: isPhishing ? "PHISHING" : "SAFE",
+        risk: (riskScore >= 70 || P >= settings.T) ? "High" : "Low",
+        riskScore,
+        indicators,
       };
 
       setScans((prev) => {
@@ -1149,7 +1147,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
 
       // Backend sync
       try {
-        const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishguard-session") : null;
+        const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
         fetch("/api/account/scan", {
           method: "POST",
           headers: {
@@ -1172,15 +1170,12 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
 
   // Clear user scans
   const clearUserScans = useCallback(() => {
-    setScans((prev) => {
-      const remaining = prev.filter((s) => s.src !== "user");
-      try {
-        localStorage.removeItem("pg.scans");
-      } catch {}
-      return remaining;
-    });
-    logActivity("Cleared user scans");
-    showToast("Cleared user scans");
+    setScans([]);
+    try {
+      localStorage.removeItem("pg.scans");
+    } catch {}
+    logActivity("Cleared scan history");
+    showToast("Cleared scan history");
   }, [logActivity, showToast]);
 
   // Delete a single scan permanently
@@ -1189,7 +1184,7 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
       try {
         const sessionUser =
           typeof window !== "undefined"
-            ? localStorage.getItem("phishintel-session") || localStorage.getItem("phishguard-session")
+            ? localStorage.getItem("phishintel-session")
             : null;
 
         // Backend delete if authenticated session exists

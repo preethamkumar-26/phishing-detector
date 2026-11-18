@@ -234,7 +234,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
           </h1>
 
           <p className="mt-6 text-base sm:text-lg text-[var(--text-muted)] max-w-2xl mx-auto leading-relaxed">
-            An explainable AI email security platform featuring 5-branch feature extraction, 836-dimensional feature fusion, a custom residual representation network built from scratch, and validation-calibrated decision thresholding.
+            An explainable AI email security platform powered by PAHF-Net: availability-gated hierarchical fusion (DeBERTa-v3 256d + 3×32d encoders) with class-conditional domain adversarial training (DANN) and validation-calibrated decision thresholding.
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
@@ -285,10 +285,10 @@ export function LandingPage({ className = "" }: LandingPageProps) {
                 <BrainCircuit className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">
-                Multi-Branch Feature Extraction
+                Multi-Branch Modality Encoding
               </h3>
               <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                Extracts 5 parallel feature streams from incoming emails: Text representations (768-d), Financial indicators (18-d), Security cues (19-d), URL/domain signals (20-d), and Email metadata (11-d).
+                Encodes 4 specialized modalities: Text representations via DeBERTa-v3 (256-d), URL signals (32-d), Structural layout &amp; header indicators (32-d), and Linguistic urgency cues (32-d).
               </p>
             </Card>
 
@@ -297,10 +297,10 @@ export function LandingPage({ className = "" }: LandingPageProps) {
                 <Eye className="w-6 h-6" />
               </div>
               <h3 className="text-base font-bold text-[var(--text-primary)] mb-2">
-                Custom Residual Representation
+                Availability-Gated Hierarchical Fusion &amp; DANN
               </h3>
               <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                Concatenates all 5 streams into an 836-d fused vector processed by a custom feature interaction network built from scratch—featuring residual skip connections without BERT, CNN, GRU, or attention.
+                Dynamically weights available modalities through learned gates (g_t, g_u, g_s, g_l) with modality dropout (p=0.2) and class-conditional domain adversarial training across source and target email distributions.
               </p>
             </Card>
 
@@ -312,7 +312,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
                 Calibrated Decision &amp; Explainability
               </h3>
               <p className="text-sm text-[var(--text-muted)] leading-relaxed">
-                Delivers high-precision verdicts using a validation-tuned threshold rule (P_phish &ge; T) coupled with three explainability pillars: feature ablation, rule-based text evidence, and human-readable reasoning.
+                Delivers high-precision verdicts using a validation-tuned threshold rule (P_phish &ge; T) coupled with transparent explainability: modality gate contributions, DeBERTa-v3 semantic signals, and human-readable reasoning.
               </p>
             </Card>
           </div>
@@ -378,35 +378,35 @@ export function LandingPage({ className = "" }: LandingPageProps) {
             Research Architecture
           </Badge>
           <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-[var(--text-primary)] mb-4">
-            Five-Branch Neural Architecture Pipeline
+            PAHF-Net Architecture Pipeline
           </h2>
           <p className="text-sm text-[var(--text-muted)] leading-relaxed max-w-xl mx-auto mb-10">
-            End-to-end architecture combining multi-modal feature extraction, 836-dimensional concatenation, custom residual learning, and validation-tuned threshold classification.
+            Availability-Gated Hierarchical Fusion with Class-Conditional Domain Adversarial Training (DANN) and validation-calibrated decision thresholding.
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-[var(--primary-accent)] block mb-1">Step 1</span>
-              <div className="font-bold text-sm text-[var(--text-primary)]">5 Feature Branches</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">Text, Finance, Security, URL, Meta</div>
+              <div className="font-bold text-sm text-[var(--text-primary)]">Multi-Branch Encoding</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">DeBERTa-v3 (256d) + 3×32d</div>
             </div>
 
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-[var(--secondary-accent)] block mb-1">Step 2</span>
-              <div className="font-bold text-sm text-[var(--text-primary)]">Feature Fusion</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">Concatenation (836-d Vector)</div>
+              <div className="font-bold text-sm text-[var(--text-primary)]">Availability Gating</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">Gates (g_t, g_u, g_s, g_l) · Mask (m_i)</div>
             </div>
 
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 block mb-1">Step 3</span>
-              <div className="font-bold text-sm text-[var(--text-primary)]">Custom ResNet</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">Skip Connections &amp; LayerNorm</div>
+              <div className="font-bold text-sm text-[var(--text-primary)]">Class-Conditional DANN</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">GRL + Dual Source Discriminators</div>
             </div>
 
             <div className="p-4 rounded-xl bg-[var(--bg-surface)] border border-[var(--border-color)] text-center">
               <span className="text-[10px] uppercase font-bold text-amber-600 dark:text-amber-400 block mb-1">Step 4</span>
               <div className="font-bold text-sm text-[var(--text-primary)]">Decision Head</div>
-              <div className="text-xs text-[var(--text-muted)] mt-1">Validation Threshold (P &ge; T)</div>
+              <div className="text-xs text-[var(--text-muted)] mt-1">Calibrated Probability (P &ge; T)</div>
             </div>
           </div>
         </div>

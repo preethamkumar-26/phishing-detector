@@ -111,7 +111,7 @@ export function ProfileSummaryCard() {
             </span>
           </div>
           <div className="text-[11px] text-[var(--text-muted)]">
-            5-Branch Feature Fusion (836-d) + Custom Residual Network &amp; Validation-Tuned Thresholding.
+            PAHF-Net: Availability-Gated Hierarchical Fusion (DeBERTa-v3 256d + 3×32d) with Class-Conditional DANN.
           </div>
           <div className="pt-2 text-[10px] text-[var(--text-muted)]/70 flex items-center justify-between">
             <span>Latency: ~42ms</span>

@@ -4,7 +4,7 @@ from app.core.config import settings
 
 
 def setup_logging() -> logging.Logger:
-    logger = logging.getLogger("phishguard")
+    logger = logging.getLogger("phishintel")
     if logger.handlers:
         return logger
 

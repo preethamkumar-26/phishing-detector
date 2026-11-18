@@ -8,7 +8,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 
 class Settings(BaseSettings):
-    PROJECT_NAME: str = "PhishGuard AI Backend"
+    PROJECT_NAME: str = "PhishIntel Backend"
     VERSION: str = "2.0.0"
     API_V1_STR: str = "/api/v1"
     HOST: str = "127.0.0.1"

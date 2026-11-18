@@ -85,11 +85,11 @@ export function logActivity(
 // Auto-seed default demo researcher if database is empty
 export function ensureDefaultUser(): DbUser {
   const db = getDb();
-  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get("evelyn.reed@phishguard.internal") as DbUser | undefined;
+  const existing = db.prepare("SELECT * FROM users WHERE email = ?").get("evelyn.reed@phishintel.internal") as DbUser | undefined;
   if (existing) return existing;
 
   const id = "usr_evelyn_reed";
-  const email = "evelyn.reed@phishguard.internal";
+  const email = "evelyn.reed@phishintel.internal";
   const name = "Dr. Evelyn Reed";
   const salt = crypto.randomBytes(16).toString("hex");
   const passwordHash = hashPassword("password123", salt);
@@ -199,9 +199,9 @@ export function authenticateRequest(req: Request): DbUser {
     }
   }
 
-  // 2. Check phishintel_session or phishguard_session cookie
+  // 2. Check phishintel_session cookie
   const cookieHeader = req.headers.get("cookie") || "";
-  const match = cookieHeader.match(/(?:phishintel_session|phishguard_session)=([^;]+)/);
+  const match = cookieHeader.match(/phishintel_session=([^;]+)/);
   if (match) {
     const token = decodeURIComponent(match[1].trim());
     const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;

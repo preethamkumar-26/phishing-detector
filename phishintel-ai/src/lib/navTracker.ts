@@ -12,9 +12,9 @@ export function recordPathTransition(newPath: string) {
     currentPath = newPath;
     try {
       if (previousPath) {
-        sessionStorage.setItem("phishguard-prev-path", previousPath);
+        sessionStorage.setItem("phishintel-prev-path", previousPath);
       }
-      sessionStorage.setItem("phishguard-curr-path", newPath);
+      sessionStorage.setItem("phishintel-curr-path", newPath);
     } catch {}
   }
 }
@@ -22,7 +22,7 @@ export function recordPathTransition(newPath: string) {
 export function markFromLanding() {
   if (typeof window === "undefined") return;
   try {
-    sessionStorage.setItem("phishguard-from-landing", "1");
+    sessionStorage.setItem("phishintel-from-landing", "1");
   } catch {}
 }
 

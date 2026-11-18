@@ -14,7 +14,7 @@ export async function GET(req: Request) {
         renewalDate: null,
         priceMonthly: 0,
         features: [
-          "Direct access to 5-Branch Feature Fusion & Custom Residual Network model",
+          "Direct access to PAHF-Net Availability-Gated Hierarchical Fusion & DANN model",
           "Multi-modal feature attribution & explainability heatmap",
           "Forensic audit logging and scan history",
           "Local workstation database persistence",

@@ -7,7 +7,7 @@ BASE_URL = "http://127.0.0.1:8000"
 
 
 def run_tests() -> None:
-    print("=== Running PhishGuard AI Backend Verification Suite ===")
+    print("=== Running PhishIntel Backend Verification Suite ===")
 
     # 1. Test /healthz
     with urllib.request.urlopen(f"{BASE_URL}/healthz") as res:

@@ -135,7 +135,7 @@ export default function ProfilePage() {
     setLoading(true);
     setProfileError(null);
 
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishguard-session") : null;
+    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       ...(sessionUser ? { "x-user-email": sessionUser } : {}),
@@ -224,7 +224,7 @@ export default function ProfilePage() {
     }
 
     setIsSavingProfile(true);
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishguard-session") : null;
+    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
 
     try {
       const res = await fetch("/api/account/profile", {
@@ -257,14 +257,14 @@ export default function ProfilePage() {
 
       // Update local storage user record if present
       try {
-        const rawUsers = localStorage.getItem("phishguard-users");
+        const rawUsers = localStorage.getItem("phishintel-users");
         if (rawUsers && sessionUser) {
           const users = JSON.parse(rawUsers);
           const idx = users.findIndex((u: { email: string }) => u.email === sessionUser);
           if (idx !== -1) {
             users[idx].name = data.profile.fullName;
             users[idx].designation = data.profile.designation;
-            localStorage.setItem("phishguard-users", JSON.stringify(users));
+            localStorage.setItem("phishintel-users", JSON.stringify(users));
           }
         }
       } catch {}
@@ -306,11 +306,11 @@ export default function ProfilePage() {
       jump: prefJump,
     });
     try {
-      localStorage.setItem("phishguard-theme", prefTheme);
+      localStorage.setItem("phishintel-theme", prefTheme);
     } catch {}
 
     // 2. Persist to backend preferences API if authenticated
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishguard-session") : null;
+    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
     if (sessionUser) {
       try {
         await fetch("/api/account/preferences", {
@@ -362,7 +362,7 @@ export default function ProfilePage() {
     }
 
     setIsChangingPassword(true);
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishguard-session") : null;
+    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
 
     try {
       const res = await fetch("/api/account/password", {

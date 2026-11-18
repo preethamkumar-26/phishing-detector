@@ -21,7 +21,7 @@ export function sanitizeInternalDestination(destination?: string | null): string
 
   try {
     const parsed = new URL(trimmed, "https://phishintel.local");
-    if (parsed.origin !== "https://phishintel.local" && parsed.origin !== "https://phishguard.local") return null;
+    if (parsed.origin !== "https://phishintel.local") return null;
     if (!ALLOWED_INTERNAL_ROUTES.has(parsed.pathname)) return null;
 
     if (parsed.pathname === "/analyzer") {
