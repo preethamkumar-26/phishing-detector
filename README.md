@@ -1,291 +1,300 @@
-# Phishing Email Detection Using AI/ML #
+# PhishIntel
 
-> **A research project exploring reliable, explainable, and generalizable phishing-email detection using modern machine-learning and deep-learning methods.**
->
-> The project is currently at a **mid-research / progress-review milestone**: the literature foundation and comparative analysis are complete, while the reproducible data pipeline, model experiments, robustness evaluation, and deployment measurements are being prepared for the next phase.
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![PyTorch](https://img.shields.io/badge/ML-PyTorch-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![Next.js](https://img.shields.io/badge/Frontend-Next.js-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 
-## Project at a Glance
+**PhishIntel** is an explainable phishing-email and URL detection platform. A custom PyTorch PAHF-Net classifier is served by FastAPI and consumed by a Next.js, TypeScript, Tailwind CSS, and HeroUI application.
 
-| Area | Current status |
+The platform analyzes email content, sender and reply-to details, headers, and URLs; returns a phishing probability and threat indicators; and provides scan history and PDF report export. It is designed to help security analysts investigate social engineering, credential harvesting, and deceptive URL attacks. It is a decision-support tool, not a substitute for security review or mail-gateway controls.
+
+## Features
+
+- PAHF-Net inference through a versioned FastAPI contract.
+- Explainable scan results with verdict, phishing probability, risk score, and indicators.
+- Email scanning with subject, body, sender, reply-to, headers, and URL inputs.
+- Scan history with filtering and pagination.
+- PDF export of scan-history reports.
+- An evaluation dashboard for verified PAHF-Net metrics and ranked baseline comparisons.
+- Versioned local model, tokenizer, and feature assets.
+
+## Architecture
+
+| Layer | Location | Responsibilities |
+|---|---|---|
+| Next.js application | `phishintel-ai/` | App Router UI, TypeScript contracts, scan workflows, evaluation dashboard, history, and PDF export |
+| FastAPI application | `backend/app/` | Startup lifecycle, CORS, request validation, scan and evaluation endpoints |
+| Model service | `backend/app/services/model_service.py` | Loads PAHF-Net assets once at application startup and performs inference |
+| Evaluation service | `backend/app/services/evaluation_service.py` | Loads and validates the versioned evaluation report |
+| Model assets | `backend/saved_models/` | PyTorch checkpoints, tokenizer, feature transformations, and model configuration |
+
+PAHF-Net uses a DeBERTa-v3 text encoder with availability-gated text, URL, structure, and linguistic feature branches. The service also loads and validates the T/F regime assets; current prediction requests use the base `pahf_net.pt` checkpoint and base feature assets.
+
+## Repository Layout
+
+```text
+PhishIntel/
+├── backend/
+│   ├── app/
+│   │   ├── api/
+│   │   │   └── routes.py
+│   │   ├── core/
+│   │   │   ├── config.py
+│   │   │   ├── exceptions.py
+│   │   │   └── logging.py
+│   │   ├── schemas/
+│   │   │   ├── evaluation.py
+│   │   │   └── scan.py
+│   │   ├── services/
+│   │   │   ├── evaluation_service.py
+│   │   │   ├── model_service.py
+│   │   │   └── preprocessing.py
+│   │   └── main.py
+│   ├── saved_models/
+│   │   ├── tokenizer/
+│   │   ├── config.json
+│   │   ├── features.joblib
+│   │   ├── features_regime_F.joblib
+│   │   ├── features_regime_T.joblib
+│   │   ├── pahf_net.pt
+│   │   ├── pahf_net_regime_F.pt
+│   │   ├── pahf_net_regime_T.pt
+│   │   ├── predict.py
+│   │   └── evaluation_metrics.json   # add after a verified held-out evaluation
+│   ├── tests/
+│   ├── .env.example
+│   └── requirements.txt
+├── phishintel-ai/
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── (app)/
+│   │   │   │   ├── account/
+│   │   │   │   ├── analytics/
+│   │   │   │   ├── analyzer/
+│   │   │   │   ├── dashboard/
+│   │   │   │   ├── evaluation/
+│   │   │   │   ├── explainability/
+│   │   │   │   ├── history/
+│   │   │   │   ├── profile/
+│   │   │   │   ├── research/
+│   │   │   │   │   ├── architecture/
+│   │   │   │   │   ├── datasets/
+│   │   │   │   │   ├── papers/
+│   │   │   │   │   └── sources/
+│   │   │   │   ├── settings/
+│   │   │   │   └── layout.tsx
+│   │   │   ├── (marketing)/
+│   │   │   │   ├── landing/
+│   │   │   │   └── page.tsx
+│   │   │   ├── api/
+│   │   │   ├── globals.css
+│   │   │   ├── favicon.ico
+│   │   │   └── layout.tsx
+│   │   ├── components/
+│   │   │   ├── analyzer/
+│   │   │   ├── auth/
+│   │   │   ├── dashboard/
+│   │   │   ├── layout/
+│   │   │   ├── marketing/
+│   │   │   ├── theme/
+│   │   │   └── ui/
+│   │   ├── context/
+│   │   ├── data/
+│   │   ├── lib/
+│   │   ├── services/
+│   │   └── types/
+│   ├── next.config.ts
+│   └── package.json
+├── .gitattributes
+└── README.md
+```
+
+## Requirements
+
+- Python 3.10 or later.
+- Node.js 20.9 or later and npm.
+- Git and Git LFS. The `*.pt` checkpoints (and `*.parquet` files, if present) are configured for Git LFS in `.gitattributes`.
+- Enough memory for the DeBERTa-v3 model and its loaded checkpoints. A CUDA-capable PyTorch installation is optional; the service uses CPU when CUDA is unavailable.
+
+## Getting Started
+
+### 1. Get the model assets
+
+From the repository root, install Git LFS and retrieve the checkpoint contents:
+
+```shell
+git lfs install
+git lfs pull
+```
+
+Confirm that `backend/saved_models/pahf_net.pt` and the local `tokenizer/` directory contain the actual model assets, not unresolved LFS pointer files.
+
+### 2. Backend setup and run (FastAPI + PyTorch)
+
+From the repository root, run these commands in **PowerShell**:
+
+```powershell
+cd backend
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+The FastAPI lifespan loads the model service once at startup. Scan requests reuse that initialized singleton; weights are not reloaded per request. The default CORS allowlist includes `http://localhost:3000` and `http://127.0.0.1:3000`.
+
+Useful backend URLs:
+
+| URL | Purpose |
 |---|---|
-| Research foundation | Base paper reviewed and critically assessed |
-| Literature comparison | Four phishing-email detection studies compared |
-| Dataset strategy | Multiple public datasets identified for cross-dataset evaluation |
-| Feature strategy | Text, metadata, URL, and sender-reputation features identified |
-| Modeling direction | Transformer, hybrid neural, classical ML, and retrieval-based approaches under consideration |
-| Reproducibility | Explicit splits, seeds, preprocessing, ablations, and repeated trials planned |
-| Deployment analysis | Latency, memory, model size, and inference cost still to be measured |
+| `http://127.0.0.1:8000/docs` | Interactive OpenAPI documentation |
+| `http://127.0.0.1:8000/healthz` | Backend and model readiness |
+| `http://127.0.0.1:8000/api/v1/models` | Model service status |
 
----
+### 3. Frontend setup and run (Next.js)
 
-## 1. The Problem and Motivation
+In a second terminal, from the repository root:
 
-Phishing emails are designed to trick people into revealing credentials, opening malicious attachments, transferring money, or visiting dangerous websites. Their wording and presentation change quickly, which makes detection a moving target.
-
-Traditional filters based mainly on fixed rules, signatures, blocklists, or keyword matching can be useful, but they often struggle with:
-
-- newly registered or previously unseen domains;
-- carefully written social-engineering messages;
-- obfuscated words, URLs, and HTML;
-- legitimate-looking business language;
-- multilingual or AI-generated phishing content; and
-- changes in sender, campaign, and formatting patterns.
-
-This project investigates whether AI/ML models can combine **language understanding**, **email structure**, **URL signals**, and **sender or metadata information** to produce more reliable predictions than text-only or rule-based systems.
-
-The goal is not simply to maximize accuracy on one familiar dataset. A useful detector should also generalize to new datasets, minimize harmful false positives, provide understandable explanations, and remain practical to run.
-
----
-
-## 2. Current Progress
-
-### 2.1 Problem formulation and literature review
-
-The project began with the paper *Improving phishing email detection performance through deep learning with adaptive optimization* as its technical foundation. That work proposes a hybrid architecture combining:
-
-- **BERT** for contextual language representations;
-- **Multi-Head Attention** for feature relationships;
-- a **1D CNN** for local phrase and n-gram patterns;
-- a **Bidirectional GRU** for sequential modeling; and
-- the **Mountain Gazelle Optimizer (MGO)** for hyperparameter tuning.
-
-Our review treats this model as a starting point rather than an unquestioned benchmark. Important concerns identified include incomplete reporting of data splits and training details, inconsistent metrics, reliance on a single dataset, unclear sequence handling after pooled BERT representations, and the absence of cross-dataset, adversarial, explainability, and deployment evaluations.
-
-We also compared four research directions:
-
-| Study | Main direction | Key lesson |
-|---|---|---|
-| **P1: BERT-CNN-GRU-MGO** | Hybrid deep-learning detector with metaheuristic tuning | Strong same-dataset results, but reproducibility and generalization require closer examination |
-| **P2: E-PhishGEN / E-PhishLLM** | Multi-dataset evaluation and LLM-generated phishing emails | Very high scores on familiar datasets can fall sharply under cross-dataset or generated-email testing |
-| **P3: Hybrid CNN-LSTM** | Text, metadata, URL, and sender-reputation features | Multi-feature models are promising, but feature leakage and source confounding must be controlled |
-| **P4: DPR vector search** | Transformer embeddings plus similarity search | Retrieval-based detection is an interesting alternative, but the available evidence is incomplete |
-
-The most important research direction emerging from this comparison is **robust evaluation**: one dataset and one random split are not enough to establish real-world performance.
-
-### 2.2 Data pipeline
-
-The research plan covers the following data sources and input types:
-
-- **Kaggle Phishing Emails** dataset used by the base paper: approximately 18,650 labeled emails;
-- **Enron** legitimate-email data;
-- **Nazario** phishing-email data;
-- additional benchmark variants discussed in the literature, including CEAS, LingSpam, SpamAssassin, TREC, and Chataut;
-- subject and body text;
-- email headers and identity-related metadata;
-- URLs and URL structure; and
-- sender-reputation or domain-related signals where available.
-
-The intended preprocessing workflow includes:
-
-1. parsing raw email files and separating headers, subject, body, HTML, and URLs;
-2. removing or flagging empty, malformed, and duplicate records;
-3. normalizing text while preserving security-relevant indicators;
-4. extracting URL, metadata, and sender features;
-5. applying stratified train/validation/test splits without leakage; and
-6. recording the random seed, sequence length, feature schema, and preprocessing configuration.
-
-**Implementation note:** the current repository materials document the research foundation and experimental plan. A complete, verified parser and training pipeline is a next-phase deliverable rather than being claimed as finished here.
-
-### 2.3 Exploratory analysis and feature direction
-
-The literature review identified four complementary feature groups:
-
-| Feature group | Examples | Why it matters |
-|---|---|---|
-| **Text** | Subject, body, urgency, requests for credentials or payment | Captures semantic and linguistic intent |
-| **Metadata** | Sender, reply-to mismatch, timestamps, header fields | Reveals identity and delivery anomalies |
-| **URLs** | Number of links, length, suspicious domains, redirects, IP-based URLs | Captures destination and obfuscation signals |
-| **Sender / reputation** | Domain age or reputation, blacklist-related signals | Adds context beyond the email wording |
-
-The base paper primarily motivates a **text-based BERT pipeline**, while the broader comparison suggests that text-only models should be evaluated against carefully designed multi-feature alternatives.
-
-### 2.4 Baseline and model experiments
-
-The current research plan covers several model families:
-
-- **Classical ML:** Logistic Regression, Naive Bayes, Random Forest, SVM, Gradient Boosting, MLP, and KNN;
-- **Transformer models:** BERT or DistilBERT-based classifiers;
-- **Hybrid neural models:** CNN-LSTM and BERT-Attention-CNN-BiGRU baseline variants;
-- **Approved Extension (PAHF-Net):** Availability-Gated Hierarchical Fusion (DeBERTa-v3 256d + 3×32d encoders) with Class-Conditional Domain Adversarial Training (DANN);
-- **Retrieval-based models:** DPR-style embeddings with cosine similarity and vector search; and
-- **LLM robustness tests:** evaluation on synthetic or LLM-generated phishing samples where ethically and legally appropriate.
-
-The base paper reports approximately **97.22% accuracy** and **96.43% F1-score** for its proposed model, but those figures should be interpreted cautiously because the paper reports inconsistent values and does not clearly establish cross-dataset generalization.
-
-For our experiments, the priority is to report more than a single headline number:
-
-- precision, recall, F1-score, and ROC-AUC;
-- confusion matrices and false-positive rates;
-- repeated-run mean and standard deviation;
-- cross-dataset and temporal performance;
-- calibration and threshold behavior; and
-- latency, memory, and model-size measurements.
-
----
-
-## 3. Technical Architecture and Workflow
-
-The planned end-to-end workflow is:
-
-```text
-Raw Email
-   │
-   ├── Headers, sender, reply-to, timestamps
-   ├── Subject and body text
-   ├── HTML and attachments
-   └── URLs and domains
-   │
-   ▼
-Parsing and Normalization
-   │
-   ├── Clean and tokenize text
-   ├── Extract URLs and metadata
-   ├── Detect duplicates and malformed records
-   └── Apply leakage-safe train/validation/test split
-   │
-   ▼
-Feature Representations
-   │
-   ├── Transformer embeddings for text
-   ├── TF-IDF and classical text features
-   ├── URL and metadata features
-   └── Sender/reputation features when available
-   │
-   ▼
-Model Layer
-   │
-   ├── Classical ML baselines
-   ├── BERT / DistilBERT classifier
-   ├── CNN-LSTM or BERT-Attention-CNN-BiGRU
-   └── Optional embedding-based similarity search
-   │
-   ▼
-Evaluation and Analysis
-   │
-   ├── Phishing probability and decision threshold
-   ├── Precision, recall, F1, ROC-AUC, calibration
-   ├── Cross-dataset and adversarial testing
-   └── Explainability and deployment measurements
-   │
-   ▼
-Final Output: Safe / Phishing + Confidence + Explanation
+```bash
+cd phishintel-ai
+npm install
+npm run dev
+```
 ```
 
-A simplified deep-learning path is:
+Open `http://localhost:3000`. The frontend defaults to the local API at `http://127.0.0.1:8000`. To override it, create `phishintel-ai/.env.local`:
 
-```text
-Email text → Tokenizer → Transformer embeddings
-           → Attention / CNN / BiGRU layers
-           → Dense classifier → Phishing probability
+```dotenv
+NEXT_PUBLIC_FASTAPI_URL=http://127.0.0.1:8000
 ```
 
-The architecture will be finalized only after controlled ablation experiments establish whether each component provides a measurable benefit.
+The frontend package includes HeroUI (`@heroui/react`), Tailwind CSS, Framer Motion, jsPDF, and jsPDF AutoTable.
 
----
+## API Overview
 
-## 4. Tech Stack and Environment
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `POST` | `/api/v1/analyze` | Analyze an email and return a `ScanResponse` |
+| `POST` | `/api/v1/scan` | Alias for the analyze endpoint |
+| `GET` | `/api/v1/models` | Return model readiness and runtime information |
+| `GET` | `/api/v1/evaluation-metrics` | Return a validated evaluation report or an unavailable status |
+| `GET` | `/healthz` | Return service and model readiness |
 
-### Planned software stack
+The API router is also mounted under `/api` for compatibility.
 
-- **Language:** Python 3
-- **Data processing:** Pandas, NumPy, SciPy
-- **Email parsing:** Python email utilities and MIME/HTML parsing tools
-- **Classical ML:** Scikit-learn
-- **Deep learning:** PyTorch and/or TensorFlow/Keras
-- **NLP:** Hugging Face Transformers and Tokenizers
-- **Visualization:** Matplotlib, Seaborn, and experiment dashboards as needed
-- **Explainability:** SHAP, attention analysis, or comparable attribution methods
-- **Vector search:** FAISS or another vector database for retrieval experiments
-- **Experiment management:** configuration files, fixed random seeds, saved metrics, and versioned preprocessing
+### Scan response contract
 
-### Compute assumptions
+Both scan routes return exactly these fields:
 
-The base paper reports experiments using a **T4 GPU and 32 GB RAM**, while another reviewed study reports V100-based training. Our implementation should record the actual hardware, training duration, batch size, parameter count, and inference latency rather than assuming that a model is deployment-ready.
+| Field | Type | Meaning |
+|---|---|---|
+| `success` | `boolean` | Whether inference completed |
+| `scan_id` | `string` | Unique identifier for the scan |
+| `is_phishing` | `boolean` | Binary phishing decision |
+| `verdict` | `string` | Human-readable classification |
+| `confidence_score` | `number` | Phishing probability in `[0, 1]` |
+| `risk_score` | `number` | Risk score in `[0, 100]` |
+| `p_phish` | `number` | Calibrated phishing probability in `[0, 1]` |
+| `indicators` | `array` | Threat indicators and their evidence |
+| `explainability` | `object` | Summary and model explanation details |
 
-Large datasets, model checkpoints, and local virtual environments are excluded through `.gitignore` to keep the repository lightweight.
+The Next.js client validates this response before mapping it to the UI.
 
----
+## Model Evaluation and Metrics
 
-## 5. Reproducibility and Evaluation Principles
+The evaluation page requests:
 
-The project will follow these principles before making final performance claims:
+```http
+GET /api/v1/evaluation-metrics
+```
 
-- use fixed, stratified, leakage-safe splits;
-- detect exact and near-duplicate emails before splitting;
-- publish preprocessing assumptions and feature definitions;
-- use the same evaluation budget across comparable models;
-- repeat experiments across multiple random seeds;
-- separate development data from final held-out evaluation data;
-- test across datasets, domains, and time periods where possible;
-- report both false positives and false negatives;
-- isolate the contribution of architecture components and MGO-style tuning; and
-- document compute cost, inference speed, memory, and model size.
+The endpoint reads `backend/saved_models/evaluation_metrics.json`. The artifact is a **versioned report of measured evaluation results**; the endpoint does not calculate benchmark scores or invent missing values. If the file is absent, it responds with HTTP 200 and:
 
-This is especially important because the literature shows that models can achieve near-perfect scores on familiar data while performing poorly on shifted or newly generated phishing emails.
+```json
+{
+  "status": "unavailable",
+  "reason": "artifact_not_found",
+  "artifact": "evaluation_metrics.json"
+}
+```
 
----
+The evaluation page then shows a clear unavailable state. Invalid, unreadable, or inconsistent artifacts are rejected rather than displayed as results.
 
-## 6. Next Steps and Research Roadmap
+The following JSONC is a **schema template, not an evaluation result**. Replace every placeholder with the corresponding measured value before saving it as `evaluation_metrics.json`. The `PAHF-Net` entry in `model_ranking` must match the metrics object; classifier names must be unique.
 
-### Immediate priorities
+```jsonc
+{
+  "status": "available",
+  "schema_version": 1,
+  "model_name": "PAHF-Net",
+  "model_version": "<checkpoint or release identifier>",
+  "dataset": "<held-out dataset name>",
+  "dataset_version": "<dataset version>",
+  "split": "test",
+  "threshold": "<measured decision threshold, 0 to 1>",
+  "evaluated_at": "<ISO-8601 timestamp>",
+  "sample_count": "<positive integer>",
+  "metrics": {
+    "accuracy": "<measured value, 0 to 1>",
+    "precision": "<measured value, 0 to 1>",
+    "recall": "<measured value, 0 to 1>",
+    "f1_score": "<measured value, 0 to 1>",
+    "auc_roc": "<measured value, 0 to 1>",
+    "inference_latency_ms": "<measured latency in milliseconds>"
+  },
+  "model_ranking": [
+    {
+      "model_name": "PAHF-Net",
+      "rank": "<rank from the documented comparison>",
+      "accuracy": "<same value as metrics.accuracy>",
+      "precision": "<same value as metrics.precision>",
+      "recall": "<same value as metrics.recall>",
+      "f1_score": "<same value as metrics.f1_score>",
+      "auc_roc": "<same value as metrics.auc_roc>",
+      "inference_latency_ms": "<optional measured latency in milliseconds>"
+    },
+    {
+      "model_name": "<baseline classifier name>",
+      "rank": "<rank from the same evaluation protocol>",
+      "accuracy": "<measured value, 0 to 1>",
+      "precision": "<measured value, 0 to 1>",
+      "recall": "<measured value, 0 to 1>",
+      "f1_score": "<measured value, 0 to 1>",
+      "auc_roc": "<measured value, 0 to 1>"
+    }
+  ]
+}
+```
 
-- [ ] Build and validate the raw-email parser.
-- [ ] Define a common schema for headers, body text, HTML, URLs, labels, and metadata.
-- [ ] Collect the selected public datasets and document their licensing and provenance.
-- [ ] Remove duplicates and investigate possible dataset or source leakage.
-- [ ] Create fixed, stratified splits with recorded random seeds.
-- [ ] Add exploratory statistics for class balance, message length, URLs, domains, and missing values.
+All metric values must come from a documented evaluation protocol using the same dataset split for PAHF-Net and its baseline classifiers. Record the threshold and latency measurement method so comparisons remain interpretable. No evaluation artifact is committed by default; the dashboard remains unavailable until verified results are supplied.
 
-### Baseline experiments
+## Development and Tests
 
-- [ ] Train TF-IDF baselines using Logistic Regression, Naive Bayes, Random Forest, and SVM.
-- [ ] Establish a text-only neural baseline.
-- [ ] Train a BERT or DistilBERT classifier with a clearly documented sequence length and fine-tuning policy.
-- [ ] Evaluate metadata, URL, and sender features independently and in combination.
-- [ ] Record precision, recall, F1-score, ROC-AUC, PR-AUC, calibration, and confusion matrices.
+Run backend tests from `backend/`:
 
-### Advanced modeling
+```shell
+python -m unittest discover -s tests
+```
 
-- [ ] Reproduce the BERT-Attention-CNN-BiGRU direction under a controlled protocol.
-- [ ] Compare pooled transformer outputs with token-level representations.
-- [ ] Compare CNN-LSTM and transformer-based architectures using the same data splits.
-- [ ] Perform component ablations for attention, CNN, GRU/LSTM, metadata, URLs, and regularization.
-- [ ] Compare manual or Bayesian tuning with MGO-style optimization under a fixed compute budget.
+Run frontend checks from `phishintel-ai/`:
 
-### Robustness and generalization
+```shell
+npm exec tsc -- --noEmit
+npm run lint
+npm run build
+```
 
-- [ ] Run cross-dataset evaluation using Enron, Nazario, and additional public corpora.
-- [ ] Add temporal or out-of-distribution evaluation where data availability permits.
-- [ ] Test misspellings, character substitutions, HTML manipulation, URL obfuscation, paraphrasing, and urgency changes.
-- [ ] Evaluate selected models on human-written and responsibly generated phishing examples.
-- [ ] Measure threshold trade-offs for security-sensitive and false-positive-sensitive operating points.
+## Privacy and Responsible Use
 
-### Explainability and deployment
+Email contents may contain personal, financial, or confidential information. Only submit data you are authorized to analyze, protect stored scan records, and avoid committing raw emails or sensitive evaluation data. Treat model output as decision support and investigate uncertain or high-impact decisions before taking action.
 
-- [ ] Produce explanations for text, URL, and metadata contributions.
-- [ ] Inspect failure cases and manually categorize common errors.
-- [ ] Measure parameter count, model size, memory use, throughput, and latency per email.
-- [ ] Evaluate quantization or pruning only after establishing an accurate reference model.
-- [ ] Package a reproducible inference script or API prototype.
+## Team and Authorship
 
-### Final research outputs
+**Project lead:** Rishikesh Manthena
 
-- [ ] Consolidate results across repeated trials.
-- [ ] Prepare tables, plots, ablation results, and statistical comparisons.
-- [ ] Write the final methodology and limitations sections.
-- [ ] Document ethical, privacy, and dual-use considerations.
-- [ ] Complete the final publication or progress-review draft.
+**Collaborators:** Preetam P, Tanush, Prabhakaran, and Pritam K
 
----
-
-## 7. Research Position
-
-This project is not intended to claim that one hybrid architecture automatically solves phishing detection. Instead, it aims to answer a more useful question:
-
-> **Which combination of language, email-structure, URL, and sender signals remains reliable when the data, campaign, writing style, and attack strategy change?**
-
-The reviewed literature provides strong ideas, but it also shows why careful validation matters. Our contribution will be a transparent, reproducible comparison that emphasizes generalization, robustness, explainability, and practical deployment—not only performance on a single benchmark.
-
-## License and Data Notice
-
-Dataset licenses, redistribution terms, and privacy requirements must be checked before sharing raw email content or derived artifacts. This repository should store code, documentation, configurations, and aggregated results rather than private or sensitive email data.
+**Institution:** Keshav Memorial Educational Society

@@ -1230,32 +1230,56 @@ export function PhishGuardProvider({ children }: { children: React.ReactNode }) 
     return scans.find((s) => s.id === selectedScanId) || scans[0] || null;
   }, [scans, selectedScanId]);
 
+  const contextValue = useMemo<PhishGuardContextValue>(
+    () => ({
+      scans,
+      selectedScanId,
+      setSelectedScanId,
+      selectedScan,
+      settings,
+      updateSettings,
+      profile,
+      updateProfile,
+      evalArtifact,
+      setEvalArtifact,
+      activity,
+      logActivity,
+      usage,
+      serviceStatus,
+      testServiceConnection,
+      runScan,
+      clearUserScans,
+      deleteScan,
+      toasts,
+      showToast,
+      formatP,
+    }),
+    [
+      scans,
+      selectedScanId,
+      selectedScan,
+      settings,
+      updateSettings,
+      profile,
+      updateProfile,
+      evalArtifact,
+      setEvalArtifact,
+      activity,
+      logActivity,
+      usage,
+      serviceStatus,
+      testServiceConnection,
+      runScan,
+      clearUserScans,
+      deleteScan,
+      toasts,
+      showToast,
+      formatP,
+    ]
+  );
+
   return (
-    <PhishGuardContext.Provider
-      value={{
-        scans,
-        selectedScanId,
-        setSelectedScanId,
-        selectedScan,
-        settings,
-        updateSettings,
-        profile,
-        updateProfile,
-        evalArtifact,
-        setEvalArtifact,
-        activity,
-        logActivity,
-        usage,
-        serviceStatus,
-        testServiceConnection,
-        runScan,
-        clearUserScans,
-        deleteScan,
-        toasts,
-        showToast,
-        formatP,
-      }}
-    >
+    <PhishGuardContext.Provider value={contextValue}>
       {children}
     </PhishGuardContext.Provider>
   );
