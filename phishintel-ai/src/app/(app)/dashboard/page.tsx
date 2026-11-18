@@ -1,23 +1,19 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { usePhishGuard, ScanItem } from "@/context/PhishGuardContext";
 
-const ACT = [74, 81, 69, 92, 88, 104, 97, 110, 95, 121, 108, 117, 126, 146];
-const ACT_P = [19, 22, 18, 26, 23, 29, 25, 31, 24, 34, 28, 32, 34, 39];
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
-
-const BASELINE_TIME = 1794747600000;
 
 const fmtAbs = (ts: number) => {
   const d = new Date(ts);
   return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const fmtRel = (ts: number, now = BASELINE_TIME) => {
+const fmtRel = (ts: number, now: number) => {
   const m = Math.round((now - ts) / 60000);
   if (m < 1) return "just now";
   if (m < 60) return m + " min ago";
@@ -26,31 +22,195 @@ const fmtRel = (ts: number, now = BASELINE_TIME) => {
   return Math.round(h / 24) + " d ago";
 };
 
+type MailSourceType = "Outlook" | "Gmail" | "Yahoo" | "MAPI" | "Other";
+
+function classifyMailSource(scan: ScanItem): MailSourceType {
+  const headers = (scan.email.headers || {}) as Record<string, string>;
+  const headerKeys = Object.keys(headers).map((k) => k.toLowerCase());
+  const headerVals = Object.values(headers).map((v) => String(v).toLowerCase()).join(" ");
+  const from = (scan.email.from || "").toLowerCase();
+
+  // MAPI check
+  if (
+    headers["x-mailer"]?.toLowerCase().includes("mapi") ||
+    headerVals.includes("mapi") ||
+    (scan as any).origin === "mapi"
+  ) {
+    return "MAPI";
+  }
+  // Outlook check
+  if (
+    headerKeys.some((k) => k.startsWith("x-ms-exchange")) ||
+    headers["x-mailer"]?.toLowerCase().includes("outlook") ||
+    headerVals.includes("outlook.com") ||
+    headerVals.includes("office365") ||
+    from.includes("@outlook.com") ||
+    from.includes("@hotmail.com")
+  ) {
+    return "Outlook";
+  }
+  // Gmail check
+  if (
+    headerKeys.some((k) => k.includes("google") || k === "x-gm-message-state") ||
+    headerVals.includes("google.com") ||
+    from.includes("@gmail.com")
+  ) {
+    return "Gmail";
+  }
+  // Yahoo check
+  if (
+    headerKeys.some((k) => k.startsWith("x-ymail") || k.startsWith("x-yahoo")) ||
+    headerVals.includes("yahoo.com") ||
+    from.includes("@yahoo.com")
+  ) {
+    return "Yahoo";
+  }
+  return "Other";
+}
+
 export default function OverviewPage() {
   const router = useRouter();
-  const { scans, setSelectedScanId, evalArtifact, serviceStatus, formatP } = usePhishGuard();
+  const { scans, setSelectedScanId, evalArtifact, formatP } = usePhishGuard();
+
+  const [timeWindow, setTimeWindow] = useState<"30d" | "24h">("30d");
+  const [nowTime, setNowTime] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    setNowTime(Date.now());
+    const interval = setInterval(() => setNowTime(Date.now()), 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleOpenScan = (id: string) => {
     setSelectedScanId(id);
     router.push("/explainability");
   };
 
-  const feedScans = useMemo(() => scans.slice(0, 5), [scans]);
+  // Filter scans by active window
+  const windowScans = useMemo(() => {
+    const windowMs = timeWindow === "24h" ? 24 * 3600 * 1000 : 30 * 864e5;
+    const cutoff = nowTime - windowMs;
+    return scans.filter((s) => s.ts >= cutoff);
+  }, [scans, timeWindow, nowTime]);
+
+  const totalAnalysed = windowScans.length;
+  const flaggedCount = useMemo(
+    () => windowScans.filter((s) => s.decision === "PHISHING").length,
+    [windowScans]
+  );
+  const phishingRate = totalAnalysed > 0 ? flaggedCount / totalAnalysed : null;
+
+  // Feeds and recent tables
+  const feedScans = useMemo(() => {
+    const list = timeWindow === "24h" ? windowScans : scans;
+    return list.slice(0, 5);
+  }, [scans, windowScans, timeWindow]);
+
   const hotScan = useMemo(() => feedScans.find((s) => s.decision === "PHISHING"), [feedScans]);
   const recentTableScans = useMemo(() => scans.slice(0, 6), [scans]);
   const lastScan = scans[0];
+  const firstScan = scans[scans.length - 1];
 
-  // Sparkline points
+  // 14-day activity bars ending today
+  const activity14Days = useMemo(() => {
+    const todayEnd = new Date(nowTime);
+    todayEnd.setHours(23, 59, 59, 999);
+
+    const buckets = [];
+    for (let i = 13; i >= 0; i--) {
+      const dayEnd = new Date(todayEnd.getTime() - i * 864e5);
+      const dayStart = new Date(dayEnd.getTime() - 864e5 + 1);
+      const dayScans = scans.filter((s) => s.ts >= dayStart.getTime() && s.ts <= dayEnd.getTime());
+      const pCount = dayScans.filter((s) => s.decision === "PHISHING").length;
+      const sCount = dayScans.length - pCount;
+      const label = `${dayStart.getDate()} ${MON[dayStart.getMonth()]}`;
+      buckets.push({
+        label,
+        date: dayStart,
+        total: dayScans.length,
+        phishing: pCount,
+        safe: sCount,
+      });
+    }
+    return buckets;
+  }, [scans, nowTime]);
+
+  const maxActivityBar = useMemo(() => {
+    const maxVal = Math.max(0, ...activity14Days.map((b) => b.total));
+    return maxVal > 0 ? maxVal : 1;
+  }, [activity14Days]);
+
+  const total14Days = useMemo(
+    () => activity14Days.reduce((acc, b) => acc + b.total, 0),
+    [activity14Days]
+  );
+  const flagged14Days = useMemo(
+    () => activity14Days.reduce((acc, b) => acc + b.phishing, 0),
+    [activity14Days]
+  );
+  const rate14Days = total14Days > 0 ? ((flagged14Days / total14Days) * 100).toFixed(1) : null;
+
+  // Sparkline from 14 days activity
   const sparkSvg = useMemo(() => {
-    const max = Math.max(...ACT), min = Math.min(...ACT);
-    const pts = ACT.map((v, i) => [
-      4 + i * (142 / (ACT.length - 1)),
-      38 - ((v - min) / (max - min)) * 30,
+    const ptsCount = activity14Days.length;
+    const max = Math.max(1, ...activity14Days.map((b) => b.total));
+    const min = Math.min(...activity14Days.map((b) => b.total));
+    const range = max === min ? 1 : max - min;
+
+    const coords = activity14Days.map((b, i) => [
+      4 + i * (142 / (ptsCount - 1)),
+      38 - ((b.total - min) / range) * 30,
     ]);
-    const d = pts.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
-    const l = pts[pts.length - 1];
-    return { d, lx: l[0], ly: l[1] };
-  }, []);
+    const d = coords.map((p, i) => (i ? "L" : "M") + p[0].toFixed(1) + " " + p[1].toFixed(1)).join(" ");
+    const lastCoord = coords[coords.length - 1];
+    return { d, lx: lastCoord[0], ly: lastCoord[1] };
+  }, [activity14Days]);
+
+  // Mail sources classification
+  const mailSources = useMemo(() => {
+    const counts: Record<MailSourceType, number> = {
+      Outlook: 0,
+      Gmail: 0,
+      Yahoo: 0,
+      MAPI: 0,
+      Other: 0,
+    };
+    for (const s of windowScans) {
+      const src = classifyMailSource(s);
+      counts[src] = (counts[src] || 0) + 1;
+    }
+    return counts;
+  }, [windowScans]);
+
+  // Top indicators aggregated from real scans
+  const topIndicators = useMemo(() => {
+    const firedMap = new Map<string, { title: string; count: number; category: string }>();
+    for (const s of windowScans) {
+      const seenTitles = new Set<string>();
+      for (const ind of s.indicators || []) {
+        if ((ind.score_impact ?? 0) <= 0) continue;
+        const key = ind.title.trim();
+        if (!seenTitles.has(key)) {
+          seenTitles.add(key);
+          const existing = firedMap.get(key) || {
+            title: key,
+            count: 0,
+            category: ind.category || "security",
+          };
+          existing.count += 1;
+          firedMap.set(key, existing);
+        }
+      }
+    }
+    return Array.from(firedMap.values())
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5);
+  }, [windowScans]);
+
+  const maxIndicatorCount = useMemo(
+    () => (topIndicators.length > 0 ? topIndicators[0].count : 1),
+    [topIndicators]
+  );
 
   // Radar SVG constants
   const radarNodes = useMemo(() => {
@@ -75,50 +235,72 @@ export default function OverviewPage() {
       innerTicks.push({ x1, y1, x2, y2 });
     }
 
-    const rate = 0.269, gr = 120;
+    const rate = phishingRate !== null ? Math.min(1, Math.max(0, phishingRate)) : 0;
+    const gr = 120;
     const a0 = 150, a1 = a0 - rate * 120;
     const [gx0, gy0] = pt(gr, a0);
     const [gx1, gy1] = pt(gr, a1);
     const [tx0, ty0] = pt(gr, 30);
 
     const outerNodes = [
-      { r: 292, a: 154, label: "Outlook", sub: "612", anchor: "end", dx: -10, dy: 4 },
-      { r: 292, a: 122, label: "Gmail", sub: "498", anchor: "middle", dx: 0, dy: -26 },
-      { r: 292, a: 56, label: "Yahoo", sub: "187", anchor: "middle", dx: 0, dy: -26 },
-      { r: 292, a: 24, label: "MAPI", sub: "131", anchor: "start", dx: 10, dy: 4 },
-      { r: 226, a: 112, label: "+384", sub: "Flagged", anchor: "middle", dx: 0, dy: -26, size: 15 },
+      { r: 292, a: 154, label: "Outlook", sub: String(mailSources.Outlook), anchor: "end", dx: -10, dy: 4 },
+      { r: 292, a: 122, label: "Gmail", sub: String(mailSources.Gmail), anchor: "middle", dx: 0, dy: -26 },
+      { r: 292, a: 56, label: "Yahoo", sub: String(mailSources.Yahoo), anchor: "middle", dx: 0, dy: -26 },
+      {
+        r: 292,
+        a: 24,
+        label: mailSources.Other > 0 && mailSources.MAPI === 0 ? "Other" : "MAPI",
+        sub: String(mailSources.Other > 0 && mailSources.MAPI === 0 ? mailSources.Other : mailSources.MAPI),
+        anchor: "start",
+        dx: 10,
+        dy: 4,
+      },
+      {
+        r: 226,
+        a: 112,
+        label: `+${flaggedCount}`,
+        sub: "Flagged",
+        anchor: "middle",
+        dx: 0,
+        dy: -26,
+        size: 15,
+      },
     ].map((n) => {
       const [x, y] = pt(n.r, n.a);
       return { ...n, x, y };
     });
 
+    // PAHF-Net modality tags (DeBERTa-v3 Text, URL, Structure, Linguistic)
     const branchSquaresOuter = [
-      { l: "F", a: 160 },
-      { l: "S", a: 132 },
-      { l: "T", a: 64 },
-      { l: "U", a: 40 },
-      { l: "M", a: 18 },
+      { l: "T", a: 150, title: "Text representation (256d)" },
+      { l: "U", a: 115, title: "URL encoder (32d)" },
+      { l: "S", a: 65, title: "Structure encoder (32d)" },
+      { l: "L", a: 30, title: "Linguistic encoder (32d)" },
     ].map((b) => {
       const [x, y] = pt(226, b.a);
       return { ...b, x, y };
     });
 
     const branchSquaresInner = [
-      { l: "U", a: 86 },
-      { l: "M", a: 146 },
+      { l: "g_t", a: 135 },
+      { l: "g_u", a: 100 },
+      { l: "g_s", a: 80 },
+      { l: "g_l", a: 45 },
     ].map((b) => {
       const [x, y] = pt(186, b.a);
       return { ...b, x, y };
     });
 
-    const warningMarkers = [
-      { r: 262, a: 98 },
-      { r: 258, a: 30 },
-      { r: 256, a: 148 },
-    ].map((m) => {
-      const [x, y] = pt(m.r, m.a);
-      return { x, y };
-    });
+    const warningMarkers = flaggedCount > 0
+      ? [
+          { r: 262, a: 98 },
+          { r: 258, a: 30 },
+          { r: 256, a: 148 },
+        ].map((m) => {
+          const [x, y] = pt(m.r, m.a);
+          return { x, y };
+        })
+      : [];
 
     return {
       cx,
@@ -131,16 +313,7 @@ export default function OverviewPage() {
       branchSquaresInner,
       warningMarkers,
     };
-  }, []);
-
-  // 14 days activity bars
-  const maxBar = useMemo(() => Math.max(...ACT), []);
-  const [nowTime, setNowTime] = React.useState<number>(BASELINE_TIME);
-  const today = useMemo(() => new Date(nowTime), [nowTime]);
-
-  React.useEffect(() => {
-    setNowTime(Date.now());
-  }, []);
+  }, [phishingRate, mailSources, flaggedCount]);
 
   return (
     <div>
@@ -165,7 +338,8 @@ export default function OverviewPage() {
               Emails analysed
             </div>
             <div className="big">
-              1,428<small>30 days</small>
+              {totalAnalysed.toLocaleString()}
+              <small>{timeWindow === "24h" ? "last 24h" : "30 days"}</small>
             </div>
             <svg
               id="spark"
@@ -194,7 +368,7 @@ export default function OverviewPage() {
             viewBox="0 0 800 400"
             preserveAspectRatio="xMidYMax meet"
             role="img"
-            aria-label="Phishing rate 26.9 percent across 1,428 analysed emails"
+            aria-label={`Phishing rate ${phishingRate !== null ? (phishingRate * 100).toFixed(1) + " percent" : "none"} across ${totalAnalysed} analysed emails`}
           >
             <defs>
               <radialGradient id="rcore" cx="50%" cy="20%" r="80%">
@@ -239,13 +413,15 @@ export default function OverviewPage() {
               strokeWidth="5"
               strokeLinecap="round"
             />
-            <path
-              d={`M${radarNodes.gauge.gx0} ${radarNodes.gauge.gy0} A${radarNodes.gauge.gr} ${radarNodes.gauge.gr} 0 0 1 ${radarNodes.gauge.gx1} ${radarNodes.gauge.gy1}`}
-              fill="none"
-              stroke="#EF6A1E"
-              strokeWidth="5"
-              strokeLinecap="round"
-            />
+            {phishingRate !== null && phishingRate > 0 && (
+              <path
+                d={`M${radarNodes.gauge.gx0} ${radarNodes.gauge.gy0} A${radarNodes.gauge.gr} ${radarNodes.gauge.gr} 0 0 1 ${radarNodes.gauge.gx1} ${radarNodes.gauge.gy1}`}
+                fill="none"
+                stroke="#EF6A1E"
+                strokeWidth="5"
+                strokeLinecap="round"
+              />
+            )}
 
             <text
               x={radarNodes.cx}
@@ -254,10 +430,17 @@ export default function OverviewPage() {
               fill="#ECEEE5"
               fontFamily="var(--font-outfit), Outfit, system-ui"
               fontWeight="300"
-              fontSize="54"
+              fontSize={phishingRate !== null ? "54" : "42"}
               letterSpacing="-1.5"
             >
-              26.9<tspan fontSize="26" dx="2">%</tspan>
+              {phishingRate !== null ? (
+                <>
+                  {(phishingRate * 100).toFixed(1)}
+                  <tspan fontSize="26" dx="2">%</tspan>
+                </>
+              ) : (
+                "—"
+              )}
             </text>
             <text
               x={radarNodes.cx}
@@ -267,10 +450,10 @@ export default function OverviewPage() {
               fontFamily="var(--font-outfit), Outfit, system-ui"
               fontSize="13"
             >
-              Phishing rate · 30d
+              {totalAnalysed > 0 ? `Phishing rate · ${timeWindow === "24h" ? "24h" : "30d"}` : "No scans in window"}
             </text>
 
-            {/* Apex node (1,428 Emails) */}
+            {/* Apex node (Total emails) */}
             <circle cx={radarNodes.cx} cy={radarNodes.cy - 292} r="3" fill="#ECEEE5" opacity=".75" />
             <text
               x={radarNodes.cx}
@@ -280,7 +463,7 @@ export default function OverviewPage() {
               fontFamily="var(--font-outfit), Outfit, system-ui"
               fontSize="17"
             >
-              1,428
+              {totalAnalysed.toLocaleString()}
             </text>
             <text
               x={radarNodes.cx}
@@ -323,17 +506,17 @@ export default function OverviewPage() {
               </g>
             ))}
 
-            {/* Branch badges on 226 ring */}
+            {/* PAHF-Net modality badges on 226 ring */}
             {radarNodes.branchSquaresOuter.map((b, i) => (
               <g key={i}>
                 <rect
-                  x={b.x - 8}
-                  y={b.y - 8}
-                  width="16"
-                  height="16"
-                  rx="3"
+                  x={b.x - 9}
+                  y={b.y - 9}
+                  width="18"
+                  height="18"
+                  rx="4"
                   fill="#262B27"
-                  stroke="rgba(236,238,229,.16)"
+                  stroke="rgba(236,238,229,.22)"
                 />
                 <text
                   x={b.x}
@@ -341,24 +524,25 @@ export default function OverviewPage() {
                   textAnchor="middle"
                   fill="#ECEEE5"
                   fontFamily="var(--font-jetbrains-mono), monospace"
-                  fontSize="9"
+                  fontSize="9.5"
+                  fontWeight="600"
                 >
                   {b.l}
                 </text>
               </g>
             ))}
 
-            {/* Branch badges on 186 ring */}
+            {/* PAHF-Net gate weights badges on 186 ring */}
             {radarNodes.branchSquaresInner.map((b, i) => (
               <g key={i}>
                 <rect
-                  x={b.x - 7}
+                  x={b.x - 10}
                   y={b.y - 7}
-                  width="14"
+                  width="20"
                   height="14"
                   rx="3"
                   fill="#262B27"
-                  stroke="rgba(236,238,229,.12)"
+                  stroke="rgba(236,238,229,.14)"
                 />
                 <text
                   x={b.x}
@@ -397,8 +581,14 @@ export default function OverviewPage() {
               <i aria-hidden="true" />
               Live feed
             </span>
-            <button className="d-btn" type="button" title="Window">
-              24h
+            <button
+              className={`d-btn ${timeWindow === "24h" ? "active" : ""}`}
+              type="button"
+              onClick={() => setTimeWindow((w) => (w === "24h" ? "30d" : "24h"))}
+              title={`Toggle time window (currently ${timeWindow})`}
+              style={timeWindow === "24h" ? { background: "rgba(239,106,30,.25)", borderColor: "var(--accent)" } : {}}
+            >
+              {timeWindow}
             </button>
             <Link href="/history" className="d-btn" aria-label="Open scan history">
               ···
@@ -406,36 +596,42 @@ export default function OverviewPage() {
           </div>
 
           <div className="feed" id="feed">
-            {feedScans.map((s) => {
-              const isHot = s === hotScan;
-              const isPhish = s.decision === "PHISHING";
-              return (
-                <button
-                  key={s.id}
-                  type="button"
-                  className={isHot ? "hot" : ""}
-                  onClick={() => handleOpenScan(s.id)}
-                  title={`Open explanation for ${s.id}`}
-                >
-                  <span className="ic" aria-hidden="true">
-                    {isPhish ? (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
-                      </svg>
-                    ) : (
-                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                        <path d="m5 12.5 4.5 4.5L19 7" />
-                      </svg>
-                    )}
-                  </span>
-                  <span className="t">
-                    <b>{isPhish ? "Phishing" : "Safe"}</b>
-                    <span className="sep">|</span>
-                    {s.email.subject}
-                  </span>
-                </button>
-              );
-            })}
+            {feedScans.length > 0 ? (
+              feedScans.map((s) => {
+                const isHot = s === hotScan;
+                const isPhish = s.decision === "PHISHING";
+                return (
+                  <button
+                    key={s.id}
+                    type="button"
+                    className={isHot ? "hot" : ""}
+                    onClick={() => handleOpenScan(s.id)}
+                    title={`Open explanation for ${s.id}`}
+                  >
+                    <span className="ic" aria-hidden="true">
+                      {isPhish ? (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
+                        </svg>
+                      ) : (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                          <path d="m5 12.5 4.5 4.5L19 7" />
+                        </svg>
+                      )}
+                    </span>
+                    <span className="t">
+                      <b>{isPhish ? "Phishing" : "Safe"}</b>
+                      <span className="sep">|</span>
+                      {s.email.subject || "Untitled Email"}
+                    </span>
+                  </button>
+                );
+              })
+            ) : (
+              <div style={{ padding: "16px 12px", textAlign: "center", fontSize: "13px", color: "rgba(236,238,229,.6)" }}>
+                No scans recorded in {timeWindow === "24h" ? "the last 24 hours" : "this workspace"}.
+              </div>
+            )}
 
             <Link
               href="/history"
@@ -470,6 +666,9 @@ export default function OverviewPage() {
           <div className="card-head">
             <div>
               <h3>Mail sources</h3>
+              <p style={{ fontSize: "12px", color: "var(--muted)", margin: "2px 0 0" }}>
+                Classified from message headers & transport routes.
+              </p>
             </div>
             <Link href="/history" className="go" aria-label="View history breakdown">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -493,7 +692,8 @@ export default function OverviewPage() {
                 <path d="m3 7 9 6 9-6" />
               </svg>
             </span>
-            Outlook headers<span className="v">612</span>
+            Outlook headers
+            <span className="v mono">{mailSources.Outlook}</span>
           </div>
           <div className="src-row">
             <span
@@ -511,7 +711,8 @@ export default function OverviewPage() {
                 <path d="m3 7 9 6 9-6" />
               </svg>
             </span>
-            Gmail headers<span className="v">498</span>
+            Gmail headers
+            <span className="v mono">{mailSources.Gmail}</span>
           </div>
           <div className="src-row">
             <span
@@ -529,7 +730,8 @@ export default function OverviewPage() {
                 <path d="m3 7 9 6 9-6" />
               </svg>
             </span>
-            Yahoo headers<span className="v">187</span>
+            Yahoo headers
+            <span className="v mono">{mailSources.Yahoo}</span>
           </div>
           <div className="src-row">
             <span
@@ -547,8 +749,31 @@ export default function OverviewPage() {
                 <path d="M3 10h18" />
               </svg>
             </span>
-            MAPI export<span className="v">131</span>
+            MAPI export
+            <span className="v mono">{mailSources.MAPI}</span>
           </div>
+          {mailSources.Other > 0 && (
+            <div className="src-row">
+              <span
+                style={{
+                  display: "grid",
+                  placeItems: "center",
+                  width: 26,
+                  height: 26,
+                  borderRadius: "var(--r-sm)",
+                  background: "rgba(255,255,255,.4)",
+                }}
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </span>
+              Other / unknown
+              <span className="v mono">{mailSources.Other}</span>
+            </div>
+          )}
         </div>
 
         {/* Card 2: Top Indicators */}
@@ -556,6 +781,9 @@ export default function OverviewPage() {
           <div className="card-head">
             <div>
               <h3>Top indicators</h3>
+              <p style={{ fontSize: "12px", color: "var(--muted)", margin: "2px 0 0" }}>
+                Threat signals triggered across evaluated scans.
+              </p>
             </div>
             <Link href="/explainability" className="go" aria-label="Open explainability">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
@@ -564,41 +792,26 @@ export default function OverviewPage() {
             </Link>
           </div>
           <div className="stack" style={{ gap: 14 }}>
-            <div className="meter-row">
-              <span className="k">Urgency / pressure</span>
-              <div className="meter">
-                <i style={{ width: "80%", ["--c" as any]: "var(--phish)" }} />
+            {topIndicators.length > 0 ? (
+              topIndicators.map((ind, idx) => {
+                const pct = Math.max(12, Math.round((ind.count / maxIndicatorCount) * 100));
+                const colors = ["var(--phish)", "var(--accent)", "var(--fin)", "#3A3F38", "var(--safe)"];
+                const color = colors[idx % colors.length];
+                return (
+                  <div key={ind.title} className="meter-row" title={`Triggered in ${ind.count} scan(s)`}>
+                    <span className="k">{ind.title}</span>
+                    <div className="meter">
+                      <i style={{ width: `${pct}%`, ["--c" as any]: color }} />
+                    </div>
+                    <span className="v mono">{ind.count}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <div style={{ padding: "24px 0", textAlign: "center", color: "var(--muted)", fontSize: "13px" }}>
+                No threat indicators triggered yet in scanned emails.
               </div>
-              <span className="v">241</span>
-            </div>
-            <div className="meter-row">
-              <span className="k">Credential request</span>
-              <div className="meter">
-                <i style={{ width: "59%", ["--c" as any]: "var(--accent)" }} />
-              </div>
-              <span className="v">176</span>
-            </div>
-            <div className="meter-row">
-              <span className="k">URL anomaly</span>
-              <div className="meter">
-                <i style={{ width: "51%", ["--c" as any]: "var(--accent)" }} />
-              </div>
-              <span className="v">152</span>
-            </div>
-            <div className="meter-row">
-              <span className="k">Transfer request</span>
-              <div className="meter">
-                <i style={{ width: "44%", ["--c" as any]: "var(--fin)" }} />
-              </div>
-              <span className="v">133</span>
-            </div>
-            <div className="meter-row">
-              <span className="k">Reply-To mismatch</span>
-              <div className="meter">
-                <i style={{ width: "33%", ["--c" as any]: "var(--safe)" }} />
-              </div>
-              <span className="v">98</span>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -610,7 +823,7 @@ export default function OverviewPage() {
           <div>
             <div className="k">Workspace created</div>
             <div className="v mono" style={{ fontSize: "12.5px" }}>
-              24 Sep 2026 · 11:05
+              {firstScan ? fmtAbs(firstScan.ts) : "15 Nov 2026 · 10:00"}
             </div>
           </div>
         </div>
@@ -664,42 +877,52 @@ export default function OverviewPage() {
                 </tr>
               </thead>
               <tbody>
-                {recentTableScans.map((s) => {
-                  const isPhish = s.decision === "PHISHING";
-                  return (
-                    <tr
-                      key={s.id}
-                      className="clickable"
-                      tabIndex={0}
-                      onClick={() => handleOpenScan(s.id)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleOpenScan(s.id);
-                      }}
-                      title="Open explanation"
-                    >
-                      <td>
-                        <div className="trunc">{s.email.subject}</div>
-                        <div className="t-sub trunc">{s.email.from}</div>
-                      </td>
-                      <td>
-                        <span className={`verdict ${isPhish ? "v-phish" : "v-safe"}`}>
-                          {isPhish ? (
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                              <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
-                            </svg>
-                          ) : (
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                              <path d="m5 12.5 4.5 4.5L19 7" />
-                            </svg>
-                          )}
-                          {isPhish ? "Phishing" : "Safe"}
-                        </span>
-                      </td>
-                      <td className="num">{formatP(s.P)}</td>
-                      <td className="num muted" suppressHydrationWarning>{fmtRel(s.ts, nowTime)}</td>
-                    </tr>
-                  );
-                })}
+                {recentTableScans.length > 0 ? (
+                  recentTableScans.map((s) => {
+                    const isPhish = s.decision === "PHISHING";
+                    return (
+                      <tr
+                        key={s.id}
+                        className="clickable"
+                        tabIndex={0}
+                        onClick={() => handleOpenScan(s.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") handleOpenScan(s.id);
+                        }}
+                        title="Open explanation"
+                      >
+                        <td>
+                          <div className="trunc">{s.email.subject || "Untitled Email"}</div>
+                          <div className="t-sub trunc">{s.email.from || "Unknown sender"}</div>
+                        </td>
+                        <td>
+                          <span className={`verdict ${isPhish ? "v-phish" : "v-safe"}`}>
+                            {isPhish ? (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
+                              </svg>
+                            ) : (
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+                                <path d="m5 12.5 4.5 4.5L19 7" />
+                              </svg>
+                            )}
+                            {isPhish ? "Phishing" : "Safe"}
+                          </span>
+                        </td>
+                        <td className="num">{formatP(s.P)}</td>
+                        <td className="num muted" suppressHydrationWarning>
+                          {fmtRel(s.ts, nowTime)}
+                        </td>
+                      </tr>
+                    );
+                  })
+                ) : (
+                  <tr>
+                    <td colSpan={4} style={{ padding: "32px 0", textAlign: "center" }} className="muted">
+                      No emails scanned yet. Click "Scan email" above to analyze your first email.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -710,26 +933,33 @@ export default function OverviewPage() {
           <div className="card-head">
             <div>
               <h3>Activity · 14 days</h3>
-              <p>Daily volume, split by decision.</p>
+              <p>Emails scanned per day over the last 14 days, split into Safe and Phishing.</p>
             </div>
           </div>
-          <div className="bars" role="img" aria-label="Daily scan volume over 14 days">
-            {ACT.map((v, i) => {
-              const p = ACT_P[i];
-              const sf = v - p;
+          <div className="bars" role="img" aria-label="Emails scanned per day over the last 14 days, split into Safe and Phishing">
+            {activity14Days.map((b, i) => {
+              const pHeight = b.total > 0 ? (b.phishing / maxActivityBar) * 100 : 0;
+              const sHeight = b.total > 0 ? (b.safe / maxActivityBar) * 100 : 0;
               return (
-                <div key={i} className="col" title={`Day ${i + 1}: ${v} scanned · ${p} phishing`}>
-                  <i className="p" style={{ height: `${((p / maxBar) * 100).toFixed(1)}%` }} />
-                  <i className="s" style={{ height: `${((sf / maxBar) * 100).toFixed(1)}%` }} />
+                <div
+                  key={i}
+                  className="col"
+                  tabIndex={0}
+                  title={`${b.label}: ${b.total} scanned (${b.safe} Safe, ${b.phishing} Phishing)`}
+                  aria-label={`${b.label}: ${b.total} total, ${b.safe} safe, ${b.phishing} phishing`}
+                >
+                  <i className="p" style={{ height: `${pHeight.toFixed(1)}%` }} />
+                  <i className="s" style={{ height: `${sHeight.toFixed(1)}%` }} />
                 </div>
               );
             })}
           </div>
           <div className="bars-x">
-            {ACT.map((_, i) => {
-              const d = new Date(today.getTime() - (13 - i) * 864e5);
-              return <span key={i}>{i % 2 ? "" : d.getDate()}</span>;
-            })}
+            {activity14Days.map((b, i) => (
+              <span key={i} title={b.label}>
+                {i % 2 === 0 ? b.date.getDate() : ""}
+              </span>
+            ))}
           </div>
           <div className="legend" style={{ marginTop: 14 }}>
             <span>
@@ -741,7 +971,7 @@ export default function OverviewPage() {
               Phishing
             </span>
             <span style={{ marginLeft: "auto" }} className="mono">
-              26.9% flagged
+              {rate14Days ? `${rate14Days}% flagged` : "0 scans in 14d"}
             </span>
           </div>
         </div>
