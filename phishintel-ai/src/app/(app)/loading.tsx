@@ -1,6 +1,20 @@
-import React from "react";
+"use client";
+
+import React, { useState, useEffect } from "react";
 
 export default function Loading() {
+  const [visible, setVisible] = useState(false);
+
+  useEffect(() => {
+    // Only show full skeleton if loading exceeds ~200ms threshold
+    const timer = setTimeout(() => {
+      setVisible(true);
+    }, 200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  if (!visible) return null;
+
   return (
     <div className="section-no-hover animate-pulse" aria-busy="true" aria-label="Loading section">
       {/* Page Header Skeleton */}
@@ -98,7 +112,7 @@ export default function Loading() {
           <div
             style={{
               height: 12,
-              width: "50%",
+              width: "55%",
               background: "var(--card-2)",
               borderRadius: 4,
             }}

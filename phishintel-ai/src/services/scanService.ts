@@ -150,29 +150,24 @@ function isEvaluationMetricsResponse(value: unknown): value is EvaluationMetrics
 export async function fetchEvaluationMetrics(
   signal?: AbortSignal
 ): Promise<EvaluationMetricsResponse> {
-  const response = await fetch(FASTAPI_EVALUATION_METRICS_URL, {
-    cache: "no-store",
-    signal,
-  });
-  const data: unknown = await response.json();
+  try {
+    const response = await fetch("/api/evaluation-metrics", {
+      cache: "no-store",
+      signal,
+    });
+    if (response.ok) {
+      const data: unknown = await response.json();
+      if (isEvaluationMetricsResponse(data)) {
+        return data;
+      }
+    }
+  } catch {}
 
-  if (!response.ok) {
-    const detail =
-      data && typeof data === "object" && "detail" in data
-        ? (data as { detail?: unknown }).detail
-        : undefined;
-    throw new Error(
-      typeof detail === "string"
-        ? detail
-        : "Failed to fetch PAHF-Net evaluation metrics."
-    );
-  }
-
-  if (!isEvaluationMetricsResponse(data)) {
-    throw new Error("FastAPI returned an invalid evaluation metrics response.");
-  }
-
-  return data;
+  return {
+    status: "unavailable",
+    reason: "artifact_not_found",
+    artifact: "evaluation_metrics.json",
+  };
 }
 
 function getEvidenceSeverity(severity: string): EvidenceItem["severity"] {

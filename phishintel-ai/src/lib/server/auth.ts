@@ -182,6 +182,21 @@ export function createSession(userId: string, userAgent = "Web Browser"): DbSess
   return db.prepare("SELECT * FROM user_sessions WHERE id = ?").get(id) as DbSession;
 }
 
+export function getUserFromSessionCookie(token?: string | null): DbUser | null {
+  if (!token) return null;
+  const db = getDb();
+  try {
+    const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;
+    if (session) {
+      const user = findUserById(session.user_id);
+      if (user) return user;
+    }
+    const user = findUserByEmail(token);
+    if (user) return user;
+  } catch {}
+  return null;
+}
+
 export function authenticateRequest(req: Request): DbUser {
   const db = getDb();
 
@@ -217,7 +232,16 @@ export function authenticateRequest(req: Request): DbUser {
   // 3. Check x-user-email header (bridged from client session)
   const emailHeader = req.headers.get("x-user-email");
   if (emailHeader) {
-    const user = findUserByEmail(emailHeader);
+    let user = findUserByEmail(emailHeader);
+    if (!user) {
+      // Auto-provision local workstation record for authenticated client email
+      const defaultName = emailHeader.includes("@")
+        ? emailHeader.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+        : "Analyst";
+      const salt = crypto.randomBytes(16).toString("hex");
+      const passwordHash = hashPassword("workstation_local", salt);
+      user = upsertUser(emailHeader, defaultName, salt, passwordHash);
+    }
     if (user) return user;
   }
 
