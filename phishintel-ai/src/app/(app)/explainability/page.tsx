@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from "react";
-import { usePhishGuard, ScanItem } from "@/context/PhishGuardContext";
+import { usePhishGuard } from "@/context/PhishGuardContext";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -10,79 +10,103 @@ const fmtAbs = (ts: number) => {
   return `${d.getDate()} ${MON[d.getMonth()]} ${d.getFullYear()} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
-const BR = {
-  text: { code: "T", name: "Text representation", dim: 768 },
-  financial: { code: "F", name: "Financial", dim: 18 },
-  security: { code: "S", name: "Security & phishing", dim: 19 },
-  url: { code: "U", name: "URL / domain", dim: 20 },
-  metadata: { code: "M", name: "Email metadata", dim: 11 },
-};
+const PAHF_MODALITIES = {
+  text: { code: "g_t", name: "Text (DeBERTa-v3)", dim: 256 },
+  url: { code: "g_u", name: "URL features", dim: 32 },
+  structure: { code: "g_s", name: "Structure & layout", dim: 32 },
+  linguistic: { code: "g_l", name: "Linguistic markers", dim: 32 },
+} as const;
 
 export default function ExplainabilityPage() {
   const { scans, selectedScanId, setSelectedScanId, selectedScan, formatP } = usePhishGuard();
 
   const scan = selectedScan;
 
-  // Human-readable narrative explanation
+  // Safe fallback derivations
+  const indicators = useMemo(() => scan?.indicators || [], [scan]);
+  const urls = useMemo(() => scan?.urls || [], [scan]);
+  const entities = useMemo(
+    () =>
+      scan?.entities || {
+        sector: "General",
+        amounts: [],
+        tx: "",
+        cards: [],
+        accts: [],
+        orgs: [],
+      },
+    [scan]
+  );
+  const modalityContributions = useMemo(
+    () => scan?.modalityContributions || { text: 0, url: 0, structure: 0, linguistic: 0 },
+    [scan]
+  );
+  const gateWeights = useMemo(
+    () => scan?.gateWeights || { text: 1, url: 1, structure: 1, linguistic: 1 },
+    [scan]
+  );
+  const availabilityMask = useMemo(
+    () => scan?.availabilityMask || { text: true, url: true, structure: true, linguistic: true },
+    [scan]
+  );
+
+  // Human-readable narrative explanation grounded in PAHF-Net
   const explainNarrative = useMemo(() => {
     if (!scan) return "";
-    const pos = scan.rows.filter((r) => r.contrib > 0).sort((a, b) => b.contrib - a.contrib).slice(0, 3);
-    const neg = scan.rows.filter((r) => r.contrib < 0).sort((a, b) => a.contrib - b.contrib).slice(0, 2);
-    const topBranch = Object.entries(scan.abl).sort((a, b) => b[1] - a[1])[0];
     const isPhish = scan.decision === "PHISHING";
+    const topModality = Object.entries(modalityContributions).sort((a, b) => b[1] - a[1])[0];
+    const activeThreats = indicators.filter((i) => (i.score_impact ?? 0) > 0);
 
-    let t = `Classified ${isPhish ? "phishing" : "safe"}: P_phish = ${scan.P.toFixed(3)} ${isPhish ? "≥" : "<"} T = ${scan.T.toFixed(2)}. `;
-    if (topBranch && topBranch[1] > 0.01) {
-      const bKey = topBranch[0] as keyof typeof BR;
-      t += `Removing the ${BR[bKey]?.name.toLowerCase() || topBranch[0]} branch would lower the score by ${topBranch[1].toFixed(3)}, more than any other branch. `;
+    let t = `Classified ${isPhish ? "phishing" : "safe"}: calibrated P_phish = ${scan.P.toFixed(3)} ${isPhish ? "≥" : "<"} operating threshold T = ${scan.T.toFixed(2)}. `;
+    if (topModality && topModality[1] > 0.01) {
+      const modName = PAHF_MODALITIES[topModality[0] as keyof typeof PAHF_MODALITIES]?.name || topModality[0];
+      const gate = (gateWeights[topModality[0] as keyof typeof PAHF_MODALITIES] ?? 0).toFixed(2);
+      t += `Leading modality: ${modName} contributes ${topModality[1] >= 0 ? "+" : ""}${topModality[1].toFixed(3)} to the fused score with gate weight g = ${gate}. `;
     }
-    if (pos.length) {
-      t += `Strongest signals: ${pos.map((r) => `${r.name.toLowerCase()}${r.hit ? ` (“${String(r.hit).slice(0, 48)}”)` : ""}`).join("; ")}. `;
+    if (activeThreats.length > 0) {
+      t += `Key threat signals: ${activeThreats.map((i) => `${i.title}${i.description ? ` (“${i.description.slice(0, 48)}”)` : ""}`).join("; ")}. `;
     } else {
-      t += "No risk signals were found. ";
+      t += "No high-risk threat indicators were triggered. ";
     }
-    t += neg.length
-      ? `Signals pointing the other way: ${neg.map((r) => r.name.toLowerCase()).join(" and ")}.`
-      : "No benign signals offset the score.";
-    if (scan.engine === "service") {
-      t += ` The decision comes from the model service (${scan.modelVersion}). The evidence comes from local rules and may not match what the model relied on.`;
+    const masked = Object.entries(availabilityMask).filter(([_, avail]) => !avail).map(([m]) => m);
+    if (masked.length > 0) {
+      t += `Availability gating dynamically masked absent modalities: ${masked.join(", ")}. `;
     }
+    t += `Architecture: PAHF-Net with availability-gated hierarchical fusion (DeBERTa-v3 256d + 3×32d encoders) and class-conditional DANN.`;
     return t;
-  }, [scan]);
+  }, [scan, indicators, modalityContributions, gateWeights, availabilityMask]);
 
-  const benignRows = useMemo(() => {
-    if (!scan) return [];
-    return scan.rows.filter((r) => r.contrib < 0);
-  }, [scan]);
+  const benignIndicators = useMemo(() => {
+    return indicators.filter((r) => r.severity === "low" || (r.score_impact ?? 0) <= 0);
+  }, [indicators]);
 
-  // Text highlights
+  // Text highlights based on flagged tokens
   const highlightedEvidence = useMemo(() => {
     if (!scan) return null;
-    const raw = (scan.email.subject || "") + "\n" + (scan.email.body || "");
-    const parts: React.ReactNode[] = [];
-    let lastIdx = 0;
-
-    scan.spans.forEach((sp, idx) => {
-      if (sp.s > lastIdx) {
-        parts.push(raw.slice(lastIdx, sp.s));
-      }
-      parts.push(
-        <mark
-          key={idx}
-          className={sp.b === "financial" ? "fin" : ""}
-          title={`${sp.ids.join(", ")} · ${sp.names.join(", ")}`}
-        >
-          {raw.slice(sp.s, sp.e)}
-        </mark>
-      );
-      lastIdx = sp.e;
-    });
-
-    if (lastIdx < raw.length) {
-      parts.push(raw.slice(lastIdx));
+    const raw = (scan.email?.subject || "") + "\n" + (scan.email?.body || "");
+    const tokens = scan.flaggedTokens || [];
+    if (!tokens.length) {
+      return <span>{raw}</span>;
     }
 
-    return parts;
+    try {
+      const escaped = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+      const re = new RegExp(`(${escaped})`, "gi");
+      const parts = raw.split(re);
+      return parts.map((part, idx) => {
+        const isMatch = tokens.some((t) => t.toLowerCase() === part.toLowerCase());
+        if (isMatch) {
+          return (
+            <mark key={idx} className="fin" title={`Flagged threat signal: ${part}`}>
+              {part}
+            </mark>
+          );
+        }
+        return <span key={idx}>{part}</span>;
+      });
+    } catch {
+      return <span>{raw}</span>;
+    }
   }, [scan]);
 
   if (!scan) {
@@ -92,16 +116,14 @@ export default function ExplainabilityPage() {
           <div>
             <h1>Explainability</h1>
             <p>
-              Evidence for one scan: feature ablation over the structured branches, rule-based textual evidence, and a
-              plain-language summary.
+              Evidence for one scan: PAHF-Net availability-gated modality contributions, DeBERTa-v3 semantic signals, and calibrated risk.
             </p>
           </div>
         </div>
         <div className="card">
-          <div className="empty">
-            <h4>No scans yet</h4>
-            <p>Analyse an email to see its explanation.</p>
-          </div>
+          <p className="muted" style={{ margin: 0 }}>
+            No scan selected. Go to <strong>History</strong> or <strong>Email Threat Analyzer</strong> and pick a scan to inspect its evidence.
+          </p>
         </div>
       </div>
     );
@@ -111,94 +133,79 @@ export default function ExplainabilityPage() {
 
   return (
     <div className="section-no-hover">
-      {/* Page Header with Scan Picker */}
       <div className="ph">
         <div>
           <h1>Explainability</h1>
           <p>
-            Evidence for one scan: feature ablation over the structured branches, rule-based textual evidence, and a
-            plain-language summary. Highlighted phrases indicate correlation, not proof of intent.
+            Detailed evidence and PAHF-Net modality contributions for scan <code>{scan.id}</code>.
           </p>
         </div>
-        <div className="actions">
-          <label htmlFor="xai-pick" className="lbl">
-            Scan
-          </label>
+        <div className="row" style={{ gap: 8 }}>
           <select
-            className="select"
-            id="xai-pick"
-            style={{ minWidth: 320, maxWidth: 420 }}
-            value={selectedScanId || scan.id}
-            onChange={(e) => setSelectedScanId(e.target.value)}
+            className="sel"
+            value={selectedScanId || ""}
+            onChange={(e) => setSelectedScanId(e.target.value || null)}
+            style={{ maxWidth: 360 }}
           >
             {scans.map((s) => (
               <option key={s.id} value={s.id}>
-                {s.id} · {s.decision === "PHISHING" ? "Phishing" : "Safe"} · {s.email.subject.slice(0, 48)}
+                {s.id} · {s.decision} · {formatP(s.P)} · {(s.email?.subject || "(no subject)").slice(0, 32)}
               </option>
             ))}
           </select>
         </div>
       </div>
 
-      {/* Top Grid: Summary Card & Score Card */}
-      <div className="grid g-2-1">
+      {/* Top Narrative Card */}
+      <div className="card narrative-box">
+        <div className="row between">
+          <div className="lbl">Model Narrative · PAHF-Net Availability-Gated Explanation</div>
+          <span className="mono muted" style={{ fontSize: "11.5px" }}>
+            {scan.id} · {fmtAbs(scan.ts)}
+          </span>
+        </div>
+        <div className="narrative-text" style={{ marginTop: 10 }}>
+          {explainNarrative}
+        </div>
+      </div>
+
+      {/* First Grid: Scan Details & Score */}
+      <div className="grid g2 mt">
         <div className="card">
           <div className="card-head">
             <div>
-              <div className="row" style={{ gap: 8 }}>
-                <span className={`verdict ${isPhish ? "v-phish" : "v-safe"}`}>
-                  {isPhish ? (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
-                    </svg>
-                  ) : (
-                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                      <path d="m5 12.5 4.5 4.5L19 7" />
-                    </svg>
-                  )}
-                  {isPhish ? "Phishing" : "Safe"}
-                </span>
-                <span className="tag">
-                  {scan.engine === "service" ? `service · ${scan.modelVersion}` : "local preview"}
-                </span>
-                <span className="tag">{scan.id}</span>
-              </div>
+              <h3>Scan metadata</h3>
+              <p>Email attributes evaluated by PAHF-Net.</p>
             </div>
-            <span className="mono muted" style={{ fontSize: "12px" }}>
-              {fmtAbs(scan.ts)}
-            </span>
+            <span className={`verdict ${isPhish ? "v-phish" : "v-safe"}`}>{scan.decision}</span>
           </div>
-
-          <h2 style={{ fontWeight: 400, fontSize: "21px", margin: "0 0 4px", letterSpacing: "-0.01em" }}>
-            {scan.email.subject}
-          </h2>
-          <div className="mono muted" style={{ fontSize: "12px", marginBottom: 18 }}>
-            {scan.email.from}
-            {scan.email.replyTo ? " · reply-to " + scan.email.replyTo : ""}
-          </div>
-
-          <p className="explain" style={{ margin: 0 }}>
-            {explainNarrative}
-          </p>
-
-          <p className="note" style={{ margin: "16px 0 0" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-              <circle cx="12" cy="12" r="9" />
-              <path d="M12 8v5M12 16h.01" />
-            </svg>
-            <span>
-              Generated from the evidence below. A highlighted phrase is correlated with the decision. It is not proof of
-              intent.
-            </span>
-          </p>
+          <dl className="kv">
+            <dt>Scan ID</dt>
+            <dd className="mono">{scan.id}</dd>
+            <dt>Subject</dt>
+            <dd>{scan.email?.subject || "(no subject)"}</dd>
+            <dt>Sender</dt>
+            <dd className="mono" style={{ wordBreak: "break-all" }}>
+              {scan.email?.from || "none"}
+            </dd>
+            <dt>Sender domain</dt>
+            <dd className="mono">{scan.fromDom || "none"}</dd>
+            <dt>Registered domain</dt>
+            <dd className="mono">{scan.fromReg || "none"}</dd>
+            <dt>Reply-To</dt>
+            <dd className="mono" style={{ wordBreak: "break-all" }}>
+              {scan.email?.replyTo || "(same as sender)"}
+            </dd>
+            <dt>Source</dt>
+            <dd>{scan.src === "sample" ? "Reference sample" : "Live analyst input"}</dd>
+          </dl>
         </div>
 
-        {/* Score Card */}
         <div className="card">
           <div className="card-head">
             <div>
-              <h3>Score</h3>
-              <p>Bound to this scan and the threshold in force at the time.</p>
+              <h3>PAHF-Net Score</h3>
+              <p>Calibrated probability bound to operating threshold.</p>
             </div>
           </div>
           <dl className="kv">
@@ -215,45 +222,32 @@ export default function ExplainabilityPage() {
             <dt>Model version</dt>
             <dd>{scan.modelVersion}</dd>
             <dt>Explanation method</dt>
-            <dd>ablation + rules</dd>
+            <dd>Availability gates + Modality contributions</dd>
           </dl>
         </div>
       </div>
 
-      {/* Second Grid: Feature Ablation & Extracted Entities */}
+      {/* Second Grid: Modality Contributions & Extracted Entities */}
       <div className="grid g2 mt">
         <div className="card">
           <div className="card-head">
             <div>
-              <h3>Feature ablation</h3>
-              <p>Change in P<sub>phish</sub> when each structured branch is removed and the email is re-scored.</p>
+              <h3>PAHF-Net modality contributions</h3>
+              <p>Availability-gated hierarchical fusion (h_fused = Σ g_i z_i).</p>
             </div>
           </div>
 
-          <div className="abl">
-            <span>
-              Text representation <span className="mono" style={{ opacity: 0.6 }}>768</span>
-            </span>
-            <div className="track" />
-            <span className="v" style={{ opacity: 0.6 }}>
-              n/a
-            </span>
-          </div>
-
-          {(["financial", "security", "url", "metadata"] as const).map((b) => {
-            const dims = { financial: 18, security: 19, url: 20, metadata: 11 };
-            const labels = {
-              financial: "Financial",
-              security: "Security & phishing",
-              url: "URL / domain",
-              metadata: "Email metadata",
-            };
-            const val = scan.abl[b];
+          {(["text", "url", "structure", "linguistic"] as const).map((m) => {
+            const meta = PAHF_MODALITIES[m];
+            const val = modalityContributions[m] ?? 0;
+            const gate = gateWeights[m] ?? 0;
+            const available = availabilityMask[m] ?? true;
             const w = Math.min(50, Math.abs(val) * 100);
             return (
-              <div key={b} className="abl">
+              <div key={m} className="abl">
                 <span>
-                  {labels[b]} <span className="mono" style={{ opacity: 0.6 }}>{dims[b]}</span>
+                  {meta.name} <span className="mono" style={{ opacity: 0.6 }}>{meta.code} · {meta.dim}d</span>
+                  {!available && <span className="mono" style={{ marginLeft: 6, fontSize: "10px", color: "var(--muted)" }}>[masked]</span>}
                 </span>
                 <div className="track" style={{ background: "var(--card-3)" }}>
                   <i
@@ -268,6 +262,9 @@ export default function ExplainabilityPage() {
                 <span className="v">
                   {val >= 0 ? "+" : "−"}
                   {Math.abs(val).toFixed(3)}
+                  <span style={{ fontSize: "10.5px", opacity: 0.6, marginLeft: 4 }}>
+                    (g={gate.toFixed(2)})
+                  </span>
                 </span>
               </div>
             );
@@ -282,7 +279,9 @@ export default function ExplainabilityPage() {
               <i style={{ background: "var(--safe)" }} />
               lowers risk
             </span>
-            <span style={{ marginLeft: "auto" }}>text branch requires trained weights</span>
+            <span style={{ marginLeft: "auto", fontSize: "11px", color: "var(--muted)" }}>
+              g_i ∈ [0, 1] availability gate
+            </span>
           </div>
         </div>
 
@@ -295,24 +294,24 @@ export default function ExplainabilityPage() {
             </div>
           </div>
           <div className="ent">
-            <span className="tag">sector · {scan.entities.sector}</span>
-            {scan.entities.amounts.map((a, i) => (
+            <span className="tag">sector · {entities.sector || "General"}</span>
+            {(entities.amounts || []).map((a, i) => (
               <span key={i} className="tag">
                 amount · {a}
               </span>
             ))}
-            {scan.entities.tx && <span className="tag">transaction · {scan.entities.tx}</span>}
-            {scan.entities.cards.map((c, i) => (
+            {entities.tx && <span className="tag">transaction · {entities.tx}</span>}
+            {(entities.cards || []).map((c, i) => (
               <span key={i} className="tag">
                 card · {c}
               </span>
             ))}
-            {scan.entities.accts.map((a, i) => (
+            {(entities.accts || []).map((a, i) => (
               <span key={i} className="tag">
                 account · {a}
               </span>
             ))}
-            {scan.entities.orgs.map((o, i) => (
+            {(entities.orgs || []).map((o, i) => (
               <span key={i} className="tag">
                 org · {o}
               </span>
@@ -324,11 +323,11 @@ export default function ExplainabilityPage() {
               <h3 style={{ fontSize: "15px" }}>URLs</h3>
             </div>
             <span className="mono muted" style={{ fontSize: "12px" }}>
-              {scan.urls.length}
+              {urls.length}
             </span>
           </div>
-          {scan.urls.length ? (
-            scan.urls.map((u, i) => (
+          {urls.length ? (
+            urls.map((u, i) => (
               <div
                 key={i}
                 className="mono"
@@ -345,35 +344,50 @@ export default function ExplainabilityPage() {
         </div>
       </div>
 
-      {/* Textual Evidence */}
+      {/* Textual & Model Evidence */}
       <div className="card mt">
         <div className="card-head">
           <div>
             <h3>Textual evidence</h3>
-            <p>Rule-based phrase detection over the parsed subject and body.</p>
+            <p>Semantic signals and keywords evaluated in DeBERTa-v3 encoding.</p>
           </div>
           <div className="legend">
             <span>
               <i style={{ background: "rgba(239,106,30,.5)" }} />
-              security
-            </span>
-            <span>
-              <i style={{ background: "rgba(168,102,42,.5)" }} />
-              financial
+              threat cue
             </span>
           </div>
         </div>
         <div className="evidence">{highlightedEvidence}</div>
 
-        {benignRows.length > 0 && (
+        {/* Model Indicators */}
+        <div style={{ marginTop: 16 }}>
+          <div className="lbl" style={{ marginBottom: 8 }}>
+            PAHF-Net Threat & Verification Indicators ({indicators.length})
+          </div>
+          <div className="row wrap" style={{ gap: 6 }}>
+            {indicators.map((ind) => (
+              <span
+                key={ind.id}
+                className={`verdict ${ind.severity === "critical" || ind.severity === "high" ? "v-phish" : "v-safe"}`}
+                style={{ textTransform: "none", letterSpacing: 0, padding: "4px 8px", fontSize: "12px" }}
+                title={ind.description}
+              >
+                {ind.title} ({(ind.score_impact ?? 0) >= 0 ? "+" : ""}{ind.score_impact ?? 0}%)
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {benignIndicators.length > 0 && (
           <div style={{ marginTop: 14 }}>
             <div className="lbl" style={{ marginBottom: 8 }}>
-              Benign evidence
+              Benign / low-risk factors
             </div>
             <div className="row wrap" style={{ gap: 6 }}>
-              {benignRows.map((r) => (
+              {benignIndicators.map((r) => (
                 <span key={r.id} className="verdict v-safe" style={{ textTransform: "none", letterSpacing: 0 }}>
-                  {r.id} · {r.name}
+                  {r.title}
                 </span>
               ))}
             </div>
