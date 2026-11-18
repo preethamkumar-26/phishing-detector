@@ -657,7 +657,6 @@ a {
   .section-no-hover .abl:hover,
   .section-no-hover .contrib:hover,
   .section-no-hover .ent:hover,
-  .section-no-hover .evidence:hover,
   .section-no-hover .tbl tbody tr:hover,
   .section-no-hover .tbl tbody tr.clickable:hover {
     transform: none !important;
@@ -1848,7 +1847,8 @@ input[type=range]::-moz-range-thumb {
 
 /* ---------- XAI ---------- */
 .evidence {
-  background: var(--card-2);
+  background: var(--card);
+  border: 1px solid var(--line);
   border-radius: var(--r-sm);
   padding: 16px 18px;
   font-size: 13.5px;
@@ -1857,6 +1857,36 @@ input[type=range]::-moz-range-thumb {
   word-break: break-word;
   max-height: 420px;
   overflow: auto;
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+@media (hover: hover) {
+  .evidence:hover {
+    background-color: #ffffff !important;
+    border-color: rgba(28, 31, 26, 0.22) !important;
+  }
+}
+
+.evidence:focus-within {
+  background-color: #ffffff !important;
+  border-color: rgba(28, 31, 26, 0.22) !important;
+}
+
+[data-theme="dark"] .evidence {
+  background: var(--card) !important;
+  border-color: var(--line) !important;
+}
+
+@media (hover: hover) {
+  [data-theme="dark"] .evidence:hover {
+    background-color: #1a221d !important;
+    border-color: rgba(255, 255, 255, 0.2) !important;
+  }
+}
+
+[data-theme="dark"] .evidence:focus-within {
+  background-color: #1a221d !important;
+  border-color: rgba(255, 255, 255, 0.2) !important;
 }
 
 mark {
