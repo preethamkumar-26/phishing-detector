@@ -189,9 +189,9 @@ export default function HistoryPage() {
   };
 
   const handleLoadIntoAnalyzer = (s: ScanItem) => {
-    // Navigate to analyzer with prefilled query
     setSelectedScanId(s.id);
-    router.push("/analyzer");
+    setMenuOpenScanId(null);
+    router.push(`/analyzer?load=${encodeURIComponent(s.id)}`);
   };
 
   return (
@@ -453,6 +453,13 @@ export default function HistoryPage() {
                                   onClick={() => {
                                     setMenuOpenScanId(null);
                                     handleLoadIntoAnalyzer(s);
+                                  }}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter" || e.key === " ") {
+                                      e.preventDefault();
+                                      setMenuOpenScanId(null);
+                                      handleLoadIntoAnalyzer(s);
+                                    }
                                   }}
                                 >
                                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
