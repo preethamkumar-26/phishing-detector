@@ -326,9 +326,20 @@ export default function HistoryPage() {
                 paginatedScans.map((s) => {
                   const isExpanded = expandedRowId === s.id;
                   const isPhish = s.decision === "PHISHING";
-                  const topInd = s.rows
-                    .filter((r) => r.contrib > 0)
-                    .sort((a, b) => b.contrib - a.contrib)
+                  // De-duplicate near-identical indicators by semantic key
+                  const rawInd = (s.indicators || []).filter((r) => (r.score_impact ?? 0) > 0);
+                  const seenConcepts = new Map<string, (typeof rawInd)[0]>();
+                  for (const ind of rawInd) {
+                    const slug = (ind.title || "")
+                      .toLowerCase()
+                      .replace(/[^a-z0-9]/g, "")
+                      .slice(0, 14);
+                    if (!seenConcepts.has(slug) || (ind.score_impact ?? 0) > (seenConcepts.get(slug)!.score_impact ?? 0)) {
+                      seenConcepts.set(slug, ind);
+                    }
+                  }
+                  const topInd = Array.from(seenConcepts.values())
+                    .sort((a, b) => (b.score_impact ?? 0) - (a.score_impact ?? 0))
                     .slice(0, 4);
 
                   return (
@@ -481,38 +492,63 @@ export default function HistoryPage() {
                             <div className="grid g-2-1" style={{ gap: 20 }}>
                               <div>
                                 <div className="lbl" style={{ marginBottom: 8 }}>
-                                  Top indicators
+                                  PAHF-Net Indicators
                                 </div>
                                 {topInd.length ? (
                                   topInd.map((r) => (
                                     <div key={r.id} className="row" style={{ padding: "4px 0", fontSize: "13px" }}>
-                                      <span className="code">{r.id}</span>
-                                      <span>{r.name}</span>
+                                      <span style={{ fontWeight: 500 }}>{r.title}</span>
+                                      <span className="tag" style={{ marginLeft: 6, fontSize: "11px", textTransform: "capitalize" }}>
+                                        {r.category || "security"}
+                                      </span>
                                       <span
                                         className="mono muted"
                                         style={{ marginLeft: "auto", fontSize: "12px" }}
                                       >
-                                        +{r.contrib.toFixed(2)}
+                                        +{(r.score_impact ?? 0)}%
                                       </span>
                                     </div>
                                   ))
                                 ) : (
                                   <span className="muted">None fired.</span>
                                 )}
+                                <div style={{ marginTop: 12 }}>
+                                  <div className="lbl" style={{ marginBottom: 6 }}>
+                                    Modality Gates (g_i)
+                                  </div>
+                                  <div className="row wrap" style={{ gap: 6 }}>
+                                    {(["text", "url", "structure", "linguistic"] as const).map((m) => {
+                                      const g = s.gateWeights?.[m] ?? 0;
+                                      const c = s.modalityContributions?.[m] ?? 0;
+                                      const avail = s.availabilityMask?.[m] ?? true;
+                                      const code = { text: "g_t", url: "g_u", structure: "g_s", linguistic: "g_l" }[m];
+                                      return (
+                                        <span
+                                          key={m}
+                                          className="tag"
+                                          style={{ fontSize: "11px", opacity: avail ? 1 : 0.6 }}
+                                          title={`Contribution: ${c >= 0 ? "+" : ""}${c.toFixed(3)}`}
+                                        >
+                                          {code}: {g.toFixed(2)} ({m})
+                                        </span>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
                               </div>
                               <div>
                                 <div className="lbl" style={{ marginBottom: 8 }}>
                                   Entities
                                 </div>
                                 <div className="ent">
-                                  <span className="tag">sector · {s.entities.sector}</span>
-                                  {s.entities.amounts.map((a, idx) => (
+                                  <span className="tag">sector · {s.entities?.sector || "General"}</span>
+                                  {(s.entities?.amounts || []).map((a, idx) => (
                                     <span key={idx} className="tag">
                                       amount · {a}
                                     </span>
                                   ))}
-                                  {s.entities.tx && <span className="tag">tx · {s.entities.tx}</span>}
-                                  {s.entities.orgs.map((o, idx) => (
+                                  {s.entities?.tx && <span className="tag">tx · {s.entities.tx}</span>}
+                                  {(s.entities?.orgs || []).map((o, idx) => (
                                     <span key={idx} className="tag">
                                       org · {o}
                                     </span>
