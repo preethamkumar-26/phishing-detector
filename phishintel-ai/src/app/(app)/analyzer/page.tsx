@@ -120,26 +120,24 @@ function AnalyzerContent() {
       if (target) {
         const email = target.email;
         const hasBody = Boolean(email?.body && email.body.trim());
-        const hasSubject = Boolean(email?.subject && email.subject.trim());
 
-        if (!hasBody && !hasSubject) {
+        setSubject(email?.subject || "");
+        setFrom(email?.from || "");
+        setReplyTo(email?.replyTo || "");
+        setBody(email?.body || "");
+        setUrls(Array.isArray(target.urls) ? target.urls.join(" ") : "");
+        setHeaders(email?.headers || "");
+        if (email?.headers) setHeadersOpen(true);
+        setActiveSample(null);
+        setScanResult(target);
+        setLoadedFromScanId(target.id);
+
+        if (!hasBody) {
           setLoadNotice({
             message: "Original message wasn't saved for this scan.",
             type: "warning",
           });
-          setScanResult(null);
-          setLoadedFromScanId(null);
         } else {
-          setSubject(email?.subject || "");
-          setFrom(email?.from || "");
-          setReplyTo(email?.replyTo || "");
-          setBody(email?.body || "");
-          setUrls(Array.isArray(target.urls) ? target.urls.join(" ") : "");
-          setHeaders(email?.headers || "");
-          if (email?.headers) setHeadersOpen(true);
-          setActiveSample(null);
-          setScanResult(target);
-          setLoadedFromScanId(target.id);
           setLoadNotice(null);
           showToast(`Loaded scan ${target.id} into analyzer`);
         }
@@ -396,6 +394,7 @@ function AnalyzerContent() {
           {loadNotice && (
             <div
               role="alert"
+              className="load-notice"
               style={{
                 padding: "10px 14px",
                 borderRadius: 8,
