@@ -11,13 +11,11 @@ const ANALYZER_SAMPLES = {
 };
 
 const STEPS = [
-const STEPS = [
   ["Parse & normalise", "MIME · Header extraction"],
   ["Multi-branch encoding", "DeBERTa-v3 (256d) + 3×32d"],
   ["Availability gating", "g_t, g_u, g_s, g_l estimation"],
   ["Hierarchical fusion", "h_fused = Σ g_i z_i · DANN"],
   ["Calibrated decision", "P_phish vs operating T"],
-];
 ];
 
 const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"'\])]+/gi;
