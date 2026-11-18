@@ -1,3 +1,4 @@
+
 # PhishIntel
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -10,6 +11,8 @@
 
 The platform analyzes email content, sender and reply-to details, headers, and URLs; returns a phishing probability and threat indicators; and provides scan history and PDF report export. It is designed to help security analysts investigate social engineering, credential harvesting, and deceptive URL attacks. It is a decision-support tool, not a substitute for security review or mail-gateway controls.
 
+---
+
 ## Features
 
 - PAHF-Net inference through a versioned FastAPI contract.
@@ -19,6 +22,8 @@ The platform analyzes email content, sender and reply-to details, headers, and U
 - PDF export of scan-history reports.
 - An evaluation dashboard for verified PAHF-Net metrics and ranked baseline comparisons.
 - Versioned local model, tokenizer, and feature assets.
+
+---
 
 ## Architecture
 
@@ -31,6 +36,8 @@ The platform analyzes email content, sender and reply-to details, headers, and U
 | Model assets | `backend/saved_models/` | PyTorch checkpoints, tokenizer, feature transformations, and model configuration |
 
 PAHF-Net uses a DeBERTa-v3 text encoder with availability-gated text, URL, structure, and linguistic feature branches. The service also loads and validates the T/F regime assets; current prediction requests use the base `pahf_net.pt` checkpoint and base feature assets.
+
+---
 
 ## Repository Layout
 
@@ -62,7 +69,7 @@ PhishIntel/
 │   │   ├── pahf_net_regime_F.pt
 │   │   ├── pahf_net_regime_T.pt
 │   │   ├── predict.py
-│   │   └── evaluation_metrics.json   # add after a verified held-out evaluation
+│   │   └── evaluation_metrics.json
 │   ├── tests/
 │   ├── .env.example
 │   └── requirements.txt
@@ -111,6 +118,8 @@ PhishIntel/
 └── README.md
 ```
 
+---
+
 ## Requirements
 
 - Python 3.10 or later.
@@ -118,9 +127,11 @@ PhishIntel/
 - Git and Git LFS. The `*.pt` checkpoints (and `*.parquet` files, if present) are configured for Git LFS in `.gitattributes`.
 - Enough memory for the DeBERTa-v3 model and its loaded checkpoints. A CUDA-capable PyTorch installation is optional; the service uses CPU when CUDA is unavailable.
 
+---
+
 ## Getting Started
 
-### 1. Get the model assets
+### 1. Get the Model Assets
 
 From the repository root, install Git LFS and retrieve the checkpoint contents:
 
@@ -131,7 +142,7 @@ git lfs pull
 
 Confirm that `backend/saved_models/pahf_net.pt` and the local `tokenizer/` directory contain the actual model assets, not unresolved LFS pointer files.
 
-### 2. Backend setup and run (FastAPI + PyTorch)
+### 2. Backend Setup and Run (FastAPI + PyTorch)
 
 From the repository root, run these commands in **PowerShell**:
 
@@ -154,7 +165,7 @@ Useful backend URLs:
 | `http://127.0.0.1:8000/healthz` | Backend and model readiness |
 | `http://127.0.0.1:8000/api/v1/models` | Model service status |
 
-### 3. Frontend setup and run (Next.js)
+### 3. Frontend Setup and Run (Next.js)
 
 In a second terminal, from the repository root:
 
@@ -163,15 +174,18 @@ cd phishintel-ai
 npm install
 npm run dev
 ```
-```
 
-Open `http://localhost:3000`. The frontend defaults to the local API at `http://127.0.0.1:8000`. To override it, create `phishintel-ai/.env.local`:
+Open `http://localhost:3000`. The frontend defaults to the local API at `http://127.0.0.1:8000`.
+
+To override it, create `phishintel-ai/.env.local`:
 
 ```dotenv
 NEXT_PUBLIC_FASTAPI_URL=http://127.0.0.1:8000
 ```
 
 The frontend package includes HeroUI (`@heroui/react`), Tailwind CSS, Framer Motion, jsPDF, and jsPDF AutoTable.
+
+---
 
 ## API Overview
 
@@ -185,7 +199,7 @@ The frontend package includes HeroUI (`@heroui/react`), Tailwind CSS, Framer Mot
 
 The API router is also mounted under `/api` for compatibility.
 
-### Scan response contract
+### Scan Response Contract
 
 Both scan routes return exactly these fields:
 
@@ -203,6 +217,8 @@ Both scan routes return exactly these fields:
 
 The Next.js client validates this response before mapping it to the UI.
 
+---
+
 ## Model Evaluation and Metrics
 
 The evaluation page requests:
@@ -211,7 +227,9 @@ The evaluation page requests:
 GET /api/v1/evaluation-metrics
 ```
 
-The endpoint reads `backend/saved_models/evaluation_metrics.json`. The artifact is a **versioned report of measured evaluation results**; the endpoint does not calculate benchmark scores or invent missing values. If the file is absent, it responds with HTTP 200 and:
+The endpoint reads `backend/saved_models/evaluation_metrics.json`. The artifact is a **versioned report of measured evaluation results**; the endpoint does not calculate benchmark scores or invent missing values.
+
+If the file is absent, it responds with HTTP 200 and:
 
 ```json
 {
@@ -269,7 +287,11 @@ The following JSONC is a **schema template, not an evaluation result**. Replace 
 }
 ```
 
-All metric values must come from a documented evaluation protocol using the same dataset split for PAHF-Net and its baseline classifiers. Record the threshold and latency measurement method so comparisons remain interpretable. No evaluation artifact is committed by default; the dashboard remains unavailable until verified results are supplied.
+All metric values must come from a documented evaluation protocol using the same dataset split for PAHF-Net and its baseline classifiers. Record the threshold and latency measurement method so comparisons remain interpretable.
+
+No evaluation artifact is committed by default; the dashboard remains unavailable until verified results are supplied.
+
+---
 
 ## Development and Tests
 
@@ -287,14 +309,16 @@ npm run lint
 npm run build
 ```
 
+---
+
 ## Privacy and Responsible Use
 
-Email contents may contain personal, financial, or confidential information. Only submit data you are authorized to analyze, protect stored scan records, and avoid committing raw emails or sensitive evaluation data. Treat model output as decision support and investigate uncertain or high-impact decisions before taking action.
+Email contents may contain personal, financial, or confidential information. Only submit data you are authorized to analyze, protect stored scan records, and avoid committing raw emails or sensitive evaluation data.
 
-## Team and Authorship
+Treat model output as decision support and investigate uncertain or high-impact decisions before taking action.
 
-**Project lead:** Rishikesh Manthena
-
-**Collaborators:** Preetam P, Tanush, Prabhakaran, and Pritam K
+---
 
 **Institution:** Keshav Memorial Educational Society
+
+**Team:** PhishIntel Development Group
