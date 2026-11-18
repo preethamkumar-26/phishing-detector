@@ -131,29 +131,17 @@ git lfs pull
 
 Confirm that `backend/saved_models/pahf_net.pt` and the local `tokenizer/` directory contain the actual model assets, not unresolved LFS pointer files.
 
-### 2. Configure and run the backend
+### 2. Backend setup and run (FastAPI + PyTorch)
 
-Create and activate the virtual environment **inside `backend/`**, then install the pinned project dependencies:
+From the repository root, run these commands in **PowerShell**:
 
 ```powershell
 cd backend
-py -3 -m venv .venv
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
-Copy-Item .env.example .env
-```
-
-On macOS or Linux, activate the environment with:
-
-```shell
-source .venv/bin/activate
-```
-
-Run Uvicorn from the `backend/` directory:
-
-```shell
-python -m uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 The FastAPI lifespan loads the model service once at startup. Scan requests reuse that initialized singleton; weights are not reloaded per request. The default CORS allowlist includes `http://localhost:3000` and `http://127.0.0.1:3000`.
@@ -166,11 +154,11 @@ Useful backend URLs:
 | `http://127.0.0.1:8000/healthz` | Backend and model readiness |
 | `http://127.0.0.1:8000/api/v1/models` | Model service status |
 
-### 3. Configure and run the frontend
+### 3. Frontend setup and run (Next.js)
 
-In a second terminal:
+In a second terminal, from the repository root:
 
-```shell
+```bash
 cd phishintel-ai
 npm install
 npm run dev
