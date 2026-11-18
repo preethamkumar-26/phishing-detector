@@ -450,6 +450,7 @@ export default function HistoryPage() {
                                   type="button"
                                   role="menuitem"
                                   className="row-menu-item"
+                                  title={s.email?.body ? "Load this email into the analyzer" : "Original message wasn't saved for this scan"}
                                   onClick={() => {
                                     setMenuOpenScanId(null);
                                     handleLoadIntoAnalyzer(s);
@@ -575,6 +576,7 @@ export default function HistoryPage() {
                                   <button
                                     type="button"
                                     className="btn btn-line btn-sm"
+                                    title={s.email?.body ? "Load this email into the analyzer" : "Original message wasn't saved for this scan"}
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleLoadIntoAnalyzer(s);

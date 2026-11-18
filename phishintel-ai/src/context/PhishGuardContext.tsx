@@ -1176,8 +1176,14 @@ export function PhishGuardProvider({
           body: JSON.stringify({
             scanId: newScan.id,
             subject: newScan.email.subject,
+            from: newScan.email.from,
+            replyTo: newScan.email.replyTo,
+            body: newScan.email.body,
+            urls: newScan.urls,
+            headers: newScan.email.headers,
             prediction: newScan.decision === "PHISHING" ? "phishing" : "safe",
             confidence: +(newScan.P * 100).toFixed(1),
+            payload: newScan,
           }),
         }).catch(() => {});
       } catch {}
@@ -1192,6 +1198,15 @@ export function PhishGuardProvider({
     setScans([]);
     try {
       localStorage.removeItem("pg.scans");
+      const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
+      if (sessionUser) {
+        fetch("/api/account/scan?clearAll=true", {
+          method: "DELETE",
+          headers: {
+            "x-user-email": sessionUser,
+          },
+        }).catch(() => {});
+      }
     } catch {}
     logActivity("Cleared scan history");
     showToast("Cleared scan history");
