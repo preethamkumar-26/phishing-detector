@@ -11,11 +11,11 @@ const ANALYZER_SAMPLES = {
 };
 
 const STEPS = [
-  ["Parse & normalise", "MIME · HTML → text"],
-  ["Financial · security cues", "18 + 19 features"],
-  ["URL & metadata", "20 + 11 features"],
-  ["Fuse & score", "836-d → P_phish"],
-  ["Threshold & evidence", "P ≥ T"],
+  ["Parse & normalise", "MIME · Header extraction"],
+  ["Multi-branch encoding", "DeBERTa-v3 (256d) + 3×32d"],
+  ["Availability gating", "g_t, g_u, g_s, g_l estimation"],
+  ["Hierarchical fusion", "h_fused = Σ g_i z_i · DANN"],
+  ["Calibrated decision", "P_phish vs operating T"],
 ];
 
 const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"'\])]+/gi;
@@ -186,9 +186,9 @@ export default function AnalyzerPage() {
 
   const topIndicatorsList = useMemo(() => {
     if (!scanResult) return [];
-    return scanResult.rows
-      .filter((r) => r.contrib > 0)
-      .sort((a, b) => b.contrib - a.contrib)
+    return (scanResult.indicators || [])
+      .filter((ind) => (ind.score_impact ?? 0) > 0)
+      .sort((a, b) => (b.score_impact ?? 0) - (a.score_impact ?? 0))
       .slice(0, 6);
   }, [scanResult]);
 
@@ -231,7 +231,7 @@ export default function AnalyzerPage() {
   // Copy summary
   const handleCopySummary = () => {
     if (!scanResult) return;
-    const txt = `${scanResult.id} · ${scanResult.decision} · P_phish ${scanResult.P.toFixed(3)} (T ${scanResult.T.toFixed(2)}) · ${scanResult.engine}\nSubject: ${scanResult.email.subject}\nFrom: ${scanResult.email.from}\nIndicators: ${topIndicatorsList.map((r) => r.id + " " + r.name).join("; ") || "none"}`;
+    const txt = `${scanResult.id} · ${scanResult.decision} · P_phish ${scanResult.P.toFixed(3)} (T ${scanResult.T.toFixed(2)}) · ${scanResult.engine}\nSubject: ${scanResult.email.subject}\nFrom: ${scanResult.email.from}\nIndicators: ${topIndicatorsList.map((r) => r.id + " " + r.title).join("; ") || "none"}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(txt).then(
         () => showToast("Summary copied"),
@@ -253,32 +253,34 @@ export default function AnalyzerPage() {
         <div>
           <h1>Email analyzer</h1>
           <p>
-            Submit a finance-related email. Subject, body, sender, reply-to, URLs and headers are parsed separately and
-            passed through the five feature branches.
+            Submit a finance-related email. Subject, body, sender, reply-to, URLs and headers are parsed and evaluated across PAHF-Net modalities.
           </p>
         </div>
         <div className="actions">
-          <div className="seg" role="group" aria-label="Load sample">
+          <div className="seg" role="group" aria-label="Load example text">
             <button
               type="button"
               className={activeSample === "phish" ? "on" : ""}
               onClick={() => handleLoadSample("phish")}
+              title="Load example phishing email text"
             >
-              Sample: phishing
+              Example: Phishing
             </button>
             <button
               type="button"
               className={activeSample === "bec" ? "on" : ""}
               onClick={() => handleLoadSample("bec")}
+              title="Load example BEC email text"
             >
-              Sample: BEC
+              Example: BEC
             </button>
             <button
               type="button"
               className={activeSample === "safe" ? "on" : ""}
               onClick={() => handleLoadSample("safe")}
+              title="Load example legitimate email text"
             >
-              Sample: legitimate
+              Example: Legitimate
             </button>
           </div>
         </div>
@@ -587,37 +589,32 @@ export default function AnalyzerPage() {
                 <span>{fmtAbs(scanResult.ts)}</span>
               </div>
 
-              {/* Branch Ablation */}
+              {/* PAHF-Net Modality Contributions */}
               <div className="res-sec">
                 <h5>
-                  <span>Branch ablation · change in P when removed</span>
-                  <span className="mono">ΔP</span>
+                  <span>PAHF-Net modality contributions</span>
+                  <span className="mono">Hierarchical Fusion</span>
                 </h5>
-                <div className="abl">
-                  <span>
-                    Text representation <span className="mono" style={{ opacity: 0.6 }}>768</span>
-                  </span>
-                  <div className="track" />
-                  <span className="v" style={{ opacity: 0.6 }}>
-                    n/a
-                  </span>
-                </div>
-                {(["financial", "security", "url", "metadata"] as const).map((b) => {
-                  const dims = { financial: 18, security: 19, url: 20, metadata: 11 };
+                {(["text", "url", "structure", "linguistic"] as const).map((m) => {
+                  const dims = { text: 256, url: 32, structure: 32, linguistic: 32 };
                   const labels = {
-                    financial: "Financial",
-                    security: "Security & phishing",
-                    url: "URL / domain",
-                    metadata: "Email metadata",
+                    text: "Text (DeBERTa-v3)",
+                    url: "URL features",
+                    structure: "Structure & layout",
+                    linguistic: "Linguistic markers",
                   };
-                  const val = scanResult.abl[b];
+                  const codes = { text: "g_t", url: "g_u", structure: "g_s", linguistic: "g_l" };
+                  const val = scanResult.modalityContributions?.[m] ?? 0;
+                  const gate = scanResult.gateWeights?.[m] ?? 0;
+                  const available = scanResult.availabilityMask?.[m] ?? true;
                   const w = Math.min(50, Math.abs(val) * 100);
                   const pos = "#FF7A52";
                   const neg = "#3FC891";
                   return (
-                    <div key={b} className="abl">
+                    <div key={m} className="abl">
                       <span>
-                        {labels[b]} <span className="mono" style={{ opacity: 0.6 }}>{dims[b]}</span>
+                        {labels[m]} <span className="mono" style={{ opacity: 0.6 }}>{codes[m]} · {dims[m]}d</span>
+                        {!available && <span className="mono" style={{ marginLeft: 6, fontSize: "10px", color: "var(--dark-muted)" }}>[masked]</span>}
                       </span>
                       <div className="track">
                         <i
@@ -632,6 +629,9 @@ export default function AnalyzerPage() {
                       <span className="v">
                         {val >= 0 ? "+" : "−"}
                         {Math.abs(val).toFixed(3)}
+                        <span style={{ fontSize: "10px", opacity: 0.6, marginLeft: 4 }}>
+                          (g={gate.toFixed(2)})
+                        </span>
                       </span>
                     </div>
                   );
@@ -642,18 +642,18 @@ export default function AnalyzerPage() {
               <div className="res-sec">
                 <h5>
                   <span>Top indicators</span>
-                  <span className="mono">{scanResult.rows.filter((r) => r.contrib > 0).length} fired</span>
+                  <span className="mono">{(scanResult.indicators || []).filter((r) => (r.score_impact ?? 0) > 0).length} fired</span>
                 </h5>
                 {topIndicatorsList.length ? (
                   topIndicatorsList.map((r) => (
                     <div key={r.id} className="ind">
                       <span className="code">{r.id}</span>
                       <div style={{ minWidth: 0 }}>
-                        <div>{r.name}</div>
-                        {r.hit && <div className="h">{String(r.hit).slice(0, 90)}</div>}
+                        <div>{r.title}</div>
+                        {r.description && <div className="h">{String(r.description).slice(0, 90)}</div>}
                       </div>
                       <span className="mono" style={{ marginLeft: "auto", fontSize: "11.5px", color: "var(--dark-muted)" }}>
-                        +{r.contrib.toFixed(2)}
+                        +{r.score_impact}%
                       </span>
                     </div>
                   ))
@@ -670,26 +670,26 @@ export default function AnalyzerPage() {
                   <span>Extracted entities</span>
                 </h5>
                 <div className="ent">
-                  <span className="tag dark">sector · {scanResult.entities.sector}</span>
-                  {scanResult.entities.amounts.map((a, i) => (
+                  <span className="tag dark">sector · {scanResult.entities?.sector || "General"}</span>
+                  {(scanResult.entities?.amounts || []).map((a, i) => (
                     <span key={i} className="tag dark">
                       amount · {a}
                     </span>
                   ))}
-                  {scanResult.entities.tx && (
+                  {scanResult.entities?.tx && (
                     <span className="tag dark">transaction · {scanResult.entities.tx}</span>
                   )}
-                  {scanResult.entities.cards.map((c, i) => (
+                  {(scanResult.entities?.cards || []).map((c, i) => (
                     <span key={i} className="tag dark">
                       card · {c}
                     </span>
                   ))}
-                  {scanResult.entities.accts.map((a, i) => (
+                  {(scanResult.entities?.accts || []).map((a, i) => (
                     <span key={i} className="tag dark">
                       account · {a}
                     </span>
                   ))}
-                  {scanResult.entities.orgs.map((o, i) => (
+                  {(scanResult.entities?.orgs || []).map((o, i) => (
                     <span key={i} className="tag dark">
                       org · {o}
                     </span>
