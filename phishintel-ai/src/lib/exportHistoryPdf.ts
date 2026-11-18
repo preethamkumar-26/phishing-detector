@@ -84,9 +84,15 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
   doc.setFontSize(8.5);
   doc.setFont("helvetica", "normal");
 
+  // Determine truthful engine representation
+  const hasService = scans.some((s) => s.engine === "service");
+  const engineText = hasService
+    ? "Engine: PAHF-Net model service"
+    : "Engine: local preview (model service not connected)";
+
   const scopeText = [
-    `Architecture: PAHF-Net (Hierarchical Fusion & DANN)`,
-    `Engine: v1.2-prod`,
+    `Architecture: PAHF-Net (Availability-Gated Hierarchical Fusion with Class-Conditional DANN)`,
+    engineText,
     `Records: ${totalCount}`,
     filterLabel ? `Filter: ${filterLabel}` : `Scope: Full scan audit log`,
   ].join("  ·  ");
@@ -124,12 +130,32 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
 
   // 4. Prepare Table Data
   const tableRows = scans.map((s) => {
-    const topContribs = s.rows
-      .filter((r) => r.contrib > 0)
-      .sort((a, b) => b.contrib - a.contrib)
+    const topIndicators = (s.indicators || [])
+      .filter((ind) => (ind.score_impact ?? 0) > 0)
+      .sort((a, b) => (b.score_impact ?? 0) - (a.score_impact ?? 0))
       .slice(0, 2)
-      .map((r) => `${r.id} (+${r.contrib.toFixed(2)})`)
-      .join(", ") || "Baseline / Safe";
+      .map((ind) => {
+        const branchLabel = ind.category ? ind.category.charAt(0).toUpperCase() + ind.category.slice(1) : "Linguistic";
+        const impactVal = ((ind.score_impact ?? 0) / 100).toFixed(2);
+        return `${cleanPdfText(ind.title)} (${branchLabel}, +${impactVal})`;
+      });
+
+    const topModalities = Object.entries(s.modalityContributions || {})
+      .filter(([_, val]) => val > 0)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 2)
+      .map(([mod, val]) => {
+        const label = mod.charAt(0).toUpperCase() + mod.slice(1);
+        return `${label} (${label}, +${val.toFixed(2)})`;
+      });
+
+    const signalText = topIndicators.length > 0
+      ? topIndicators.join("; ")
+      : topModalities.length > 0
+        ? topModalities.join("; ")
+        : "Calibrated Safe (Baseline)";
+
+    const sourceLabel = s.src === "sample" ? "sample" : "user";
 
     return [
       s.id,
@@ -139,7 +165,7 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
       s.decision,
       s.P.toFixed(3),
       s.T.toFixed(2),
-      s.src === "sample" ? `sample · ${topContribs}` : `user · ${topContribs}`,
+      `${sourceLabel} · ${signalText}`,
     ];
   });
 
