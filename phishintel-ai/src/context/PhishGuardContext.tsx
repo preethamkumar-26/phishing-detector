@@ -806,9 +806,25 @@ const DEFAULT_PROFILE: ProfileState = {
   team: "",
 };
 
-export function PhishGuardProvider({ children }: { children: React.ReactNode }) {
+export function PhishGuardProvider({
+  children,
+  initialUser,
+}: {
+  children: React.ReactNode;
+  initialUser?: { name: string; email: string; designation?: string } | null;
+}) {
   const [settings, setSettings] = useState<SettingsState>(DEFAULT_SETTINGS);
-  const [profile, setProfile] = useState<ProfileState>(DEFAULT_PROFILE);
+  const [profile, setProfile] = useState<ProfileState>(() => {
+    if (initialUser) {
+      return {
+        name: initialUser.name || "",
+        role: initialUser.designation || "",
+        org: "",
+        team: "",
+      };
+    }
+    return DEFAULT_PROFILE;
+  });
   const [activity, setActivity] = useState<ActivityItem[]>([]);
   const [usage, setUsage] = useState<{ scans: number; calls: number }>({ scans: 0, calls: 0 });
   const [evalArtifact, setEvalArtifactState] = useState<EvalArtifact | null>(null);

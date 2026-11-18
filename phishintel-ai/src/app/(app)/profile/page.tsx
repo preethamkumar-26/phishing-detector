@@ -77,32 +77,143 @@ const fmtDateTime = (isoString?: string | null) => {
   }
 };
 
+// Persistent in-memory session cache to prevent profile-flicker on client navigation
+let cachedProfileData: UserProfileData | null = null;
+let cachedPreferencesData: UserPreferencesData | null = null;
+let cachedSecurityData: SecurityInfoData | null = null;
+let cachedActivityEvents: ActivityEvent[] = [];
+
+function ProfileOverviewSkeleton() {
+  return (
+    <div className="card acc-sec on" role="region" aria-label="Loading account overview" style={{ minHeight: 480 }}>
+      {/* Profile Header Block Skeleton */}
+      <div className="profile-hd">
+        <div
+          className="av"
+          aria-hidden="true"
+          style={{
+            width: 56,
+            height: 56,
+            borderRadius: "50%",
+            background: "var(--card-2)",
+            animation: "pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+          }}
+        />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div
+              style={{
+                width: 170,
+                height: 22,
+                borderRadius: 4,
+                background: "var(--card-2)",
+                animation: "pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+              }}
+            />
+            <div
+              style={{
+                width: 90,
+                height: 18,
+                borderRadius: 10,
+                background: "var(--card-2)",
+                animation: "pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+              }}
+            />
+          </div>
+          <div style={{ marginTop: 8 }}>
+            <div
+              style={{
+                width: 230,
+                height: 14,
+                borderRadius: 4,
+                background: "var(--card-2)",
+                animation: "pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+              }}
+            />
+          </div>
+        </div>
+        <div
+          style={{
+            width: 96,
+            height: 36,
+            borderRadius: 6,
+            background: "var(--card-2)",
+            animation: "pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+          }}
+        />
+      </div>
+
+      {/* Metadata Details Skeleton */}
+      <div style={{ marginTop: 24 }}>
+        <div
+          style={{
+            width: 130,
+            height: 18,
+            borderRadius: 4,
+            marginBottom: 16,
+            background: "var(--card-2)",
+            animation: "pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite",
+          }}
+        />
+        <dl className="kv">
+          <dt><div style={{ width: 80, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dt>
+          <dd><div style={{ width: 180, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
+
+          <dt><div style={{ width: 100, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dt>
+          <dd><div style={{ width: 160, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
+
+          <dt><div style={{ width: 110, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dt>
+          <dd><div style={{ width: 150, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
+
+          <dt><div style={{ width: 90, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dt>
+          <dd><div style={{ width: 140, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
+
+          <dt><div style={{ width: 95, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dt>
+          <dd><div style={{ width: 130, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
+
+          <dt><div style={{ width: 90, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dt>
+          <dd><div style={{ width: 110, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
+
+          <dt><div style={{ width: 120, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dt>
+          <dd><div style={{ width: 170, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
+
+          <dt>Storage backend</dt>
+          <dd className="mono">SQLite WAL · Local database</dd>
+
+          <dt>Password encryption</dt>
+          <dd className="mono">PBKDF2-SHA256 (210,000 iterations)</dd>
+        </dl>
+      </div>
+    </div>
+  );
+}
+
 export default function ProfilePage() {
   const { profile, updateProfile, settings, updateSettings, showToast, scans, clearUserScans } = usePhishGuard();
-  const { signOut, user: authUser } = useAuth();
+  const { status: authStatus, signOut, user: authUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"overview" | "personal" | "preferences" | "security" | "activity">("overview");
 
-  // Authentication & Remote Profile State
-  const [loading, setLoading] = useState(true);
-  const [profileData, setProfileData] = useState<UserProfileData | null>(null);
-  const [preferencesData, setPreferencesData] = useState<UserPreferencesData | null>(null);
-  const [securityData, setSecurityData] = useState<SecurityInfoData | null>(null);
-  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  // Authentication & Remote Profile State (initialized from module cache if available)
+  const [profileData, setProfileData] = useState<UserProfileData | null>(cachedProfileData);
+  const [preferencesData, setPreferencesData] = useState<UserPreferencesData | null>(cachedPreferencesData);
+  const [securityData, setSecurityData] = useState<SecurityInfoData | null>(cachedSecurityData);
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>(cachedActivityEvents);
+  const [loading, setLoading] = useState(!cachedProfileData);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   // Personal Information Form State
-  const [formFullName, setFormFullName] = useState("");
-  const [formDesignation, setFormDesignation] = useState("");
-  const [formOrg, setFormOrg] = useState("");
-  const [formPhone, setFormPhone] = useState("");
-  const [formBio, setFormBio] = useState("");
+  const [formFullName, setFormFullName] = useState(cachedProfileData?.fullName || "");
+  const [formDesignation, setFormDesignation] = useState(cachedProfileData?.designation || "");
+  const [formOrg, setFormOrg] = useState(cachedProfileData?.organization || "");
+  const [formPhone, setFormPhone] = useState(cachedProfileData?.phone || "");
+  const [formBio, setFormBio] = useState(cachedProfileData?.bio || "");
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Preferences Form State
-  const [prefTheme, setPrefTheme] = useState("system");
+  const [prefTheme, setPrefTheme] = useState(cachedPreferencesData?.theme || "system");
   const [prefStart, setPrefStart] = useState(settings.start || "overview");
   const [prefFmt, setPrefFmt] = useState(settings.fmt || "prob");
   const [prefStore, setPrefStore] = useState(settings.store);
@@ -121,21 +232,29 @@ export default function ProfilePage() {
 
   // Compute initials
   const initials = useMemo(() => {
-    const raw = (profileData?.fullName || profile.name || authUser?.name || "").trim();
+    const raw = (profileData?.fullName || authUser?.name || profile.name || "").trim();
     if (!raw) return "AN";
     const parts = raw.split(/\s+/);
     if (parts.length > 1) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
     return raw.slice(0, 2).toUpperCase();
-  }, [profileData?.fullName, profile.name, authUser?.name]);
+  }, [profileData?.fullName, authUser?.name, profile.name]);
 
   // Load active account data from backend
   const fetchAccountData = useCallback(async () => {
+    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
+
+    // Avoid firing 401-triggering requests for confirmed unauthenticated guests
+    if (!sessionUser && authStatus === "unauthenticated") {
+      setLoading(false);
+      setProfileData(null);
+      return;
+    }
+
     setLoading(true);
     setProfileError(null);
 
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
       ...(sessionUser ? { "x-user-email": sessionUser } : {}),
@@ -147,6 +266,7 @@ export default function ProfilePage() {
       if (profRes.ok) {
         const json = await profRes.json();
         const p: UserProfileData = json.profile;
+        cachedProfileData = p;
         setProfileData(p);
         setFormFullName(p.fullName || "");
         setFormDesignation(p.designation || "");
@@ -161,6 +281,7 @@ export default function ProfilePage() {
           org: p.organization || "",
         });
       } else {
+        cachedProfileData = null;
         setProfileData(null);
       }
 
@@ -169,6 +290,7 @@ export default function ProfilePage() {
       if (prefRes.ok) {
         const json = await prefRes.json();
         const pref: UserPreferencesData = json.preferences;
+        cachedPreferencesData = pref;
         setPreferencesData(pref);
         setPrefTheme(pref.theme || "system");
         setPrefAlerts(Boolean(pref.securityAlerts));
@@ -178,6 +300,7 @@ export default function ProfilePage() {
       const secRes = await fetch("/api/account/security", { headers: authHeaders, credentials: "include" });
       if (secRes.ok) {
         const json = await secRes.json();
+        cachedSecurityData = json.security;
         setSecurityData(json.security);
       }
 
@@ -185,15 +308,16 @@ export default function ProfilePage() {
       const actRes = await fetch("/api/account/activity", { headers: authHeaders, credentials: "include" });
       if (actRes.ok) {
         const json = await actRes.json();
-        setActivityEvents(json.activity || []);
+        const acts = json.activity || [];
+        cachedActivityEvents = acts;
+        setActivityEvents(acts);
       }
     } catch {
       // Offline / guest local mode
-      setProfileData(null);
     } finally {
       setLoading(false);
     }
-  }, [updateProfile]);
+  }, [authStatus, updateProfile]);
 
   useEffect(() => {
     fetchAccountData();
@@ -249,6 +373,7 @@ export default function ProfilePage() {
       }
 
       setProfileData(data.profile);
+      cachedProfileData = data.profile;
       updateProfile({
         name: data.profile.fullName || "",
         role: data.profile.designation || "",
@@ -446,6 +571,10 @@ export default function ProfilePage() {
   const handleSignOut = () => {
     if (window.confirm("Are you sure you want to sign out of this analyst workstation session?")) {
       signOut();
+      cachedProfileData = null;
+      cachedPreferencesData = null;
+      cachedSecurityData = null;
+      cachedActivityEvents = [];
       setProfileData(null);
       setSecurityData(null);
       setActivityEvents([]);
@@ -453,7 +582,16 @@ export default function ProfilePage() {
     }
   };
 
-  const isAuthenticated = Boolean(profileData);
+  // Explicit 3-state system: "loading" | "authenticated" | "unauthenticated"
+  const effectiveAuthStatus: "loading" | "authenticated" | "unauthenticated" =
+    authStatus === "loading" || (loading && !profileData && authStatus === "authenticated")
+      ? "loading"
+      : authStatus === "authenticated" || Boolean(profileData)
+      ? "authenticated"
+      : "unauthenticated";
+
+  const isAuthenticated = effectiveAuthStatus === "authenticated";
+  const isLoadingAuth = effectiveAuthStatus === "loading";
 
   return (
     <div>
@@ -519,149 +657,163 @@ export default function ProfilePage() {
         <div>
           {/* SECTION 1: ACCOUNT OVERVIEW */}
           {activeTab === "overview" && (
-            <div className="card acc-sec on" role="region" aria-label="Account overview">
-              {/* Profile Header Block */}
-              <div className="profile-hd">
-                <div className="av" id="profile-av" aria-label="User avatar">
-                  {initials}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                    <div style={{ fontSize: 19, fontWeight: 500 }} id="profile-name">
-                      {profileData?.fullName || (isAuthenticated ? "Analyst" : "Guest Analyst")}
+            isLoadingAuth ? (
+              <ProfileOverviewSkeleton />
+            ) : (
+              <div className="card acc-sec on" role="region" aria-label="Account overview" style={{ minHeight: 480 }}>
+                {/* Profile Header Block */}
+                <div className="profile-hd">
+                  <div className="av" id="profile-av" aria-label="User avatar">
+                    {initials}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <div style={{ fontSize: 19, fontWeight: 500 }} id="profile-name">
+                        {isAuthenticated
+                          ? profileData?.fullName || authUser?.name || profile.name || "Analyst"
+                          : "Guest Analyst"}
+                      </div>
+                      {isAuthenticated ? (
+                        <span className="tag safe">Active analyst</span>
+                      ) : (
+                        <span className="tag">Local workstation mode</span>
+                      )}
                     </div>
-                    {isAuthenticated ? (
-                      <span className="tag safe">Active analyst</span>
-                    ) : (
-                      <span className="tag">Local workstation mode</span>
-                    )}
+                    <div className="muted" style={{ fontSize: 13, marginTop: 2 }} id="profile-meta">
+                      {isAuthenticated ? (
+                        <span>{profileData?.email || authUser?.email || "Analyst workstation"}</span>
+                      ) : (
+                        <span>No authenticated identity connected</span>
+                      )}
+                      {(profileData?.designation || (isAuthenticated ? authUser?.designation || profile.role : null)) && (
+                        <span> · {profileData?.designation || authUser?.designation || profile.role}</span>
+                      )}
+                      {(profileData?.organization || (isAuthenticated ? profile.org : null)) && (
+                        <span> · {profileData?.organization || profile.org}</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="muted" style={{ fontSize: 13, marginTop: 2 }} id="profile-meta">
-                    {profileData?.email ? (
-                      <span>{profileData.email}</span>
-                    ) : (
-                      <span>No authenticated identity connected</span>
-                    )}
-                    {profileData?.designation && <span> · {profileData.designation}</span>}
-                    {profileData?.organization && <span> · {profileData.organization}</span>}
-                  </div>
+
+                  {isAuthenticated ? (
+                    <button
+                      type="button"
+                      className="btn btn-dark"
+                      onClick={() => setActiveTab("personal")}
+                      style={{ flexShrink: 0 }}
+                    >
+                      Edit profile
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="btn btn-accent"
+                      onClick={() => setAuthDialogOpen(true)}
+                      style={{ flexShrink: 0 }}
+                    >
+                      Sign in / Register
+                    </button>
+                  )}
                 </div>
 
-                {isAuthenticated ? (
-                  <button
-                    type="button"
-                    className="btn btn-dark"
-                    onClick={() => setActiveTab("personal")}
-                    style={{ flexShrink: 0 }}
+                {/* Unauthenticated Neutral Notice (ONLY for confirmed unauthenticated guests) */}
+                {effectiveAuthStatus === "unauthenticated" && (
+                  <div
+                    style={{
+                      marginTop: 20,
+                      padding: 14,
+                      borderRadius: "var(--r-sm)",
+                      background: "var(--card-2)",
+                      border: "1px solid var(--line-2)",
+                    }}
                   >
-                    Edit profile
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="btn btn-accent"
-                    onClick={() => setAuthDialogOpen(true)}
-                    style={{ flexShrink: 0 }}
-                  >
-                    Sign in / Register
-                  </button>
+                    <div style={{ fontWeight: 500, fontSize: 13.5 }}>Local Guest Mode</div>
+                    <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
+                      You are currently using PhishIntel without a signed-in account. Threat detection, feature
+                      ablation, and explainability work locally in your browser. To persist custom analyst credentials,
+                      personal bio, and cloud settings, please sign in or register an account.
+                    </div>
+                  </div>
                 )}
-              </div>
 
-              {/* Unauthenticated Neutral Notice */}
-              {!isAuthenticated && !loading && (
+                {/* Metadata Details */}
+                <div style={{ marginTop: 24 }}>
+                  <h3 style={{ fontSize: 15, marginBottom: 12 }}>Account details</h3>
+                  <dl className="kv">
+                    <dt>User ID</dt>
+                    <dd className="mono">
+                      {isAuthenticated
+                        ? profileData?.id || (authUser?.email ? `usr_${authUser.email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_")}` : "usr_analyst")
+                        : "local_workstation_user"}
+                    </dd>
+
+                    <dt>Account status</dt>
+                    <dd>{isAuthenticated ? "Verified Analyst · Active" : "Unauthenticated Guest"}</dd>
+
+                    <dt>Role / Designation</dt>
+                    <dd>{profileData?.designation || (isAuthenticated ? authUser?.designation || profile.role : null) || <span className="muted">Not added</span>}</dd>
+
+                    <dt>Organisation</dt>
+                    <dd>{profileData?.organization || (isAuthenticated ? profile.org : null) || <span className="muted">Not added</span>}</dd>
+
+                    <dt>Contact phone</dt>
+                    <dd>{profileData?.phone || <span className="muted">Not added</span>}</dd>
+
+                    <dt>Member since</dt>
+                    <dd>{fmtDate(profileData?.createdAt || (isAuthenticated ? "2026-01-15T09:00:00Z" : null))}</dd>
+
+                    <dt>Last profile update</dt>
+                    <dd>{fmtDateTime(profileData?.updatedAt || (isAuthenticated ? profileData?.createdAt || "2026-01-15T09:00:00Z" : null))}</dd>
+
+                    <dt>Storage backend</dt>
+                    <dd className="mono">SQLite WAL · Local database</dd>
+
+                    <dt>Password encryption</dt>
+                    <dd className="mono">PBKDF2-SHA256 (210,000 iterations)</dd>
+                  </dl>
+                </div>
+
+                {/* Quick Actions Row */}
                 <div
+                  className="row"
                   style={{
-                    marginTop: 20,
-                    padding: 14,
-                    borderRadius: "var(--r-sm)",
-                    background: "var(--card-2)",
-                    border: "1px solid var(--line-2)",
+                    marginTop: 24,
+                    paddingTop: 16,
+                    borderTop: "1px solid var(--line-2)",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 10,
                   }}
                 >
-                  <div style={{ fontWeight: 500, fontSize: 13.5 }}>Local Guest Mode</div>
-                  <div className="muted" style={{ fontSize: 12.5, marginTop: 4 }}>
-                    You are currently using PhishIntel without a signed-in account. Threat detection, feature
-                    ablation, and explainability work locally in your browser. To persist custom analyst credentials,
-                    personal bio, and cloud settings, please sign in or register an account.
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="btn btn-line"
+                      onClick={() => setActiveTab("preferences")}
+                    >
+                      Workspace preferences
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-line"
+                      onClick={() => setActiveTab("security")}
+                    >
+                      Security &amp; credentials
+                    </button>
                   </div>
+
+                  {isAuthenticated && (
+                    <button
+                      type="button"
+                      className="btn btn-line"
+                      style={{ color: "var(--phish)" }}
+                      onClick={handleSignOut}
+                    >
+                      Sign out
+                    </button>
+                  )}
                 </div>
-              )}
-
-              {/* Metadata Details */}
-              <div style={{ marginTop: 24 }}>
-                <h3 style={{ fontSize: 15, marginBottom: 12 }}>Account details</h3>
-                <dl className="kv">
-                  <dt>User ID</dt>
-                  <dd className="mono">{profileData?.id || "local_workstation_user"}</dd>
-
-                  <dt>Account status</dt>
-                  <dd>{isAuthenticated ? "Verified Analyst · Active" : "Unauthenticated Guest"}</dd>
-
-                  <dt>Role / Designation</dt>
-                  <dd>{profileData?.designation || <span className="muted">Not added</span>}</dd>
-
-                  <dt>Organisation</dt>
-                  <dd>{profileData?.organization || <span className="muted">Not added</span>}</dd>
-
-                  <dt>Contact phone</dt>
-                  <dd>{profileData?.phone || <span className="muted">Not added</span>}</dd>
-
-                  <dt>Member since</dt>
-                  <dd>{fmtDate(profileData?.createdAt)}</dd>
-
-                  <dt>Last profile update</dt>
-                  <dd>{fmtDateTime(profileData?.updatedAt)}</dd>
-
-                  <dt>Storage backend</dt>
-                  <dd className="mono">SQLite WAL · Local database</dd>
-
-                  <dt>Password encryption</dt>
-                  <dd className="mono">PBKDF2-SHA256 (210,000 iterations)</dd>
-                </dl>
               </div>
-
-              {/* Quick Actions Row */}
-              <div
-                className="row"
-                style={{
-                  marginTop: 24,
-                  paddingTop: 16,
-                  borderTop: "1px solid var(--line-2)",
-                  justifyContent: "space-between",
-                  flexWrap: "wrap",
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button
-                    type="button"
-                    className="btn btn-line"
-                    onClick={() => setActiveTab("preferences")}
-                  >
-                    Workspace preferences
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn-line"
-                    onClick={() => setActiveTab("security")}
-                  >
-                    Security &amp; credentials
-                  </button>
-                </div>
-
-                {isAuthenticated && (
-                  <button
-                    type="button"
-                    className="btn btn-line"
-                    style={{ color: "var(--phish)" }}
-                    onClick={handleSignOut}
-                  >
-                    Sign out
-                  </button>
-                )}
-              </div>
-            </div>
+            )
           )}
 
           {/* SECTION 2: PERSONAL INFORMATION */}

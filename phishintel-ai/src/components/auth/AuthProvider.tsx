@@ -303,7 +303,16 @@ function signOut() {
 
 const actions: AuthActions = { register, signIn, signOut };
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+export function AuthProvider({
+  children,
+  initialUser,
+}: {
+  children: React.ReactNode;
+  initialUser?: AuthUser | null;
+}) {
+  if (initialUser && snapshot.status === "loading") {
+    snapshot = { status: "authenticated", user: initialUser };
+  }
   return <AuthContext.Provider value={actions}>{children}</AuthContext.Provider>;
 }
 
@@ -311,6 +320,14 @@ export function useAuth() {
   const context = useContext(AuthContext);
   if (!context) throw new Error("useAuth must be used within an AuthProvider.");
 
-  const authState = useSyncExternalStore(subscribe, () => snapshot, () => INITIAL_SNAPSHOT);
+  if (typeof window !== "undefined" && !initialized) {
+    initialize();
+  }
+
+  const authState = useSyncExternalStore(
+    subscribe,
+    () => snapshot,
+    () => (snapshot.status !== "loading" ? snapshot : INITIAL_SNAPSHOT)
+  );
   return { ...authState, ...context };
 }
