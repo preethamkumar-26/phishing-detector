@@ -220,9 +220,9 @@ function initGL(canvas: HTMLCanvasElement) {
 }
 
 function supportsRefraction() {
-  if (typeof window === "undefined" || typeof CSS === "undefined") return false
-  const ua = navigator.userAgent
-  return /Chrome\/|Chromium\/|Edg\//.test(ua) && !/Firefox\//.test(ua) && !!(CSS as any).supports?.("backdrop-filter", "url(#a)")
+  // SVG turbulence & displacement in backdrop-filter causes severe rendering stalls and high GPU latency.
+  // Hardware-accelerated CSS backdrop-filter provides a superior, lag-free 60fps experience.
+  return false;
 }
 
 export function LiquidNavbar({
@@ -371,10 +371,14 @@ export function LiquidNavbar({
       s.last = now
       step(dt, now)
       draw()
-      const busy = s.moving || s.rips.length || s.sats.length || s.mouse.s > 0.01
-      // ambient water keeps moving while visible; reduced-motion only animates on change
-      if (s.visible && (!s.reduce || busy)) s.raf = requestAnimationFrame(tick)
-      else s.raf = 0
+      const busy = s.moving || s.rips.length > 0 || s.sats.length > 0 || s.mouse.s > 0.01 || !s.ready
+      // Animate at 60 FPS while there is active liquid movement/interaction, and sleep when settled
+      if (s.visible && busy) {
+        s.raf = requestAnimationFrame(tick)
+      } else {
+        s.raf = 0
+        draw() // Paint resting drop in settled position
+      }
     }
     s.raf = requestAnimationFrame(tick)
   }, [draw, step])
@@ -567,7 +571,7 @@ export function LiquidNavbar({
           </>
         )
         return it.href ? (
-          <Link key={it.label + i} {...(props as any)} href={it.href} aria-label={it.label}>{content}</Link>
+          <Link key={it.label + i} {...(props as any)} href={it.href} prefetch={true} aria-label={it.label}>{content}</Link>
         ) : (
           <button key={it.label + i} {...(props as any)} type="button" aria-label={it.label}>{content}</button>
         )
