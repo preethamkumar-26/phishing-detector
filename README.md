@@ -24,7 +24,7 @@ The platform analyzes email content, sender and reply-to details, headers, and U
 
 | Layer | Location | Responsibilities |
 |---|---|---|
-| Next.js application | `phishguard-ai/` | App Router UI, TypeScript contracts, scan workflows, evaluation dashboard, history, and PDF export |
+| Next.js application | `phishintel-ai/` | App Router UI, TypeScript contracts, scan workflows, evaluation dashboard, history, and PDF export |
 | FastAPI application | `backend/app/` | Startup lifecycle, CORS, request validation, scan and evaluation endpoints |
 | Model service | `backend/app/services/model_service.py` | Loads PAHF-Net assets once at application startup and performs inference |
 | Evaluation service | `backend/app/services/evaluation_service.py` | Loads and validates the versioned evaluation report |
@@ -66,7 +66,7 @@ PhishIntel/
 │   ├── tests/
 │   ├── .env.example
 │   └── requirements.txt
-├── phishguard-ai/
+├── phishintel-ai/
 │   ├── src/
 │   │   ├── app/
 │   │   │   ├── (app)/
@@ -171,12 +171,12 @@ Useful backend URLs:
 In a second terminal:
 
 ```shell
-cd phishguard-ai
+cd phishintel-ai
 npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The frontend defaults to the local API at `http://127.0.0.1:8000`. To override it, create `phishguard-ai/.env.local`:
+Open `http://localhost:3000`. The frontend defaults to the local API at `http://127.0.0.1:8000`. To override it, create `phishintel-ai/.env.local`:
 
 ```dotenv
 NEXT_PUBLIC_FASTAPI_URL=http://127.0.0.1:8000
@@ -290,7 +290,7 @@ Run backend tests from `backend/`:
 python -m unittest discover -s tests
 ```
 
-Run frontend checks from `phishguard-ai/`:
+Run frontend checks from `phishintel-ai/`:
 
 ```shell
 npm exec tsc -- --noEmit
