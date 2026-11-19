@@ -1,5 +1,12 @@
-# Ignore the virtual environment
+# Python & Virtual Environments
+.venv/
+.venv*/
 venv/
+venv*/
+env/
+env*/
+backend/.venv/
+backend/.venv*/
 
 # Ignore heavy dataset files
 data/
