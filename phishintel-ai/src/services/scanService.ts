@@ -1,6 +1,10 @@
 import { ScanResult, ScanRecord, PredictionType, EvidenceItem } from "@/types/scan";
 import { EvaluationMetricsResponse } from "@/types/evaluation";
 import { DEMO_RECENT_SCANS } from "@/data/demo-data";
+import {
+  fetchWithBackendAutoRetry,
+  getActiveAnalyzeEndpoint,
+} from "@/lib/backendDiscovery";
 
 // In-memory session store initialized with demo records
 let sessionScans: ScanRecord[] = [...DEMO_RECENT_SCANS];
@@ -31,6 +35,38 @@ export interface AnalyzeEmailInput {
   body: string;
 }
 
+export interface FastAPIFeatureContributions {
+  text: number;
+  url: number;
+  structure: number;
+  linguistic: number;
+}
+
+export interface FastAPIVerificationDetails {
+  mode?: string;
+  offline_reputation_loaded?: boolean;
+  sender_domain?: string | null;
+  sender_tranco_rank?: number | null;
+  sender_is_trusted?: boolean;
+  reply_to_domain?: string | null;
+  url_domains?: string[];
+  trusted_url_domains?: string[];
+  untrusted_url_domains?: string[];
+  domains_aligned?: boolean;
+  all_urls_trusted?: boolean;
+  authentication?: {
+    spf: string;
+    dkim: string;
+    dmarc: string;
+    passed: boolean;
+    failed: boolean;
+  };
+  has_list_unsubscribe?: boolean;
+  hard_red_flag_count?: number;
+  soft_warning_count?: number;
+  positive_signal_count?: number;
+}
+
 export interface FastAPIAnalysisResponse {
   success: boolean;
   scan_id: string;
@@ -49,7 +85,45 @@ export interface FastAPIAnalysisResponse {
   }>;
   explainability: {
     summary?: string;
+    flagged_tokens?: Array<{
+      token: string;
+      weight: number;
+      category: string;
+      reason: string;
+    }>;
+    url_signals?: Array<{
+      url: string;
+      domain: string;
+      is_suspicious: boolean;
+      isSuspicious?: boolean;
+      risk_score: number;
+      riskScore?: number;
+      reasons: string[];
+    }>;
+    feature_contributions?: FastAPIFeatureContributions;
+    raw_model_probability?: number;
+    decision_basis?: string;
+    verification?: FastAPIVerificationDetails;
   };
+  processing_time_ms?: number;
+}
+
+export function mapVerdictToPrediction(
+  verdict: string | undefined,
+  isPhishing: boolean
+): PredictionType {
+  const normalized = (verdict || "").trim().toLowerCase();
+  if (normalized === "malicious" || normalized === "phishing" || isPhishing) {
+    return "phishing";
+  }
+  if (
+    normalized === "suspicious" ||
+    normalized === "uncertain" ||
+    normalized === "needs_review"
+  ) {
+    return "needs_review";
+  }
+  return "safe";
 }
 
 function isFastAPIAnalysisResponse(value: unknown): value is FastAPIAnalysisResponse {
@@ -184,12 +258,15 @@ function getEvidenceSeverity(severity: string): EvidenceItem["severity"] {
 
 export async function analyzeEmailWithBackend(
   payload: ScanInputPayload,
-  endpoint = FASTAPI_ANALYZE_URL,
+  endpoint?: string,
   signal?: AbortSignal
 ): Promise<FastAPIAnalysisResponse> {
+  const activeEndpoint = endpoint
+    ? endpoint
+    : await getActiveAnalyzeEndpoint();
   let response: Response;
   try {
-    response = await fetch(endpoint, {
+    response = await fetchWithBackendAutoRetry(activeEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -212,7 +289,9 @@ export async function analyzeEmailWithBackend(
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw error;
     throw new Error(
-      `Unable to reach the PhishIntel backend API at ${endpoint}. Verify that the backend URL is correct and reachable, and that its CORS settings allow this frontend origin. For the default URL, configure NEXT_PUBLIC_FASTAPI_URL.`
+      error instanceof Error
+        ? error.message
+        : `Unable to reach the PhishIntel backend API at ${activeEndpoint}. Verify that the backend URL is correct and reachable, and that its CORS settings allow this frontend origin.`
     );
   }
 
@@ -234,6 +313,14 @@ export async function analyzeEmailWithBackend(
     throw new Error("FastAPI returned an invalid scan response.");
   }
 
+  const processHeader = response.headers.get("X-Process-Time-Ms");
+  if (processHeader) {
+    const measured = Number(processHeader);
+    if (Number.isFinite(measured) && measured >= 0) {
+      data.processing_time_ms = measured;
+    }
+  }
+
   return data;
 }
 
@@ -247,7 +334,10 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<ScanResult
     sender: input.sender,
   });
 
-  const prediction: PredictionType = data.is_phishing ? "phishing" : "safe";
+  const prediction: PredictionType = mapVerdictToPrediction(
+    data.verdict,
+    data.is_phishing
+  );
   const evidence: EvidenceItem[] = data.indicators.map((indicator) => ({
     text: indicator.title || "Threat indicator",
     reason: indicator.description || data.verdict,
@@ -265,7 +355,7 @@ export async function analyzeEmail(input: AnalyzeEmailInput): Promise<ScanResult
     modelVersion: "PAHF-Net",
     isDemo: false,
     timestamp: new Date().toISOString(),
-    subject: input.subject || (input.body.slice(0, 40) + "…"),
+    subject: input.subject || input.body.slice(0, 40) + "…",
     sender: input.sender || "Unspecified",
     body: input.body,
   };
@@ -298,7 +388,10 @@ export function saveScanToHistory(result: ScanResult): ScanRecord {
 
   // Async record scan in backend account activity
   try {
-    const userEmail = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
+    const userEmail =
+      typeof window !== "undefined"
+        ? window.localStorage.getItem("phishintel-session")
+        : null;
     fetch("/api/account/scan", {
       method: "POST",
       headers: {
@@ -330,4 +423,3 @@ export function getScanHistory(): ScanRecord[] {
 export function deleteScanRecord(id: string): void {
   sessionScans = sessionScans.filter((s) => s.id !== id);
 }
-

@@ -75,7 +75,7 @@ export function AnalysisResultsPanel({
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <span>Analysis Results</span>
               <span className="text-[10px] uppercase tracking-wider font-semibold px-2 py-0.5 rounded bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
-                Demo Output
+                Live PAHF-Net
               </span>
             </CardTitle>
             <CardDescription>
@@ -235,7 +235,7 @@ export function AnalysisResultsPanel({
               {/* Confidence Meter */}
               <div className="text-left sm:text-right pt-2 sm:pt-0 border-t sm:border-t-0 border-current/20">
                 <div className="text-[10px] uppercase tracking-wider font-semibold opacity-75">
-                  Demo Confidence
+                  Model Confidence
                 </div>
                 <div className="text-xl font-black font-mono">
                   {result.confidence?.toFixed(1)}%

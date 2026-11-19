@@ -2,15 +2,12 @@
 
 import React, { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { usePhishGuard, ScanItem } from "@/context/PhishGuardContext";
+import { usePhishGuard, ScanDecision, ScanItem } from "@/context/PhishGuardContext";
 import {
   Dialog,
-  DialogHeader,
   DialogTitle,
   DialogDescription,
-  DialogFooter,
 } from "@/components/ui/Dialog";
-import { Button } from "@/components/ui/Button";
 import { ThePagination } from "@/components/ui/the-pagination";
 
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -36,12 +33,57 @@ const senderShort = (f: string) => {
   return m ? m[2].trim() : f;
 };
 
+function renderVerdictBadge(
+  decision: ScanDecision,
+  extraStyle?: React.CSSProperties
+) {
+  if (decision === "PHISHING") {
+    return (
+      <span className="verdict v-phish" style={extraStyle}>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
+        </svg>
+        Phishing
+      </span>
+    );
+  }
+
+  if (decision === "SUSPICIOUS") {
+    return (
+      <span
+        className="verdict"
+        style={{
+          color: "#C27803",
+          background: "rgba(245, 158, 11, 0.14)",
+          border: "1px solid rgba(217, 119, 6, 0.3)",
+          ...extraStyle,
+        }}
+      >
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+          <circle cx="12" cy="12" r="9" />
+          <path d="M12 8v5M12 16.5h.01" />
+        </svg>
+        Suspicious
+      </span>
+    );
+  }
+
+  return (
+    <span className="verdict v-safe" style={extraStyle}>
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
+        <path d="m5 12.5 4.5 4.5L19 7" />
+      </svg>
+      Safe
+    </span>
+  );
+}
+
 export default function HistoryPage() {
   const router = useRouter();
   const { scans, setSelectedScanId, clearUserScans, deleteScan, formatP, showToast } = usePhishGuard();
 
   const [query, setQuery] = useState("");
-  const [decisionFilter, setDecisionFilter] = useState<"all" | "PHISHING" | "SAFE">("all");
+  const [decisionFilter, setDecisionFilter] = useState<"all" | ScanDecision>("all");
   const [sourceFilter, setSourceFilter] = useState<"all" | "sample" | "user">("all");
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
   const [nowTime, setNowTime] = useState<number>(BASELINE_TIME);
@@ -83,19 +125,11 @@ export default function HistoryPage() {
     const target = deletingScan;
     setIsDeleting(true);
 
-    // 1. Close the dialog
     setDeleteConfirmOpen(false);
-
-    // 2. Trigger the "thrown in bin" animation on the target row
     setBinningScanId(target.id);
-
-    // 3. Play the smooth binning animation for 500ms
     await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // 4. Perform the permanent deletion
     await deleteScan(target.id);
 
-    // 5. Clean up states
     setBinningScanId(null);
     setDeletingScan(null);
     setIsDeleting(false);
@@ -150,35 +184,34 @@ export default function HistoryPage() {
     });
   }, [decisionFilter, query, scans, sourceFilter]);
 
-  // Total pages
   const totalPages = Math.ceil(filteredScans.length / PAGE_SIZE) || 1;
 
-  // Auto-adjust page if current page exceeds total pages (e.g. after deletion or filter)
   useEffect(() => {
     if (currentPage > totalPages) {
       setCurrentPage(Math.max(1, totalPages));
     }
   }, [currentPage, totalPages]);
 
-  // Reset to page 1 on query or filter changes
   useEffect(() => {
     setCurrentPage(1);
   }, [query, decisionFilter, sourceFilter]);
 
-  // Paginated visible scans
   const paginatedScans = useMemo(() => {
     const start = (currentPage - 1) * PAGE_SIZE;
     return filteredScans.slice(start, start + PAGE_SIZE);
   }, [filteredScans, currentPage]);
 
-  // Overall KPIs
+  // Overall 3-tier KPIs
   const kpis = useMemo(() => {
     const ph = scans.filter((s) => s.decision === "PHISHING").length;
+    const susp = scans.filter((s) => s.decision === "SUSPICIOUS").length;
+    const safe = scans.filter((s) => s.decision === "SAFE").length;
     const avg = scans.length ? scans.reduce((a, s) => a + s.P, 0) / scans.length : 0;
     return [
       { label: "Scans", value: scans.length, color: "var(--ink)" },
       { label: "Phishing", value: ph, color: "var(--phish)" },
-      { label: "Safe", value: scans.length - ph, color: "var(--safe)" },
+      { label: "Suspicious", value: susp, color: "#D97706" },
+      { label: "Safe", value: safe, color: "var(--safe)" },
       { label: "Mean P_phish", value: avg.toFixed(3), color: "var(--ink)" },
     ];
   }, [scans]);
@@ -237,8 +270,12 @@ export default function HistoryPage() {
         </div>
       </div>
 
-      {/* 4 KPI Cards */}
-      <div className="grid g4" id="hist-kpis">
+      {/* 5 KPI Cards (Safe, Suspicious, Phishing separated cleanly) */}
+      <div
+        className="grid"
+        id="hist-kpis"
+        style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}
+      >
         {kpis.map((k, i) => (
           <div key={i} className="card metric no-hover">
             <div className="lbl">{k.label}</div>
@@ -278,6 +315,13 @@ export default function HistoryPage() {
             </button>
             <button
               type="button"
+              className={decisionFilter === "SUSPICIOUS" ? "on" : ""}
+              onClick={() => setDecisionFilter("SUSPICIOUS")}
+            >
+              Suspicious
+            </button>
+            <button
+              type="button"
               className={decisionFilter === "SAFE" ? "on" : ""}
               onClick={() => setDecisionFilter("SAFE")}
             >
@@ -290,7 +334,7 @@ export default function HistoryPage() {
             id="h-src"
             style={{ width: "auto" }}
             value={sourceFilter}
-            onChange={(e) => setSourceFilter(e.target.value as any)}
+            onChange={(e) => setSourceFilter(e.target.value as "all" | "sample" | "user")}
           >
             <option value="all">All sources</option>
             <option value="sample">Sample workspace</option>
@@ -325,8 +369,6 @@ export default function HistoryPage() {
               {paginatedScans.length ? (
                 paginatedScans.map((s) => {
                   const isExpanded = expandedRowId === s.id;
-                  const isPhish = s.decision === "PHISHING";
-                  // De-duplicate near-identical indicators by semantic key
                   const rawInd = (s.indicators || []).filter((r) => (r.score_impact ?? 0) > 0);
                   const seenConcepts = new Map<string, (typeof rawInd)[0]>();
                   for (const ind of rawInd) {
@@ -341,6 +383,9 @@ export default function HistoryPage() {
                   const topInd = Array.from(seenConcepts.values())
                     .sort((a, b) => (b.score_impact ?? 0) - (a.score_impact ?? 0))
                     .slice(0, 4);
+                  const positiveSignals = (s.indicators || [])
+                    .filter((r) => (r.score_impact ?? 0) === 0 && r.severity === "low")
+                    .slice(0, 3);
 
                   return (
                     <React.Fragment key={s.id}>
@@ -375,20 +420,7 @@ export default function HistoryPage() {
                             {senderShort(s.email.from)}
                           </div>
                         </td>
-                        <td>
-                          <span className={`verdict ${isPhish ? "v-phish" : "v-safe"}`}>
-                            {isPhish ? (
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
-                                <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
-                              </svg>
-                            ) : (
-                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
-                                <path d="m5 12.5 4.5 4.5L19 7" />
-                              </svg>
-                            )}
-                            {isPhish ? "Phishing" : "Safe"}
-                          </span>
-                        </td>
+                        <td>{renderVerdictBadge(s.decision)}</td>
                         <td className="num">{formatP(s.P)}</td>
                         <td className="num muted">{s.T.toFixed(2)}</td>
                         <td>
@@ -518,8 +550,27 @@ export default function HistoryPage() {
                                     </div>
                                   ))
                                 ) : (
-                                  <span className="muted">None fired.</span>
+                                  <span className="muted">No risk indicators fired.</span>
                                 )}
+
+                                {positiveSignals.length > 0 && (
+                                  <div style={{ marginTop: 12 }}>
+                                    <div className="lbl" style={{ marginBottom: 6 }}>
+                                      Offline Verification Signals
+                                    </div>
+                                    {positiveSignals.map((r) => (
+                                      <div key={r.id} className="row" style={{ padding: "3px 0", fontSize: "12.5px" }}>
+                                        <span style={{ color: "var(--safe)", fontWeight: 500 }}>{r.title}</span>
+                                        {r.description && (
+                                          <span className="muted" style={{ marginLeft: 8, fontSize: "12px" }}>
+                                            {r.description}
+                                          </span>
+                                        )}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+
                                 <div style={{ marginTop: 12 }}>
                                   <div className="lbl" style={{ marginBottom: 6 }}>
                                     Modality Gates (g_i)
@@ -630,7 +681,6 @@ export default function HistoryPage() {
         className="del-modal-panel sm:max-w-[480px]"
       >
         <div className="del-modal-content">
-          {/* Header with Danger Pill Badge & Close button */}
           <div className="del-modal-header">
             <div className="del-modal-icon-badge" aria-hidden="true">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
@@ -663,17 +713,11 @@ export default function HistoryPage() {
             </button>
           </div>
 
-          {/* Record Callout Card */}
           {deletingScan && (
             <div className="del-modal-card">
               <div className="del-modal-card-top">
                 <span className="del-modal-card-id mono">{deletingScan.id}</span>
-                <span
-                  className={`verdict ${deletingScan.decision === "PHISHING" ? "v-phish" : "v-safe"}`}
-                  style={{ fontSize: "11px", padding: "2px 8px" }}
-                >
-                  {deletingScan.decision === "PHISHING" ? "Phishing" : "Safe"}
-                </span>
+                {renderVerdictBadge(deletingScan.decision, { fontSize: "11px", padding: "2px 8px" })}
                 <span className="mono muted" style={{ fontSize: "11px", marginLeft: "auto" }}>
                   P: {formatP(deletingScan.P)}
                 </span>
@@ -687,7 +731,6 @@ export default function HistoryPage() {
             </div>
           )}
 
-          {/* Warning Note */}
           <div className="del-modal-warning">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="del-modal-warning-icon">
               <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
@@ -699,7 +742,6 @@ export default function HistoryPage() {
             </DialogDescription>
           </div>
 
-          {/* Actions Footer */}
           <div className="del-modal-footer">
             <button
               type="button"

@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from pathlib import Path
 from typing import Any
@@ -9,7 +10,9 @@ from transformers import AutoTokenizer, DebertaV2Config
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.services.domain_reputation import LocalDomainReputation, default_reputation
 from app.services.preprocessing import EmailPreprocessor
+from app.services.verification import fuse_risk, verify_email
 from saved_models.predict import (
     PAHFNetInference,
     build_feature_vectors,
@@ -33,9 +36,11 @@ class ModelService:
         self.features_f: dict[str, Any] | None = None
         self.config: dict[str, Any] | None = None
         self.encoder_config: DebertaV2Config | None = None
+        self.reputation: LocalDomainReputation = default_reputation
 
     def load_model(self) -> None:
         self.is_ready = False
+        torch.set_num_threads(max(1, min(4, os.cpu_count() or 1)))
         model_dir = settings.model_dir_path
         required_assets = (
             settings.MODEL_FILENAME,
@@ -92,12 +97,21 @@ class ModelService:
             config,
         )
 
+        # Load strictly offline domain reputation snapshot (Tranco Top-1M + optional blocklist)
+        default_reputation.max_rank = int(getattr(settings, "TRANCO_MAX_RANK", 1_000_000))
+        default_reputation.load_from_directory(
+            model_dir=model_dir,
+            tranco_filename=str(getattr(settings, "TRANCO_SNAPSHOT_FILENAME", "tranco_top1m.csv.gz")),
+            blocklist_filename=str(getattr(settings, "OFFLINE_PHISH_LIST_FILENAME", "offline_phish_domains.txt")),
+        )
+        self.reputation = default_reputation
+
         self.config = config
         self.model_name = str(config["model_name"])
         self.is_ready = True
         logger.info(
-            "Loaded PAHF-Net base and T/F regime weights, feature assets, and local tokenizer "
-            f"on {self.device}."
+            "Loaded PAHF-Net base and T/F regime weights, feature assets, local tokenizer, "
+            f"and offline reputation store ({self.reputation.tranco_count:,} domains) on {self.device}."
         )
 
     def load_models(self) -> None:
@@ -215,6 +229,16 @@ class ModelService:
         return ""
 
     @classmethod
+    def _urls_list(cls, urls: list[str] | str | None) -> list[str]:
+        raw = cls._urls_text(urls)
+        if not raw:
+            return []
+        extracted = EmailPreprocessor.extract_urls(raw)
+        if extracted:
+            return extracted
+        return [line.strip() for line in raw.splitlines() if line.strip()]
+
+    @classmethod
     def _email_text(
         cls, text: str, subject: str, urls: list[str] | str | None
     ) -> str:
@@ -247,6 +271,8 @@ class ModelService:
 
         header_text = self._headers_text(headers)
         email_text = self._email_text(text, subject, urls)
+        explicit_urls = self._urls_list(urls)
+
         raw_email = (
             f"Subject: {subject.strip()}\n"
             f"From: {sender.strip()}\n"
@@ -271,21 +297,35 @@ class ModelService:
                 availability,
             )
 
+        # Layer 1: Calibrated neural content probability from PAHF-Net
         temperature = float(self.config["temperature"])
-        p_phish = float(torch.sigmoid(logits.float() / temperature).item())
-        risk_score = round(p_phish * 100, 2)
+        p_content = float(torch.sigmoid(logits.float() / temperature).item())
         threshold_low = float(self.config["thr_low"])
         threshold_high = float(self.config["thr_high"])
-        threshold_binary = float(self.config["thr_opt_f1"])
-        if p_phish >= threshold_high:
-            verdict = "Malicious"
-            is_phishing = True
-        elif p_phish >= threshold_low:
-            verdict = "Suspicious"
-            is_phishing = p_phish >= threshold_binary
-        else:
-            verdict = "Safe"
-            is_phishing = False
+
+        # Layer 2: Strictly offline sender, destination, header, and coercion verification
+        verification = verify_email(
+            subject=subject,
+            body=email_text,
+            sender=sender,
+            reply_to=reply_to,
+            urls=explicit_urls,
+            headers=headers,
+            reputation=self.reputation,
+        )
+
+        # Layer 3: Calibrated risk fusion (never dampens when any hard red flag exists)
+        decision = fuse_risk(
+            p_content=p_content,
+            verification=verification,
+            threshold_low=threshold_low,
+            threshold_high=threshold_high,
+        )
+
+        p_phish = decision.p_final
+        verdict = decision.verdict
+        is_phishing = decision.is_phishing
+        risk_score = round(p_phish * 100, 2)
 
         evidence = EmailPreprocessor.extract_all_features(
             content=email_text,
@@ -298,17 +338,58 @@ class ModelService:
             for name, value in zip(("text", "url", "structure", "linguistic"), gate_values)
         }
         severity = "critical" if risk_score >= 70 else "high" if risk_score >= 40 else "low"
-        indicators = list(evidence["indicators"])
+
+        indicators: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        for item in (
+            list(verification.hard_red_flags)
+            + list(verification.soft_warnings)
+            + list(evidence["indicators"])
+            + list(verification.positive_signals)
+        ):
+            item_id = str(item.get("id", ""))
+            if item_id and item_id in seen_ids:
+                continue
+            if item_id:
+                seen_ids.add(item_id)
+            indicators.append(item)
+
         indicators.append(
             {
                 "id": "IND-PAHF-NET",
                 "title": "PAHF-Net classification",
-                "description": f"Calibrated phishing probability: {p_phish:.4f}",
+                "description": (
+                    f"Fused phishing probability: {p_phish:.4f} "
+                    f"(PAHF-Net content score: {p_content:.4f})"
+                ),
                 "severity": severity,
                 "category": "model",
                 "score_impact": risk_score,
             }
         )
+
+        if decision.decision_basis == "offline_verified_aligned_commercial_or_transactional":
+            summary = (
+                f"Classified as Safe ({risk_score:.1f}% risk). PAHF-Net flagged promotional or "
+                f"financial wording ({p_content:.1%}), but sender '{verification.sender_domain}' "
+                f"and link destinations are verified via offline reputation with zero spoofing flags."
+            )
+        elif decision.decision_basis == "aligned_unranked_needs_header_check":
+            summary = (
+                f"Classified as Suspicious ({risk_score:.1f}% risk). Promotional or financial wording "
+                f"was detected from unranked domain '{verification.sender_domain}'. Links align with the "
+                f"sender; verify SPF/DKIM/DMARC headers before acting."
+            )
+        elif decision.decision_basis == "missing_sender_context":
+            summary = (
+                f"Classified as Suspicious ({risk_score:.1f}% risk). Content phrasing resembles common "
+                f"phishing lures, but no sender or headers were provided to verify authenticity."
+            )
+        else:
+            summary = (
+                f"PAHF-Net classified this email as {verdict} with "
+                f"{p_phish:.1%} phishing probability."
+            )
 
         return {
             "success": True,
@@ -320,13 +401,13 @@ class ModelService:
             "p_phish": p_phish,
             "indicators": indicators,
             "explainability": {
-                "summary": (
-                    f"PAHF-Net classified this email as {verdict} with "
-                    f"{p_phish:.1%} phishing probability."
-                ),
+                "summary": summary,
                 "flagged_tokens": evidence["flagged_tokens"],
                 "url_signals": evidence["url_signals"],
                 "feature_contributions": feature_contributions,
+                "raw_model_probability": round(p_content, 6),
+                "decision_basis": decision.decision_basis,
+                "verification": verification.to_dict(),
             },
         }
 

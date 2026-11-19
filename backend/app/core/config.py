@@ -20,7 +20,18 @@ class Settings(BaseSettings):
     MODEL_FILENAME: str = "pahf_net.pt"
     VECTORIZER_FILENAME: str = "vectorizer.pkl"
 
+    TRANCO_SNAPSHOT_FILENAME: str = "tranco_top1m.csv.gz"
+    TRANCO_MAX_RANK: int = 1_000_000
+    OFFLINE_PHISH_LIST_FILENAME: str = "offline_phish_domains.txt"
+
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    MAX_REQUEST_BYTES: int = 5 * 1024 * 1024
+    MAX_EMAIL_CHARS: int = 1_000_000
+    MAX_SUBJECT_CHARS: int = 998
+    MAX_SENDER_CHARS: int = 2048
+    MAX_HEADERS_CHARS: int = 100_000
+    RATE_LIMIT_REQUESTS: int = 30
+    RATE_LIMIT_WINDOW_SECONDS: int = 60
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod
