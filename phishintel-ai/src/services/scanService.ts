@@ -187,26 +187,34 @@ export async function analyzeEmailWithBackend(
   endpoint = FASTAPI_ANALYZE_URL,
   signal?: AbortSignal
 ): Promise<FastAPIAnalysisResponse> {
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    signal,
-    body: JSON.stringify({
-      content:
-        payload.content ??
-        payload.body ??
-        payload.text ??
-        payload.emailText ??
-        "",
-      subject: payload.subject ?? "",
-      sender: payload.sender ?? payload.from ?? "",
-      reply_to: payload.reply_to ?? payload.replyTo ?? "",
-      urls: payload.urls ?? [],
-      headers: payload.headers ?? {},
-    }),
-  });
+  let response: Response;
+  try {
+    response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      signal,
+      body: JSON.stringify({
+        content:
+          payload.content ??
+          payload.body ??
+          payload.text ??
+          payload.emailText ??
+          "",
+        subject: payload.subject ?? "",
+        sender: payload.sender ?? payload.from ?? "",
+        reply_to: payload.reply_to ?? payload.replyTo ?? "",
+        urls: payload.urls ?? [],
+        headers: payload.headers ?? {},
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw error;
+    throw new Error(
+      `Unable to reach the PhishIntel backend API at ${endpoint}. Verify that the backend URL is correct and reachable, and that its CORS settings allow this frontend origin. For the default URL, configure NEXT_PUBLIC_FASTAPI_URL.`
+    );
+  }
 
   const data: unknown = await response.json();
 

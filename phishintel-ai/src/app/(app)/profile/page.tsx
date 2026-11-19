@@ -194,26 +194,27 @@ export default function ProfilePage() {
 
   const [activeTab, setActiveTab] = useState<"overview" | "personal" | "preferences" | "security" | "activity">("overview");
 
-  // Authentication & Remote Profile State (initialized from module cache if available)
-  const [profileData, setProfileData] = useState<UserProfileData | null>(cachedProfileData);
-  const [preferencesData, setPreferencesData] = useState<UserPreferencesData | null>(cachedPreferencesData);
-  const [securityData, setSecurityData] = useState<SecurityInfoData | null>(cachedSecurityData);
-  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>(cachedActivityEvents);
-  const [loading, setLoading] = useState(!cachedProfileData);
+  // Keep the first render identical on the server and client; restore cached data after mount.
+  const [profileData, setProfileData] = useState<UserProfileData | null>(null);
+  const [preferencesData, setPreferencesData] = useState<UserPreferencesData | null>(null);
+  const [securityData, setSecurityData] = useState<SecurityInfoData | null>(null);
+  const [activityEvents, setActivityEvents] = useState<ActivityEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [mounted, setMounted] = useState(false);
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   // Personal Information Form State
-  const [formFullName, setFormFullName] = useState(cachedProfileData?.fullName || "");
-  const [formDesignation, setFormDesignation] = useState(cachedProfileData?.designation || "");
-  const [formOrg, setFormOrg] = useState(cachedProfileData?.organization || "");
-  const [formPhone, setFormPhone] = useState(cachedProfileData?.phone || "");
-  const [formBio, setFormBio] = useState(cachedProfileData?.bio || "");
+  const [formFullName, setFormFullName] = useState("");
+  const [formDesignation, setFormDesignation] = useState("");
+  const [formOrg, setFormOrg] = useState("");
+  const [formPhone, setFormPhone] = useState("");
+  const [formBio, setFormBio] = useState("");
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState<string | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
 
   // Preferences Form State
-  const [prefTheme, setPrefTheme] = useState(cachedPreferencesData?.theme || "system");
+  const [prefTheme, setPrefTheme] = useState("system");
   const [prefStart, setPrefStart] = useState(settings.start || "overview");
   const [prefFmt, setPrefFmt] = useState(settings.fmt || "prob");
   const [prefStore, setPrefStore] = useState(settings.store);
@@ -241,6 +242,10 @@ export default function ProfilePage() {
     return raw.slice(0, 2).toUpperCase();
   }, [profileData?.fullName, authUser?.name, profile.name]);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Load active account data from backend
   const fetchAccountData = useCallback(async () => {
     const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
@@ -252,7 +257,22 @@ export default function ProfilePage() {
       return;
     }
 
-    setLoading(true);
+    if (cachedProfileData) {
+      setProfileData(cachedProfileData);
+      setFormFullName(cachedProfileData.fullName || "");
+      setFormDesignation(cachedProfileData.designation || "");
+      setFormOrg(cachedProfileData.organization || "");
+      setFormPhone(cachedProfileData.phone || "");
+      setFormBio(cachedProfileData.bio || "");
+    }
+    if (cachedPreferencesData) {
+      setPreferencesData(cachedPreferencesData);
+      setPrefTheme(cachedPreferencesData.theme || "system");
+    }
+    if (cachedSecurityData) setSecurityData(cachedSecurityData);
+    if (cachedActivityEvents.length) setActivityEvents(cachedActivityEvents);
+
+    setLoading(!cachedProfileData);
     setProfileError(null);
 
     const authHeaders: Record<string, string> = {
@@ -584,7 +604,7 @@ export default function ProfilePage() {
 
   // Explicit 3-state system: "loading" | "authenticated" | "unauthenticated"
   const effectiveAuthStatus: "loading" | "authenticated" | "unauthenticated" =
-    authStatus === "loading" || (loading && !profileData && authStatus === "authenticated")
+    !mounted || authStatus === "loading" || (loading && !profileData && authStatus === "authenticated")
       ? "loading"
       : authStatus === "authenticated" || Boolean(profileData)
       ? "authenticated"

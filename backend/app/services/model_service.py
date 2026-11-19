@@ -123,7 +123,7 @@ class ModelService:
         setattr(config, "norm_rel_ebd", "layer_norm")
         setattr(config, "share_att_key", True)
         return config
-x
+
     def _model_config(
         self,
         config: dict[str, Any],
