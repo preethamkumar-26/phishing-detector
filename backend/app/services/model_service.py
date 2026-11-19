@@ -105,7 +105,7 @@ class ModelService:
 
     @staticmethod
     def _create_encoder_config() -> DebertaV2Config:
-        return DebertaV2Config(
+        config = DebertaV2Config(
             vocab_size=128100,
             hidden_size=768,
             num_hidden_layers=12,
@@ -114,14 +114,15 @@ class ModelService:
             max_position_embeddings=512,
             relative_attention=True,
             max_relative_positions=256,
-            position_buckets=256,
             pos_att_type="p2c|c2p",
             position_biased_input=False,
-            norm_rel_ebd="layer_norm",
-            share_att_key=True,
             type_vocab_size=0,
             layer_norm_eps=1e-7,
         )
+        setattr(config, "position_buckets", 256)
+        setattr(config, "norm_rel_ebd", "layer_norm")
+        setattr(config, "share_att_key", True)
+        return config
 
     def _model_config(
         self,

@@ -75,7 +75,7 @@ class EvaluationServiceTests(unittest.TestCase):
 
             response = EvaluationService(artifact_path).get_metrics()
 
-        self.assertIsInstance(response, EvaluationMetricsReport)
+        assert isinstance(response, EvaluationMetricsReport)
         self.assertEqual(response.metrics.inference_latency_ms, 132.0)
         self.assertEqual(len(response.model_ranking), 2)
 

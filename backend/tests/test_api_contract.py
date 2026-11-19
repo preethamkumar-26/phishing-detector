@@ -67,6 +67,13 @@ class AnalyzeApiContractTests(unittest.TestCase):
 
 
 class ModelServiceEmailTextTests(unittest.TestCase):
+    def test_deberta_config_preserves_checkpoint_architecture_options(self) -> None:
+        config = ModelService._create_encoder_config()
+
+        self.assertEqual(config.position_buckets, 256)
+        self.assertEqual(config.norm_rel_ebd, "layer_norm")
+        self.assertTrue(config.share_att_key)
+
     def test_existing_body_urls_are_not_appended_twice(self) -> None:
         body = "Visit https://example.test/path."
 
