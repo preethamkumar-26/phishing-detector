@@ -6,6 +6,12 @@ import {
   FASTAPI_ANALYZE_URL,
   FastAPIAnalysisResponse,
 } from "@/services/scanService";
+import {
+  saveScanToSupabase,
+  fetchScansFromSupabase,
+  deleteScanFromSupabase,
+  clearScansFromSupabase,
+} from "@/lib/supabaseScans";
 
 export interface ScanEmailInput {
   subject: string;
@@ -1164,6 +1170,9 @@ export function PhishGuardProvider({
 
       logActivity(`Analysed “${newScan.email.subject}” · ${newScan.decision}`);
 
+      // Save to Supabase cloud storage in background
+      saveScanToSupabase(newScan).catch(() => {});
+
       // Backend sync
       try {
         const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
@@ -1198,6 +1207,9 @@ export function PhishGuardProvider({
     setScans([]);
     try {
       localStorage.removeItem("pg.scans");
+      // Clear from Supabase cloud storage in background
+      clearScansFromSupabase().catch(() => {});
+
       const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
       if (sessionUser) {
         fetch("/api/account/scan?clearAll=true", {
@@ -1220,6 +1232,9 @@ export function PhishGuardProvider({
           typeof window !== "undefined"
             ? localStorage.getItem("phishintel-session")
             : null;
+
+        // Delete from Supabase cloud storage in background
+        deleteScanFromSupabase(scanId).catch(() => {});
 
         // Backend delete if authenticated session exists
         if (sessionUser) {

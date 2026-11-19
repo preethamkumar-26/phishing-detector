@@ -5,8 +5,10 @@ import {
   useContext,
   useSyncExternalStore,
 } from "react";
+import { supabase } from "@/lib/supabaseClient";
 
 export interface AuthUser {
+  id?: string;
   name: string;
   email: string;
   designation?: string;
@@ -130,6 +132,42 @@ function initialize() {
   if (initialized) return;
   initialized = true;
   refreshSnapshot();
+
+  // Listen to Supabase Auth state changes
+  try {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        snapshot = {
+          status: "authenticated",
+          user: {
+            id: session.user.id,
+            name: (session.user.user_metadata?.name as string) || session.user.email?.split("@")[0] || "Analyst",
+            email: session.user.email || "",
+            designation: (session.user.user_metadata?.designation as string) || "Active analyst",
+          },
+        };
+        notify();
+      }
+    }).catch(() => {});
+
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        snapshot = {
+          status: "authenticated",
+          user: {
+            id: session.user.id,
+            name: (session.user.user_metadata?.name as string) || session.user.email?.split("@")[0] || "Analyst",
+            email: session.user.email || "",
+            designation: (session.user.user_metadata?.designation as string) || "Active analyst",
+          },
+        };
+        notify();
+      } else if (event === "SIGNED_OUT") {
+        refreshSnapshot();
+      }
+    });
+  } catch {}
+
   window.addEventListener("storage", (event) => {
     if (
       event.key === USERS_KEY ||
@@ -198,9 +236,40 @@ async function register(name: string, email: string, password: string) {
   }
   if (password.length < 8) throw new Error("Use a password with at least 8 characters.");
 
+  let supaUserId: string | undefined;
+
+  // 1. Register with Supabase Auth
+  try {
+    const { data: supaData, error: supaError } = await supabase.auth.signUp({
+      email: normalizedEmail,
+      password,
+      options: {
+        data: {
+          name: normalizedName,
+          designation: "Active analyst",
+        },
+      },
+    });
+
+    if (supaError) {
+      if (
+        supaError.message.toLowerCase().includes("already registered") ||
+        supaError.message.toLowerCase().includes("already exists")
+      ) {
+        throw new Error("An account with this email already exists. Sign in instead.");
+      }
+      console.warn("[Supabase] Registration note:", supaError.message);
+    } else if (supaData?.user) {
+      supaUserId = supaData.user.id;
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("An account")) throw err;
+  }
+
+  // 2. Also register in local cache & SQLite backend for seamless offline fallback
   try {
     const users = readUsers();
-    if (users.some((user) => user.email === normalizedEmail)) {
+    if (users.some((user) => user.email === normalizedEmail) && !supaUserId) {
       throw new Error("An account with this email already exists. Sign in instead.");
     }
 
@@ -212,12 +281,14 @@ async function register(name: string, email: string, password: string) {
       passwordHash: await hashPassword(password, salt),
     };
 
-    window.localStorage.setItem(USERS_KEY, JSON.stringify([...users, user]));
+    if (!users.some((u) => u.email === normalizedEmail)) {
+      window.localStorage.setItem(USERS_KEY, JSON.stringify([...users, user]));
+    }
     window.localStorage.setItem(SESSION_KEY, normalizedEmail);
     lastManualSignOutAt = 0;
     snapshot = {
       status: "authenticated",
-      user: { name: user.name, email: user.email },
+      user: { id: supaUserId, name: user.name, email: user.email, designation: "Active analyst" },
     };
     notify();
 
@@ -245,6 +316,59 @@ async function signIn(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail || !password) throw new Error("Enter your email and password.");
 
+  let supaSuccess = false;
+  let supaUser: { id?: string; name?: string; email?: string } | null = null;
+
+  // 1. Attempt Supabase Auth login
+  try {
+    const { data: supaData, error: supaError } = await supabase.auth.signInWithPassword({
+      email: normalizedEmail,
+      password,
+    });
+
+    if (!supaError && supaData?.user) {
+      supaSuccess = true;
+      supaUser = {
+        id: supaData.user.id,
+        name: (supaData.user.user_metadata?.name as string) || normalizedEmail.split("@")[0],
+        email: supaData.user.email || normalizedEmail,
+      };
+    }
+  } catch (err) {
+    console.warn("[Supabase] signInWithPassword notice:", err);
+  }
+
+  // 2. If Supabase succeeded, update session
+  if (supaSuccess && supaUser) {
+    window.localStorage.setItem(SESSION_KEY, supaUser.email || normalizedEmail);
+    lastManualSignOutAt = 0;
+    snapshot = {
+      status: "authenticated",
+      user: {
+        id: supaUser.id,
+        name: supaUser.name || "Analyst",
+        email: supaUser.email || normalizedEmail,
+        designation: "Active analyst",
+      },
+    };
+    notify();
+
+    try {
+      fetch("/api/account/sync", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "login",
+          name: supaUser.name || "Analyst",
+          email: supaUser.email || normalizedEmail,
+          password,
+        }),
+      }).catch(() => {});
+    } catch {}
+    return;
+  }
+
+  // 3. Fallback to local user store (for offline support & test accounts)
   try {
     const user = readUsers().find((storedUser) => storedUser.email === normalizedEmail);
     if (!user) throw new Error("Email or password is incorrect.");
@@ -258,7 +382,7 @@ async function signIn(email: string, password: string) {
     lastManualSignOutAt = 0;
     snapshot = {
       status: "authenticated",
-      user: { name: user.name, email: user.email },
+      user: { name: user.name, email: user.email, designation: user.designation || "Active analyst" },
     };
     notify();
 
@@ -285,6 +409,11 @@ async function signIn(email: string, password: string) {
 function signOut() {
   try {
     lastManualSignOutAt = Date.now();
+
+    try {
+      supabase.auth.signOut().catch(() => {});
+    } catch {}
+
     window.localStorage.removeItem(SESSION_KEY);
     try {
       document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
