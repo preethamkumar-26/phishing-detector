@@ -1,7 +1,20 @@
 import re
+from email.utils import parseaddr
+from typing import Any, Dict, List
 from urllib.parse import urlparse
-from typing import Dict, Any, List
 
+from app.services.domain_reputation import default_reputation
+from app.services.verification import (
+    ABUSIVE_TLDS,
+    BRAND_OFFICIAL_DOMAINS,
+    ELEVATED_RISK_TLDS,
+    URL_SHORTENERS,
+    detect_brand_impersonation,
+    extract_registrable_domain,
+    is_abused_hosting,
+    is_trusted_domain,
+    normalize_url_for_analysis,
+)
 
 URGENCY_LEXICON: Dict[str, float] = {
     "immediately": 0.84,
@@ -38,21 +51,6 @@ CREDENTIAL_FINANCIAL_LEXICON: Dict[str, float] = {
     "reset your password": 0.85,
 }
 
-HIGH_RISK_TLDS = (
-    ".xyz", ".top", ".buzz", ".tk", ".ml", ".cf", ".gq",
-    ".cn", ".ru", ".zip", ".mov", ".work", ".click", ".loan"
-)
-
-URL_SHORTENERS = (
-    "bit.ly", "tinyurl.com", "t.co", "rb.gy", "is.gd",
-    "ow.ly", "buff.ly", "cutt.ly", "shorturl.at"
-)
-
-PROTECTED_BRANDS = (
-    "paypal", "microsoft", "apple", "google", "amazon",
-    "netflix", "chase", "wellsfargo", "bankofamerica", "dhl", "fedex"
-)
-
 
 class EmailPreprocessor:
     @staticmethod
@@ -71,7 +69,7 @@ class EmailPreprocessor:
             return []
         pattern = r"(?:https?://|www\.)[^\s<>\"'\)\]]+"
         matches = re.findall(pattern, text, flags=re.IGNORECASE)
-        seen = []
+        seen: List[str] = []
         for match in matches:
             trimmed = match.rstrip(".,;:!?)")
             if trimmed not in seen:
@@ -82,9 +80,19 @@ class EmailPreprocessor:
     def analyze_urls(cls, urls: List[str]) -> List[Dict[str, Any]]:
         url_signals: List[Dict[str, Any]] = []
         for raw_url in urls:
-            normalized = raw_url if raw_url.lower().startswith(("http://", "https://")) else f"http://{raw_url}"
-            parsed = urlparse(normalized)
-            domain = (parsed.netloc or "").lower().split(":")[0]
+            with_scheme = (
+                raw_url
+                if raw_url.lower().startswith(("http://", "https://"))
+                else f"http://{raw_url}"
+            )
+            clean_url = normalize_url_for_analysis(with_scheme)
+            parsed = urlparse(clean_url)
+            raw_netloc = (parsed.netloc or "").lower()
+            domain = (parsed.hostname or "").lower().rstrip(".")
+            reg_domain = extract_registrable_domain(domain)
+            trusted = is_trusted_domain(domain, reg_domain, default_reputation)
+            tld = reg_domain.rsplit(".", 1)[-1] if "." in reg_domain else ""
+
             reasons: List[str] = []
             risk = 10
 
@@ -92,31 +100,44 @@ class EmailPreprocessor:
                 reasons.append("Uses raw IPv4 address instead of a domain name")
                 risk += 65
 
-            if any(domain == short or domain.endswith(f".{short}") for short in URL_SHORTENERS):
+            if "xn--" in domain:
+                reasons.append("Uses punycode internationalized domain encoding")
+                risk += 50
+
+            if reg_domain in URL_SHORTENERS or any(
+                domain == short or domain.endswith(f".{short}") for short in URL_SHORTENERS
+            ):
                 reasons.append("Uses URL shortening service to mask destination")
                 risk += 45
 
-            if any(domain.endswith(tld) for tld in HIGH_RISK_TLDS):
-                reasons.append(f"Uses high-abuse top-level domain ({domain.split('.')[-1]})")
-                risk += 45
+            if is_abused_hosting(domain, reg_domain):
+                reasons.append(f"Hosted on shared platform '{domain}' frequently abused for phishing")
+                risk += 40
 
-            if "@" in raw_url:
-                reasons.append("Contains '@' credential-redirect obfuscation in URL")
+            if tld in ABUSIVE_TLDS:
+                reasons.append(f"Uses high-abuse top-level domain (.{tld})")
+                risk += 45
+            elif tld in ELEVATED_RISK_TLDS and not trusted:
+                reasons.append(f"Uses elevated-risk unranked top-level domain (.{tld})")
+                risk += 20
+
+            # Only flag '@' in the authority/netloc section (not benign '?email=user@example.com' params)
+            if "@" in raw_netloc:
+                reasons.append("Contains '@' credential-redirect obfuscation in URL authority")
                 risk += 55
 
-            if domain.count("-") >= 2:
-                reasons.append("Multiple hyphens in domain typical of deceptive spoofing")
+            if not trusted and reg_domain.split(".", 1)[0].count("-") >= 2:
+                reasons.append("Multiple hyphens in unverified domain typical of deceptive spoofing")
                 risk += 25
 
-            for brand in PROTECTED_BRANDS:
-                if brand in domain and not (
-                    domain == f"{brand}.com" or domain.endswith(f".{brand}.com")
-                ):
-                    reasons.append(f"Deceptive brand keyword '{brand}' in untrusted domain '{domain}'")
-                    risk += 55
-                    break
+            impersonated_brand = detect_brand_impersonation(domain, default_reputation)
+            if impersonated_brand:
+                reasons.append(
+                    f"Deceptive brand keyword '{impersonated_brand}' in untrusted domain '{domain}'"
+                )
+                risk += 55
 
-            if normalized.startswith("http://"):
+            if clean_url.startswith("http://"):
                 reasons.append("Unencrypted HTTP protocol")
                 risk += 15
 
@@ -139,50 +160,64 @@ class EmailPreprocessor:
         if not sender or "@" not in sender:
             return {"sender_risk": 0.0, "indicators": []}
 
-        indicators = []
-        sender_lower = sender.lower().strip()
-        email_match = re.search(r"([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})", sender_lower)
-        address = email_match.group(1) if email_match else sender_lower
-        domain = address.split("@")[-1].strip(">")
-        domain_base = domain.split(".")[0]
+        indicators: List[Dict[str, Any]] = []
+        # ModelService may pass "sender\nreply_to"; inspect the primary sender line first
+        primary_sender = sender.splitlines()[0].strip()
+        display_name, parsed_addr = parseaddr(primary_sender)
+        display_lower = display_name.lower().strip()
+
+        email_match = re.search(
+            r"([a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,})",
+            (parsed_addr or primary_sender).lower(),
+        )
+        address = email_match.group(1) if email_match else primary_sender.lower()
+        domain = address.split("@")[-1].strip(">").lower().rstrip(".")
+        reg_domain = extract_registrable_domain(domain)
+        reg_label = reg_domain.split(".", 1)[0] if reg_domain else ""
+        tld = reg_domain.rsplit(".", 1)[-1] if "." in reg_domain else ""
+        trusted = is_trusted_domain(domain, reg_domain, default_reputation)
 
         risk = 0.0
 
-        # Check numeric homograph substitutions (e.g., paypa1, micr0soft, amaz0n)
-        if any(ch.isdigit() for ch in domain_base):
-            risk = max(risk, 0.85)
-            indicators.append({
-                "id": "IND-SENDER-HOMOGRAPH",
-                "title": "Suspected Typosquatted Sender Domain",
-                "description": f"Sender domain '{domain}' contains digit substitutions typical of brand impersonation.",
-                "severity": "high",
-                "category": "sender",
-                "score_impact": 30,
-            })
+        # Check numeric homograph substitutions only on unverified domains (avoids w3schools.com, apollo247.com, g2.com)
+        if not trusted and reg_label and any(ch.isdigit() for ch in reg_label):
+            # Look for digits mixed directly inside alphabetic words (e.g., paypa1, amaz0n, micr0soft)
+            if re.search(r"[a-z]\d[a-z]|[a-z][013457]\b", reg_label):
+                risk = max(risk, 0.85)
+                indicators.append({
+                    "id": "IND-SENDER-HOMOGRAPH",
+                    "title": "Suspected Typosquatted Sender Domain",
+                    "description": f"Unverified sender domain '{reg_domain}' contains digit substitutions typical of brand impersonation.",
+                    "severity": "high",
+                    "category": "sender",
+                    "score_impact": 30,
+                })
 
-        if any(domain.endswith(tld) for tld in HIGH_RISK_TLDS):
+        if tld in ABUSIVE_TLDS:
             risk = max(risk, 0.78)
             indicators.append({
                 "id": "IND-SENDER-TLD",
                 "title": "High-Risk Sender Top-Level Domain",
-                "description": f"Sender address originates from an untrusted TLD ({domain}).",
-                "severity": "medium",
+                "description": f"Sender address originates from a high-abuse TLD ({reg_domain}).",
+                "severity": "high",
                 "category": "sender",
-                "score_impact": 20,
+                "score_impact": 25,
             })
 
-        for brand in PROTECTED_BRANDS:
-            if brand in sender_lower and brand not in domain:
-                risk = max(risk, 0.90)
-                indicators.append({
-                    "id": "IND-SENDER-MISMATCH",
-                    "title": "Display Name vs. Return Domain Mismatch",
-                    "description": f"Sender references '{brand.title()}' but originates from external domain '{domain}'.",
-                    "severity": "critical",
-                    "category": "sender",
-                    "score_impact": 35,
-                })
-                break
+        # Display name vs. official brand ecosystem check (allows e.g. "Amazon Web Services" <health@aws.com>)
+        if display_lower:
+            for brand, official_domains in BRAND_OFFICIAL_DOMAINS.items():
+                if brand in display_lower and reg_domain not in official_domains and not trusted:
+                    risk = max(risk, 0.90)
+                    indicators.append({
+                        "id": "IND-SENDER-MISMATCH",
+                        "title": "Display Name vs. Return Domain Mismatch",
+                        "description": f"Sender display name references '{brand.title()}' but originates from unverified domain '{reg_domain}'.",
+                        "severity": "critical",
+                        "category": "sender",
+                        "score_impact": 35,
+                    })
+                    break
 
         return {"sender_risk": risk, "indicators": indicators}
 

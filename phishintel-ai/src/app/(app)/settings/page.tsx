@@ -1,16 +1,68 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { usePhishGuard } from "@/context/PhishGuardContext";
 import { REPOSITORY_URL, ARCHITECTURE_IMAGE_PATH, BASE_PAPER_PATH } from "@/config/resources";
+import {
+  autoDetectBackendEndpoint,
+  checkBackendConnection,
+  MODEL_ENDPOINT_STORAGE_KEY,
+  normalizeAnalyzeEndpoint,
+  USE_MODEL_SERVICE_STORAGE_KEY,
+} from "@/lib/backendDiscovery";
 
 export default function SettingsPage() {
-  const { settings, updateSettings, testServiceConnection, logActivity, showToast } = usePhishGuard();
+  const { settings, updateSettings, logActivity, showToast } = usePhishGuard();
 
   const [tVal, setTVal] = useState<number>(settings.T);
   const [useSvc, setUseSvc] = useState<boolean>(settings.useService);
   const [endpoint, setEndpoint] = useState<string>(settings.endpoint);
   const [testing, setTesting] = useState<boolean>(false);
+  const [serviceStatus, setServiceStatus] = useState<{
+    type: "checking" | "connected" | "error";
+    message: string;
+  } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const savedToggle = localStorage.getItem(USE_MODEL_SERVICE_STORAGE_KEY);
+    if (savedToggle !== null) setUseSvc(savedToggle === "true");
+
+    const detectBackend = async () => {
+      setServiceStatus({ type: "checking", message: "Detecting running FastAPI backend..." });
+      try {
+        const detected = await autoDetectBackendEndpoint();
+        if (cancelled) return;
+
+        setEndpoint(detected.endpoint);
+        setServiceStatus(
+          detected.connected
+            ? { type: "connected", message: `Connected to ${detected.endpoint}` }
+            : {
+                type: "error",
+                message: `Backend not reachable at ${detected.endpoint}. Start FastAPI and test the connection.`,
+              }
+        );
+      } catch (error) {
+        if (cancelled) return;
+        setServiceStatus({
+          type: "error",
+          message: error instanceof Error ? error.message : "Backend detection failed.",
+        });
+      }
+    };
+
+    void detectBackend();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (localStorage.getItem(USE_MODEL_SERVICE_STORAGE_KEY) === null) {
+      setUseSvc(settings.useService);
+    }
+  }, [settings.useService]);
 
   const handleTSliderChange = (newT: number) => {
     setTVal(newT);
@@ -23,18 +75,45 @@ export default function SettingsPage() {
   };
 
   const handleSaveService = () => {
+    const normalizedEndpoint = normalizeAnalyzeEndpoint(endpoint);
+    setEndpoint(normalizedEndpoint);
+    localStorage.setItem(MODEL_ENDPOINT_STORAGE_KEY, normalizedEndpoint);
+    localStorage.setItem(USE_MODEL_SERVICE_STORAGE_KEY, String(useSvc));
     updateSettings({
       useService: useSvc,
-      endpoint: endpoint.trim(),
+      endpoint: normalizedEndpoint,
     });
     logActivity("Updated model service settings");
-    showToast(useSvc && endpoint.trim() ? "Model service settings saved" : "Using local preview");
+    setServiceStatus({ type: "connected", message: `Saved endpoint: ${normalizedEndpoint}` });
+    showToast(useSvc ? "Model service settings saved" : "Using local preview");
   };
 
   const handleTestConnection = async () => {
     setTesting(true);
-    await testServiceConnection(endpoint.trim());
-    setTesting(false);
+    setServiceStatus({ type: "checking", message: "Detecting and testing backend connection..." });
+    try {
+      const detected = await autoDetectBackendEndpoint();
+      const target = detected.connected ? detected.endpoint : normalizeAnalyzeEndpoint(endpoint);
+      const probe = await checkBackendConnection(target);
+
+      if (probe.ok) {
+        setEndpoint(probe.endpoint);
+        localStorage.setItem(MODEL_ENDPOINT_STORAGE_KEY, probe.endpoint);
+        setServiceStatus({ type: "connected", message: `Connected to ${probe.endpoint}` });
+      } else {
+        setServiceStatus({
+          type: "error",
+          message: `Unable to reach ${probe.endpoint}: ${probe.error || "Connection failed"}`,
+        });
+      }
+    } catch (error) {
+      setServiceStatus({
+        type: "error",
+        message: error instanceof Error ? error.message : "Connection test failed.",
+      });
+    } finally {
+      setTesting(false);
+    }
   };
 
   const handleStoreToggle = (checked: boolean) => {
@@ -148,6 +227,24 @@ export default function SettingsPage() {
                 onChange={(e) => setEndpoint(e.target.value)}
               />
             </div>
+            {serviceStatus && (
+              <p
+                role="status"
+                className="muted"
+                style={{
+                  fontSize: 12,
+                  margin: "8px 0 0",
+                  color:
+                    serviceStatus.type === "connected"
+                      ? "var(--success, #15803d)"
+                      : serviceStatus.type === "error"
+                        ? "var(--danger, #dc2626)"
+                        : undefined,
+                }}
+              >
+                {serviceStatus.message}
+              </p>
+            )}
             <p className="muted" style={{ fontSize: 12, margin: "10px 0 0" }}>
               Request: <span className="mono">&#123;subject, sender, content, headers&#125;</span> · Response:{" "}
               <span className="mono">&#123;success, scan_id, is_phishing, verdict, confidence_score, risk_score, p_phish,

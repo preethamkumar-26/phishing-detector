@@ -17,6 +17,7 @@ __pycache__/
 # Ignore Node.js and Next.js builds
 node_modules/
 .next/
+phishintel-ai/public/runtime-backend.json
 dist/
 out/
 .data/

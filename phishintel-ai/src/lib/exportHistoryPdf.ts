@@ -45,10 +45,11 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
   const margin = 36;
   const usableWidth = pageWidth - margin * 2; // ~769.89 pt
 
-  // Calculate high-level summary KPIs
+  // Calculate high-level 3-tier summary KPIs
   const totalCount = scans.length;
   const phishCount = scans.filter((s) => s.decision === "PHISHING").length;
-  const safeCount = totalCount - phishCount;
+  const suspiciousCount = scans.filter((s) => s.decision === "SUSPICIOUS").length;
+  const safeCount = scans.filter((s) => s.decision === "SAFE").length;
   const meanP = totalCount ? scans.reduce((acc, s) => acc + s.P, 0) / totalCount : 0;
 
   // 1. Top Header Bar (PhishIntel Branding)
@@ -87,37 +88,38 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
   // Determine truthful engine representation
   const hasService = scans.some((s) => s.engine === "service");
   const engineText = hasService
-    ? "Engine: PAHF-Net model service"
+    ? "Engine: PAHF-Net model service + offline verification"
     : "Engine: local preview (model service not connected)";
 
   const scopeText = [
-    `Architecture: PAHF-Net (Availability-Gated Hierarchical Fusion with Class-Conditional DANN)`,
+    "Architecture: PAHF-Net (Availability-Gated Hierarchical Fusion)",
     engineText,
     `Records: ${totalCount}`,
-    filterLabel ? `Filter: ${filterLabel}` : `Scope: Full scan audit log`,
+    filterLabel ? `Filter: ${cleanPdfText(filterLabel)}` : "Scope: Full scan audit log",
   ].join("  ·  ");
 
   doc.text(scopeText, margin, 70);
 
-  // 3. Four KPI Metric Boxes
+  // 3. Five KPI Metric Boxes
   const kpiTop = 90;
   const kpiHeight = 44;
-  const kpiWidth = (usableWidth - 30) / 4;
-
-  const kpis = [
+  const kpiGap = 10;
+  const kpis: Array<{ label: string; val: string; color: [number, number, number] }> = [
     { label: "TOTAL AUDITED SCANS", val: String(totalCount), color: [28, 31, 26] },
     { label: "PHISHING INCURSIONS", val: String(phishCount), color: [216, 69, 43] },
+    { label: "SUSPICIOUS / REVIEW", val: String(suspiciousCount), color: [194, 120, 3] },
     { label: "VERIFIED SAFE EMAILS", val: String(safeCount), color: [30, 154, 105] },
     { label: "MEAN P(PHISH) SCORE", val: meanP.toFixed(3), color: [28, 31, 26] },
   ];
+  const kpiWidth = (usableWidth - kpiGap * (kpis.length - 1)) / kpis.length;
 
   kpis.forEach((k, i) => {
-    const x = margin + i * (kpiWidth + 10);
+    const x = margin + i * (kpiWidth + kpiGap);
     doc.setFillColor(248, 249, 245);
     doc.setDrawColor(220, 222, 210);
     doc.roundedRect(x, kpiTop, kpiWidth, kpiHeight, 4, 4, "FD");
 
-    doc.setFontSize(7.5);
+    doc.setFontSize(7.2);
     doc.setFont("helvetica", "bold");
     doc.setTextColor(115, 120, 105);
     doc.text(k.label, x + 10, kpiTop + 14);
@@ -135,13 +137,20 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
       .sort((a, b) => (b.score_impact ?? 0) - (a.score_impact ?? 0))
       .slice(0, 2)
       .map((ind) => {
-        const branchLabel = ind.category ? ind.category.charAt(0).toUpperCase() + ind.category.slice(1) : "Linguistic";
+        const branchLabel = ind.category
+          ? ind.category.charAt(0).toUpperCase() + ind.category.slice(1)
+          : "Linguistic";
         const impactVal = ((ind.score_impact ?? 0) / 100).toFixed(2);
         return `${cleanPdfText(ind.title)} (${branchLabel}, +${impactVal})`;
       });
 
+    const positiveVerification = (s.indicators || [])
+      .filter((ind) => (ind.score_impact ?? 0) === 0 && ind.severity === "low")
+      .slice(0, 2)
+      .map((ind) => cleanPdfText(ind.title));
+
     const topModalities = Object.entries(s.modalityContributions || {})
-      .filter(([_, val]) => val > 0)
+      .filter(([, val]) => val > 0)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 2)
       .map(([mod, val]) => {
@@ -149,11 +158,14 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
         return `${label} (${label}, +${val.toFixed(2)})`;
       });
 
-    const signalText = topIndicators.length > 0
-      ? topIndicators.join("; ")
-      : topModalities.length > 0
-        ? topModalities.join("; ")
-        : "Calibrated Safe (Baseline)";
+    const signalText =
+      s.decision === "SAFE" && positiveVerification.length > 0
+        ? `Verified: ${positiveVerification.join("; ")}`
+        : topIndicators.length > 0
+          ? topIndicators.join("; ")
+          : topModalities.length > 0
+            ? topModalities.join("; ")
+            : "Calibrated Safe (Baseline)";
 
     const sourceLabel = s.src === "sample" ? "sample" : "user";
 
@@ -175,7 +187,18 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
   autoTable(doc, {
     startY: 148,
     margin: { left: margin, right: margin, bottom: 40 },
-    head: [["Scan ID", "Timestamp", "Sender", "Subject", "Verdict", "P(phish)", "Threshold", "Signals / Source"]],
+    head: [
+      [
+        "Scan ID",
+        "Timestamp",
+        "Sender",
+        "Subject",
+        "Verdict",
+        "P(phish)",
+        "Threshold",
+        "Signals / Source",
+      ],
+    ],
     body: tableRows,
     theme: "striped",
     headStyles: {
@@ -196,19 +219,22 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
     columnStyles: {
       0: { cellWidth: 55, fontStyle: "bold" },
       1: { cellWidth: 85 },
-      2: { cellWidth: 150 },
-      3: { cellWidth: 195 },
-      4: { cellWidth: 65, halign: "center", fontStyle: "bold" },
+      2: { cellWidth: 148 },
+      3: { cellWidth: 190 },
+      4: { cellWidth: 72, halign: "center", fontStyle: "bold" },
       5: { cellWidth: 48, halign: "right" },
       6: { cellWidth: 42, halign: "right" },
       7: { cellWidth: 125 },
     },
     didParseCell: (data) => {
-      // Color-code verdicts
+      // Color-code 3-tier verdicts
       if (data.section === "body" && data.column.index === 4) {
         if (data.cell.raw === "PHISHING") {
           data.cell.styles.textColor = [216, 69, 43];
           data.cell.styles.fillColor = [254, 237, 235];
+        } else if (data.cell.raw === "SUSPICIOUS") {
+          data.cell.styles.textColor = [194, 120, 3];
+          data.cell.styles.fillColor = [254, 247, 230];
         } else if (data.cell.raw === "SAFE") {
           data.cell.styles.textColor = [30, 154, 105];
           data.cell.styles.fillColor = [236, 248, 243];
@@ -222,7 +248,11 @@ export function exportHistoryPdf({ scans, filterLabel }: ExportPdfOptions): void
       doc.setFont("helvetica", "normal");
       doc.setDrawColor(220, 222, 210);
       doc.line(margin, pageHeight - 26, pageWidth - margin, pageHeight - 26);
-      doc.text("PhishIntel Security Platform · PAHF-Net Availability-Gated Threat Architecture", margin, pageHeight - 14);
+      doc.text(
+        "PhishIntel Security Platform · PAHF-Net Availability-Gated Threat Architecture",
+        margin,
+        pageHeight - 14
+      );
 
       const pageStr = `Page ${data.pageNumber} of ${totalPagesExp}`;
       doc.text(pageStr, pageWidth - margin, pageHeight - 14, { align: "right" });

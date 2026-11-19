@@ -2,7 +2,13 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { usePhishGuard, SAMPLE_EMAILS, ScanItem, buildInitialScans } from "@/context/PhishGuardContext";
+import {
+  usePhishGuard,
+  SAMPLE_EMAILS,
+  ScanDecision,
+  ScanItem,
+  buildInitialScans,
+} from "@/context/PhishGuardContext";
 
 const ANALYZER_SAMPLES = {
   phish: 4, // "Your Meridian Bank account has been locked"
@@ -15,8 +21,29 @@ const STEPS = [
   ["Multi-branch encoding", "DeBERTa-v3 (256d) + 3×32d"],
   ["Availability gating", "g_t, g_u, g_s, g_l estimation"],
   ["Hierarchical fusion", "h_fused = Σ g_i z_i · DANN"],
-  ["Calibrated decision", "P_phish vs operating T"],
+  ["Offline verification", "Tranco · Domain & header fusion"],
 ];
+
+const DECISION_META: Record<
+  ScanDecision,
+  { label: string; className: string; color: string }
+> = {
+  PHISHING: {
+    label: "Phishing",
+    className: "dec phish",
+    color: "#FF7A52",
+  },
+  SUSPICIOUS: {
+    label: "Suspicious · verify sender",
+    className: "dec",
+    color: "#F5B041",
+  },
+  SAFE: {
+    label: "Safe · legitimate",
+    className: "dec safe",
+    color: "#3FC891",
+  },
+};
 
 const URL_RE = /\b(?:https?:\/\/|www\.)[^\s<>"'\])]+/gi;
 const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -203,15 +230,18 @@ function AnalyzerContent() {
         b = decodeURIComponent(escape(atob(b.replace(/\s/g, ""))));
       } catch {}
     }
-    // Retain every original header. Provider-specific transport evidence such as
-    // X-Google-Smtp-Source and X-Yahoo headers is needed for source detection.
     return { subject: h("Subject"), from: h("From"), replyTo: h("Reply-To"), body: b, headers: head.trim() };
   };
 
   const handleFile = (file?: File | null) => {
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      showToast("File is larger than 2 MB. Paste the relevant part instead.", true);
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("File is larger than 5 MB. Paste the relevant part instead.", true);
+      return;
+    }
+    const name = file.name.toLowerCase();
+    if (!name.endsWith(".eml") && !name.endsWith(".txt")) {
+      showToast("Only .eml and .txt email files are allowed.", true);
       return;
     }
     const reader = new FileReader();
@@ -290,6 +320,17 @@ function AnalyzerContent() {
       .slice(0, 6);
   }, [scanResult]);
 
+  const positiveSignalsList = useMemo(() => {
+    if (!scanResult) return [];
+    return (scanResult.indicators || [])
+      .filter((ind) => (ind.score_impact ?? 0) === 0 && ind.severity === "low")
+      .slice(0, 4);
+  }, [scanResult]);
+
+  const decisionMeta = scanResult
+    ? DECISION_META[scanResult.decision] ?? DECISION_META.SAFE
+    : null;
+
   // Semi-circular gauge SVG calculation
   const gaugeSvg = useMemo(() => {
     if (!scanResult) return null;
@@ -306,7 +347,7 @@ function AnalyzerContent() {
       cx - (r + 9) * Math.cos(Math.PI * T),
       cy - (r + 9) * Math.sin(Math.PI * T),
     ];
-    const col = P >= T ? "#FF7A52" : "#3FC891";
+    const col = (DECISION_META[scanResult.decision] ?? DECISION_META.SAFE).color;
 
     return (
       <svg width="180" height="104" viewBox="0 0 180 104" aria-hidden="true">
@@ -329,7 +370,11 @@ function AnalyzerContent() {
   // Copy summary
   const handleCopySummary = () => {
     if (!scanResult) return;
-    const txt = `${scanResult.id} · ${scanResult.decision} · P_phish ${scanResult.P.toFixed(3)} (T ${scanResult.T.toFixed(2)}) · ${scanResult.engine}\nSubject: ${scanResult.email.subject}\nFrom: ${scanResult.email.from}\nIndicators: ${topIndicatorsList.map((r) => r.id + " " + r.title).join("; ") || "none"}`;
+    const rawNote =
+      typeof scanResult.rawModelProbability === "number"
+        ? ` · raw PAHF ${scanResult.rawModelProbability.toFixed(3)}`
+        : "";
+    const txt = `${scanResult.id} · ${scanResult.decision} · P_phish ${scanResult.P.toFixed(3)} (T ${scanResult.T.toFixed(2)}${rawNote}) · ${scanResult.engine}\nSubject: ${scanResult.email.subject}\nFrom: ${scanResult.email.from}\nIndicators: ${topIndicatorsList.map((r) => r.id + " " + r.title).join("; ") || "none"}`;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(txt).then(
         () => showToast("Summary copied"),
@@ -351,7 +396,7 @@ function AnalyzerContent() {
         <div>
           <h1>Email analyzer</h1>
           <p>
-            Submit a finance-related email. Subject, body, sender, reply-to, URLs and headers are parsed and evaluated across PAHF-Net modalities.
+            Submit an email. Subject, body, sender, reply-to, URLs and headers are parsed and evaluated across PAHF-Net modalities and offline domain verification.
           </p>
         </div>
         <div className="actions">
@@ -592,7 +637,7 @@ function AnalyzerContent() {
                     className="textarea mono"
                     id="f-headers"
                     rows={5}
-                    placeholder={"Received: …\nReturn-Path: <…>\nMessage-ID: <…>\nX-Originating-IP: …"}
+                    placeholder={"Authentication-Results: spf=pass; dkim=pass; dmarc=pass\nReceived: …\nReturn-Path: <…>\nList-Unsubscribe: <…>"}
                     value={headers}
                     onChange={(e) => setHeaders(e.target.value)}
                   />
@@ -616,7 +661,7 @@ function AnalyzerContent() {
                 </svg>
                 <span>
                   {settings.useService && settings.endpoint
-                    ? "Content is sent to the configured model service for scoring."
+                    ? "Content is sent to the configured local model service for offline scoring."
                     : "Content stays in this browser. No model service is configured."}
                 </span>
               </p>
@@ -686,7 +731,7 @@ function AnalyzerContent() {
           )}
 
           {/* Result view */}
-          {!running && scanResult && (
+          {!running && scanResult && decisionMeta && (
             <>
               {loadedFromScanId && (
                 <div
@@ -718,14 +763,33 @@ function AnalyzerContent() {
                   <div className="eyebrow" style={{ color: "var(--dark-muted)" }}>
                     Decision
                   </div>
-                  <div className={`dec ${scanResult.decision === "PHISHING" ? "phish" : "safe"}`}>
-                    {scanResult.decision === "PHISHING" ? "Phishing" : "Safe · legitimate"}
+                  <div
+                    className={decisionMeta.className}
+                    style={
+                      scanResult.decision === "SUSPICIOUS"
+                        ? { color: decisionMeta.color }
+                        : undefined
+                    }
+                  >
+                    {decisionMeta.label}
                   </div>
                   <div className="dark-tags">
-                    <span className="tag dark">
+                    <span
+                      className="tag dark"
+                      style={
+                        scanResult.decision === "SUSPICIOUS"
+                          ? { borderColor: "rgba(245, 176, 65, 0.4)", color: "#F5B041" }
+                          : undefined
+                      }
+                    >
                       {scanResult.decision === "PHISHING" ? (
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor">
                           <path d="M12 2.5 1.5 21h21L12 2.5Zm1 15h-2v-2h2v2Zm0-4h-2V9h2v4.5Z" />
+                        </svg>
+                      ) : scanResult.decision === "SUSPICIOUS" ? (
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4">
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M12 8v5M12 16.5h.01" />
                         </svg>
                       ) : (
                         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3">
@@ -738,6 +802,15 @@ function AnalyzerContent() {
                     <span className="tag dark">
                       {scanResult.engine === "service" ? `service · ${scanResult.modelVersion}` : "local preview"}
                     </span>
+                    {typeof scanResult.rawModelProbability === "number" &&
+                      Math.abs(scanResult.rawModelProbability - scanResult.P) >= 0.05 && (
+                        <span
+                          className="tag dark"
+                          title="Raw PAHF-Net text/content score before offline domain & header fusion"
+                        >
+                          PAHF raw {formatP(scanResult.rawModelProbability)}
+                        </span>
+                      )}
                   </div>
                 </div>
                 {gaugeSvg}
@@ -750,6 +823,19 @@ function AnalyzerContent() {
                 <span>{scanResult.id}</span>
                 <span>{fmtAbs(scanResult.ts)}</span>
               </div>
+
+              {scanResult.evidenceSummary && (
+                <p
+                  style={{
+                    margin: "10px 0 0",
+                    fontSize: "12.5px",
+                    lineHeight: 1.5,
+                    color: "var(--dark-muted)",
+                  }}
+                >
+                  {scanResult.evidenceSummary}
+                </p>
+              )}
 
               {/* PAHF-Net Modality Contributions */}
               <div className="res-sec">
@@ -800,11 +886,13 @@ function AnalyzerContent() {
                 })}
               </div>
 
-              {/* Top Indicators */}
+              {/* Top Risk Indicators */}
               <div className="res-sec">
                 <h5>
                   <span>Top indicators</span>
-                  <span className="mono">{(scanResult.indicators || []).filter((r) => (r.score_impact ?? 0) > 0).length} fired</span>
+                  <span className="mono">
+                    {(scanResult.indicators || []).filter((r) => (r.score_impact ?? 0) > 0).length} fired
+                  </span>
                 </h5>
                 {topIndicatorsList.length ? (
                   topIndicatorsList.map((r) => (
@@ -812,7 +900,7 @@ function AnalyzerContent() {
                       <span className="code">{r.id}</span>
                       <div style={{ minWidth: 0 }}>
                         <div>{r.title}</div>
-                        {r.description && <div className="h">{String(r.description).slice(0, 90)}</div>}
+                        {r.description && <div className="h">{String(r.description).slice(0, 110)}</div>}
                       </div>
                       <span className="mono" style={{ marginLeft: "auto", fontSize: "11.5px", color: "var(--dark-muted)" }}>
                         +{r.score_impact}%
@@ -825,6 +913,35 @@ function AnalyzerContent() {
                   </p>
                 )}
               </div>
+
+              {/* Offline Verification & Trust Signals */}
+              {positiveSignalsList.length > 0 && (
+                <div className="res-sec">
+                  <h5>
+                    <span>Offline verification signals</span>
+                    <span className="mono" style={{ color: "#3FC891" }}>
+                      {positiveSignalsList.length} verified
+                    </span>
+                  </h5>
+                  {positiveSignalsList.map((r) => (
+                    <div key={r.id} className="ind">
+                      <span
+                        className="code"
+                        style={{
+                          color: "#3FC891",
+                          borderColor: "rgba(63, 200, 145, 0.35)",
+                        }}
+                      >
+                        {r.id}
+                      </span>
+                      <div style={{ minWidth: 0 }}>
+                        <div>{r.title}</div>
+                        {r.description && <div className="h">{String(r.description).slice(0, 110)}</div>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
 
               {/* Extracted Entities */}
               <div className="res-sec">

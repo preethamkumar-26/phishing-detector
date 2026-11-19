@@ -4,8 +4,12 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import {
   analyzeEmailWithBackend,
   FASTAPI_ANALYZE_URL,
-  FastAPIAnalysisResponse,
+  FastAPIVerificationDetails,
 } from "@/services/scanService";
+import {
+  MODEL_ENDPOINT_STORAGE_KEY,
+  USE_MODEL_SERVICE_STORAGE_KEY,
+} from "@/lib/backendDiscovery";
 
 export interface ScanEmailInput {
   subject: string;
@@ -17,6 +21,8 @@ export interface ScanEmailInput {
 }
 
 export type PahfModality = "text" | "url" | "structure" | "linguistic";
+export type ScanDecision = "PHISHING" | "SUSPICIOUS" | "SAFE";
+export type RiskLevel = "High" | "Medium" | "Low";
 
 export interface ModalityGate {
   modality: PahfModality;
@@ -56,9 +62,11 @@ export interface ScanItem {
   localP: number;
   engine: "service" | "local";
   modelVersion: string; // "PAHF-Net"
-  decision: "PHISHING" | "SAFE";
-  risk: "High" | "Low";
+  decision: ScanDecision;
+  verdict?: string;
+  risk: RiskLevel;
   riskScore: number;
+  processingTimeMs?: number;
   indicators: ModelIndicator[];
   email: {
     subject: string;
@@ -80,6 +88,9 @@ export interface ScanItem {
   flaggedTokens?: string[];
   urlSignals?: string[];
   evidenceSummary?: string;
+  rawModelProbability?: number;
+  decisionBasis?: string;
+  verification?: FastAPIVerificationDetails;
 }
 
 export interface EvalArtifact {
@@ -158,6 +169,50 @@ interface PhishGuardContextValue {
 
 const PhishGuardContext = createContext<PhishGuardContextValue | null>(null);
 
+const SUSPICIOUS_THRESHOLD = 0.2872;
+
+export function mapApiVerdictToDecision(
+  verdict: string | undefined,
+  isPhishing: boolean
+): ScanDecision {
+  const normalized = (verdict || "").trim().toLowerCase();
+  if (normalized === "malicious" || normalized === "phishing" || isPhishing) {
+    return "PHISHING";
+  }
+  if (
+    normalized === "suspicious" ||
+    normalized === "uncertain" ||
+    normalized === "needs_review"
+  ) {
+    return "SUSPICIOUS";
+  }
+  return "SAFE";
+}
+
+function mapDecisionToRiskLevel(decision: ScanDecision, riskScore: number): RiskLevel {
+  if (decision === "PHISHING" || riskScore >= 70) return "High";
+  if (decision === "SUSPICIOUS" || riskScore >= 30) return "Medium";
+  return "Low";
+}
+
+function normalizeIndicatorCategory(category: string | undefined): ModelIndicator["category"] {
+  const c = (category || "").trim().toLowerCase();
+  if (c === "text" || c === "url" || c === "structure" || c === "linguistic" || c === "model") {
+    return c;
+  }
+  if (c === "headers" || c === "sender" || c === "verification") return "structure";
+  if (c === "content") return "text";
+  return "model";
+}
+
+function normalizeIndicatorSeverity(severity: string | undefined): ModelIndicator["severity"] {
+  const s = (severity || "").trim().toLowerCase();
+  if (s === "critical" || s === "high" || s === "medium" || s === "low") {
+    return s;
+  }
+  return "medium";
+}
+
 /* =====================================================================
    PAHF-Net Feature extraction & math engine
    Availability-gated hierarchical fusion (DeBERTa-v3 256d + 3x32d encoders)
@@ -177,11 +232,6 @@ const BRANDS: [string, string][] = [
   ["Meridian Bank", "meridianbank"], ["Wells Fargo", "wellsfargo"],
 ];
 const brandRe = (n: string) => new RegExp("\\b" + n.toLowerCase().replace(/\s+/g, "\\s?") + "\\b");
-const BIAS = -2.4, K = 0.75;
-
-function sig(z: number): number {
-  return 1 / (1 + Math.exp(-z));
-}
 
 function uniq<T>(a: T[]): T[] {
   return [...new Set(a)];
@@ -194,7 +244,12 @@ function regDomain(host: string): string {
   const p = host.split(".");
   if (p.length <= 2) return host;
   const tld = p[p.length - 1], sl = p[p.length - 2];
-  if (tld.length === 2 && ["co", "com", "org", "net", "ac", "gov", "edu"].includes(sl)) return p.slice(-3).join(".");
+  if (
+    tld.length === 2 &&
+    ["co", "com", "org", "net", "ac", "gov", "edu", "bank", "fin", "nic"].includes(sl)
+  ) {
+    return p.slice(-3).join(".");
+  }
   return p.slice(-2).join(".");
 }
 
@@ -352,6 +407,7 @@ export function computePahfNetAnalysis(
   urlSignals: string[];
   evidenceSummary: string;
 } {
+  void prior;
   const body = htmlToText(email.body || "");
   const raw = (email.subject || "") + "\n" + body;
   const text = raw.toLowerCase();
@@ -375,7 +431,6 @@ export function computePahfNetAnalysis(
   const m_l = hasLing;
 
   // 2. Modality Threat Estimation
-  // Text (DeBERTa-v3 semantic cues)
   let textScore = 0.12;
   const flaggedTokens: string[] = [];
   if (/urgent|immediately|asap|within \d+|suspended|locked|unauthorized|breach|password|verify|credentials/i.test(text)) {
@@ -392,11 +447,10 @@ export function computePahfNetAnalysis(
   }
   textScore = Math.min(1.0, textScore);
 
-  // URL (Lexical, domain & host features)
   let urlScore = 0.05;
   const urlSignals: string[] = [];
   if (hasUrls) {
-    const suspiciousTld = U.some((u) => /\.(top|xyz|info|net|ru|work|live)$/i.test(u.host));
+    const suspiciousTld = U.some((u) => /\.(top|tk|ml|ga|cf|gq|zip|mov)$/i.test(u.host));
     const ipHost = U.some((u) => u.ip);
     const domainMismatch = from.reg && U.some((u) => u.reg && u.reg !== from.reg);
     const shortUrl = U.some((u) => u.short);
@@ -418,7 +472,6 @@ export function computePahfNetAnalysis(
     urlScore = 0.0;
   }
 
-  // Structure (Header & layout format features)
   let structScore = 0.12;
   if (hasHeaders) {
     if (hdr.rp && from.reg && regDomain(hdr.rp) !== from.reg) {
@@ -435,7 +488,6 @@ export function computePahfNetAnalysis(
     structScore = 0.20;
   }
 
-  // Linguistic (Stylistic & psychological markers)
   let lingScore = 0.10;
   const capsRatio = (raw.match(/[A-Z]/g) || []).length / Math.max(1, (raw.match(/[a-zA-Z]/g) || []).length);
   const exclamations = (raw.match(/!{2,}/g) || []).length;
@@ -767,6 +819,9 @@ export function buildInitialScans(T = 0.5): ScanItem[] {
       prior
     );
     const P = core.P;
+    const riskScore = Math.round(P * 100);
+    const decision: ScanDecision =
+      P >= T ? "PHISHING" : P >= SUSPICIOUS_THRESHOLD ? "SUSPICIOUS" : "SAFE";
     out.push({
       ...core,
       id: "PG-" + (1230 - i * 7),
@@ -777,9 +832,10 @@ export function buildInitialScans(T = 0.5): ScanItem[] {
       localP: P,
       engine: "local",
       modelVersion: "PAHF-Net",
-      decision: P >= T ? "PHISHING" : "SAFE",
-      risk: P >= T ? "High" : "Low",
-      riskScore: Math.round(P * 100),
+      decision,
+      verdict: decision === "PHISHING" ? "Malicious" : decision === "SUSPICIOUS" ? "Suspicious" : "Safe",
+      risk: mapDecisionToRiskLevel(decision, riskScore),
+      riskScore,
     });
   });
   const sorted = out.sort((a, b) => b.ts - a.ts);
@@ -842,6 +898,18 @@ export function PhishGuardProvider({
       const savedSettings = localStorage.getItem("pg.settings");
       if (savedSettings) {
         setSettings((prev) => ({ ...prev, ...JSON.parse(savedSettings) }));
+      }
+    } catch {}
+
+    try {
+      const savedEndpoint = localStorage.getItem(MODEL_ENDPOINT_STORAGE_KEY);
+      const savedUseService = localStorage.getItem(USE_MODEL_SERVICE_STORAGE_KEY);
+      if (savedEndpoint || savedUseService !== null) {
+        setSettings((prev) => ({
+          ...prev,
+          ...(savedEndpoint ? { endpoint: savedEndpoint } : {}),
+          ...(savedUseService !== null ? { useService: savedUseService === "true" } : {}),
+        }));
       }
     } catch {}
 
@@ -916,6 +984,16 @@ export function PhishGuardProvider({
               },
               []
             );
+            const fallbackDecision: ScanDecision =
+              s.decision === "PHISHING" || s.decision === "SUSPICIOUS" || s.decision === "SAFE"
+                ? s.decision
+                : core.P >= 0.5
+                  ? "PHISHING"
+                  : core.P >= SUSPICIOUS_THRESHOLD
+                    ? "SUSPICIOUS"
+                    : "SAFE";
+            const fallbackRiskScore =
+              typeof s.riskScore === "number" ? s.riskScore : Math.round(core.P * 100);
             return {
               ...core,
               id: s.id || `PG-${Math.floor(Date.now() / 1000)}`,
@@ -926,9 +1004,9 @@ export function PhishGuardProvider({
               localP: typeof s.localP === "number" ? s.localP : core.P,
               engine: s.engine || "local",
               modelVersion: "PAHF-Net",
-              decision: s.decision || (core.P >= 0.5 ? "PHISHING" : "SAFE"),
-              risk: s.risk || (core.P >= 0.5 ? "High" : "Low"),
-              riskScore: typeof s.riskScore === "number" ? s.riskScore : Math.round(core.P * 100),
+              decision: fallbackDecision,
+              risk: s.risk || mapDecisionToRiskLevel(fallbackDecision, fallbackRiskScore),
+              riskScore: fallbackRiskScore,
               indicators: core.indicators,
             };
           }
@@ -966,18 +1044,15 @@ export function PhishGuardProvider({
   }, []);
 
   // Update Settings
-  const updateSettings = useCallback(
-    (patch: Partial<SettingsState>) => {
-      setSettings((prev) => {
-        const next = { ...prev, ...patch };
-        try {
-          localStorage.setItem("pg.settings", JSON.stringify(next));
-        } catch {}
-        return next;
-      });
-    },
-    []
-  );
+  const updateSettings = useCallback((patch: Partial<SettingsState>) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      try {
+        localStorage.setItem("pg.settings", JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   // Update Profile
   const updateProfile = useCallback((patch: Partial<ProfileState>) => {
@@ -1049,7 +1124,9 @@ export function PhishGuardProvider({
   // Call Model Service
   const callService = useCallback(
     async (email: ScanEmailInput) => {
-      if (!settings.useService) return null;
+      if (!settings.useService) {
+        throw new Error("Live PAHF-Net service analysis is disabled. Enable the model service in Settings.");
+      }
       try {
         setUsage((prev) => {
           const next = { ...prev, calls: prev.calls + 1 };
@@ -1071,7 +1148,7 @@ export function PhishGuardProvider({
               urls: email.urls.split(/\s+/).filter(Boolean),
               headers: email.headers,
             },
-            settings.endpoint || FASTAPI_ANALYZE_URL,
+            undefined,
             controller.signal
           );
           setServiceStatus("ok");
@@ -1081,6 +1158,8 @@ export function PhishGuardProvider({
             isPhishing: response.is_phishing,
             indicators: response.indicators,
             verdict: response.verdict,
+            explainability: response.explainability,
+            processingTimeMs: response.processing_time_ms,
             version: "PAHF-Net",
           };
         } finally {
@@ -1100,29 +1179,55 @@ export function PhishGuardProvider({
     [settings.endpoint, settings.useService]
   );
 
-  // Run email analysis (PAHF-Net Native)
+  // Run email analysis (PAHF-Net Native + Offline Verification Fusion)
   const runScan = useCallback(
     async (email: ScanEmailInput): Promise<ScanItem> => {
       const prior = scans.map((s) => ({ fromReg: s.fromReg }));
       const core = computePahfNetAnalysis(email, prior);
       const svcRes = await callService(email);
 
-      const isService = !!svcRes;
-      const P = svcRes ? svcRes.p : core.P;
-      const riskScore = svcRes?.riskScore ?? Math.round(P * 100);
-      const isPhishing = svcRes ? svcRes.isPhishing : P >= settings.T;
-      const indicators: ModelIndicator[] = (svcRes?.indicators && svcRes.indicators.length > 0)
-        ? svcRes.indicators.map((ind, i) => ({
-            id: ind.id || `IND-PAHF-${i + 1}`,
-            title: ind.title || "Threat Indicator",
-            description: ind.description || "",
-            severity: (ind.severity as any) || "medium",
-            category: (["text", "url", "structure", "linguistic", "model"].includes(ind.category as string)
-              ? ind.category
-              : "model") as PahfModality | "model",
-            score_impact: typeof ind.score_impact === "number" ? ind.score_impact : 0,
-          }))
-        : core.indicators;
+      const isService = true;
+      const P = svcRes.p;
+      const riskScore = svcRes.riskScore;
+      const decision: ScanDecision = mapApiVerdictToDecision(svcRes.verdict, svcRes.isPhishing);
+      const risk = mapDecisionToRiskLevel(decision, riskScore);
+
+      // Wire real backend PAHF-Net gate weights when available
+      const backendGates = svcRes?.explainability?.feature_contributions;
+      const gateWeights: Record<PahfModality, number> = backendGates
+        ? {
+            text: Number(backendGates.text ?? core.gateWeights.text),
+            url: Number(backendGates.url ?? core.gateWeights.url),
+            structure: Number(backendGates.structure ?? core.gateWeights.structure),
+            linguistic: Number(backendGates.linguistic ?? core.gateWeights.linguistic),
+          }
+        : core.gateWeights;
+
+      const modalities: Record<PahfModality, ModalityGate> = {
+        text: { ...core.modalities.text, gateWeight: gateWeights.text },
+        url: { ...core.modalities.url, gateWeight: gateWeights.url },
+        structure: { ...core.modalities.structure, gateWeight: gateWeights.structure },
+        linguistic: { ...core.modalities.linguistic, gateWeight: gateWeights.linguistic },
+      };
+
+      const indicators: ModelIndicator[] =
+        svcRes?.indicators && svcRes.indicators.length > 0
+          ? svcRes.indicators.map((ind, i) => ({
+              id: ind.id || `IND-PAHF-${i + 1}`,
+              title: ind.title || "Threat Indicator",
+              description: ind.description || "",
+              severity: normalizeIndicatorSeverity(ind.severity),
+              category: normalizeIndicatorCategory(ind.category),
+              score_impact: typeof ind.score_impact === "number" ? ind.score_impact : 0,
+            }))
+          : core.indicators;
+
+      const backendFlaggedTokens = svcRes?.explainability?.flagged_tokens?.map(
+        (t) => `${t.token} — ${t.reason}`
+      );
+      const backendUrlSignals = svcRes?.explainability?.url_signals
+        ?.filter((u) => u.is_suspicious || u.isSuspicious)
+        .map((u) => `${u.domain}: ${(u.reasons || []).join("; ")}`);
 
       const id = "PG-" + (2000 + usage.scans + 1 + (Math.floor(Date.now() / 1000) % 1000));
       const newScan: ScanItem = {
@@ -1135,10 +1240,28 @@ export function PhishGuardProvider({
         localP: core.P,
         engine: isService ? "service" : "local",
         modelVersion: "PAHF-Net",
-        decision: isPhishing ? "PHISHING" : "SAFE",
-        risk: (riskScore >= 70 || P >= settings.T) ? "High" : "Low",
+        decision,
+        verdict:
+          svcRes?.verdict ??
+          (decision === "PHISHING" ? "Malicious" : decision === "SUSPICIOUS" ? "Suspicious" : "Safe"),
+        risk,
         riskScore,
         indicators,
+        processingTimeMs: svcRes.processingTimeMs,
+        gateWeights,
+        modalities,
+        flaggedTokens:
+          backendFlaggedTokens && backendFlaggedTokens.length > 0
+            ? backendFlaggedTokens
+            : core.flaggedTokens,
+        urlSignals:
+          backendUrlSignals && backendUrlSignals.length > 0
+            ? backendUrlSignals
+            : core.urlSignals,
+        evidenceSummary: svcRes?.explainability?.summary || core.evidenceSummary,
+        rawModelProbability: svcRes?.explainability?.raw_model_probability,
+        decisionBasis: svcRes?.explainability?.decision_basis,
+        verification: svcRes?.explainability?.verification,
       };
 
       setScans((prev) => {
@@ -1166,7 +1289,14 @@ export function PhishGuardProvider({
 
       // Backend sync
       try {
-        const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
+        const sessionUser =
+          typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
+        const syncPrediction =
+          newScan.decision === "PHISHING"
+            ? "phishing"
+            : newScan.decision === "SUSPICIOUS"
+              ? "needs_review"
+              : "safe";
         fetch("/api/account/scan", {
           method: "POST",
           headers: {
@@ -1181,7 +1311,7 @@ export function PhishGuardProvider({
             body: newScan.email.body,
             urls: newScan.urls,
             headers: newScan.email.headers,
-            prediction: newScan.decision === "PHISHING" ? "phishing" : "safe",
+            prediction: syncPrediction,
             confidence: +(newScan.P * 100).toFixed(1),
             payload: newScan,
           }),
@@ -1198,7 +1328,8 @@ export function PhishGuardProvider({
     setScans([]);
     try {
       localStorage.removeItem("pg.scans");
-      const sessionUser = typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
+      const sessionUser =
+        typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
       if (sessionUser) {
         fetch("/api/account/scan?clearAll=true", {
           method: "DELETE",

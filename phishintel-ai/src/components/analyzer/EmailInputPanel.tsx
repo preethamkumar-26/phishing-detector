@@ -92,7 +92,11 @@ export function EmailInputPanel({
   };
 
   const processFile = (file: File) => {
-    const validExts = [".txt", ".eml", ".msg"];
+    if (file.size > 5 * 1024 * 1024) {
+      alert("Please upload a file smaller than 5 MB.");
+      return;
+    }
+    const validExts = [".txt", ".eml"];
     const hasValidExt = validExts.some((ext) => file.name.toLowerCase().endsWith(ext));
     if (!hasValidExt) {
       alert("Please upload a .txt or .eml email file.");
