@@ -248,3 +248,16 @@ export function authenticateRequest(req: Request): DbUser {
 
   throw new Error("Authentication required. Please sign in to access account data.");
 }
+
+export function deleteUserAccount(userIdOrEmail: string): boolean {
+  const db = getDb();
+  let user = findUserById(userIdOrEmail);
+  if (!user) {
+    user = findUserByEmail(userIdOrEmail);
+  }
+  if (!user) return false;
+
+  // Foreign keys have ON DELETE CASCADE, so preferences, sessions, and activity are deleted automatically
+  db.prepare("DELETE FROM users WHERE id = ?").run(user.id);
+  return true;
+}
