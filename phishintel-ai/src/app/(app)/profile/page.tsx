@@ -643,8 +643,9 @@ export default function ProfilePage() {
 
   // Handle Delete Account Permanently
   const handleDeleteAccount = async () => {
-    if (deleteConfirmInput.trim().toUpperCase() !== "DELETE") {
-      setDeleteError('Please type "DELETE" exactly to confirm.');
+    const trimmed = deleteConfirmInput.trim();
+    if (trimmed !== "DELETE" && trimmed !== "delete") {
+      setDeleteError('Please type either "DELETE" or "delete" (all uppercase or all lowercase). Mixed case is not accepted.');
       return;
     }
 
@@ -1707,7 +1708,7 @@ export default function ProfilePage() {
                 htmlFor="confirm-delete-input"
                 style={{ display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}
               >
-                Type <strong style={{ color: "#ef4444" }}>DELETE</strong> to confirm:
+                Type <strong style={{ color: "#ef4444" }}>DELETE</strong> or <strong style={{ color: "#ef4444" }}>delete</strong> to confirm:
               </label>
               <input
                 id="confirm-delete-input"
@@ -1715,8 +1716,11 @@ export default function ProfilePage() {
                 autoComplete="off"
                 disabled={isDeletingAccount}
                 value={deleteConfirmInput}
-                onChange={(e) => setDeleteConfirmInput(e.target.value)}
-                placeholder="DELETE"
+                onChange={(e) => {
+                  setDeleteConfirmInput(e.target.value);
+                  setDeleteError(null);
+                }}
+                placeholder="DELETE or delete"
                 style={{
                   width: "100%",
                   padding: "9px 12px",
@@ -1730,6 +1734,23 @@ export default function ProfilePage() {
                   letterSpacing: "1px",
                 }}
               />
+              {/* Mixed-case notice if the user types mixed case like DeLete */}
+              {(() => {
+                const trimmed = deleteConfirmInput.trim();
+                const isMixed =
+                  trimmed.length > 0 &&
+                  trimmed.toLowerCase() === "delete" &&
+                  trimmed !== "DELETE" &&
+                  trimmed !== "delete";
+                if (isMixed) {
+                  return (
+                    <div style={{ fontSize: 11.5, color: "#f8761b", marginTop: 6, fontWeight: 500 }}>
+                      ⚠ Mixed case detected (&quot;{trimmed}&quot;). Please type entirely in uppercase (<code>DELETE</code>) or entirely in lowercase (<code>delete</code>).
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
 
             {/* Error Message */}
@@ -1762,25 +1783,31 @@ export default function ProfilePage() {
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                className="btn"
-                disabled={deleteConfirmInput.trim().toUpperCase() !== "DELETE" || isDeletingAccount}
-                style={{
-                  background: deleteConfirmInput.trim().toUpperCase() === "DELETE" ? "#ef4444" : "rgba(239, 68, 68, 0.3)",
-                  color: "#fff",
-                  borderColor: "transparent",
-                  fontWeight: 600,
-                  cursor: deleteConfirmInput.trim().toUpperCase() === "DELETE" ? "pointer" : "not-allowed",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 6,
-                }}
-                onClick={handleDeleteAccount}
-              >
-                <Trash2 style={{ width: 14, height: 14 }} />
-                <span>{isDeletingAccount ? "Deleting from database..." : "Delete Account Permanently"}</span>
-              </button>
+              {(() => {
+                const trimmed = deleteConfirmInput.trim();
+                const isConfirmed = trimmed === "DELETE" || trimmed === "delete";
+                return (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!isConfirmed || isDeletingAccount}
+                    style={{
+                      background: isConfirmed ? "#ef4444" : "rgba(239, 68, 68, 0.3)",
+                      color: "#fff",
+                      borderColor: "transparent",
+                      fontWeight: 600,
+                      cursor: isConfirmed ? "pointer" : "not-allowed",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                    onClick={handleDeleteAccount}
+                  >
+                    <Trash2 style={{ width: 14, height: 14 }} />
+                    <span>{isDeletingAccount ? "Deleting from database..." : "Delete Account Permanently"}</span>
+                  </button>
+                );
+              })()}
             </div>
           </div>
         </div>
