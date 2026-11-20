@@ -15,6 +15,14 @@ export interface AuthUser {
   designation?: string;
   avatarUrl?: string;
   provider?: string;
+  providers?: string[];
+  identities?: Array<{
+    id: string;
+    provider: string;
+    identity_data?: Record<string, unknown>;
+  }>;
+  hasGoogle?: boolean;
+  hasEmailPassword?: boolean;
   createdAt?: string;
 }
 
@@ -31,6 +39,7 @@ interface AuthActions {
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: (next?: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const SESSION_KEY = "phishintel-session";
@@ -73,9 +82,30 @@ const listeners = new Set<() => void>();
 export function mapSessionToUser(sessionUser: import("@supabase/supabase-js").User): AuthUser {
   const meta = sessionUser.user_metadata || {};
   const appMeta = sessionUser.app_metadata || {};
-  const rawProvider = (appMeta.provider as string) || (Array.isArray(appMeta.providers) ? appMeta.providers[0] : "") || "";
-  const isGoogle = rawProvider.toLowerCase().includes("google");
-  const provider = isGoogle ? "Google" : "Email";
+
+  // Extract all provider identities dynamically from Supabase Auth
+  const rawProviders: string[] = Array.isArray(appMeta.providers)
+    ? appMeta.providers.map((p: unknown) => String(p).toLowerCase())
+    : (appMeta.provider ? [String(appMeta.provider).toLowerCase()] : []);
+
+  const identitiesList = Array.isArray(sessionUser.identities) ? sessionUser.identities : [];
+  for (const ident of identitiesList) {
+    if (ident.provider && !rawProviders.includes(ident.provider.toLowerCase())) {
+      rawProviders.push(ident.provider.toLowerCase());
+    }
+  }
+
+  const hasGoogle = rawProviders.includes("google");
+  const hasEmailPassword = rawProviders.includes("email");
+
+  let provider = "Email";
+  if (hasGoogle && hasEmailPassword) {
+    provider = "Google + Email";
+  } else if (hasGoogle) {
+    provider = "Google";
+  } else if (hasEmailPassword) {
+    provider = "Email";
+  }
 
   // Google OAuth sends 'full_name' or 'name', whereas our email signup sends 'name' or 'display_name'
   const name =
@@ -95,9 +125,17 @@ export function mapSessionToUser(sessionUser: import("@supabase/supabase-js").Us
     id: sessionUser.id,
     name: name.trim(),
     email: sessionUser.email || "",
-    designation: (meta.designation as string) || (isGoogle ? "Google Verified Analyst" : "Active analyst"),
+    designation: (meta.designation as string) || (hasGoogle ? "Google Verified Analyst" : "Active analyst"),
     avatarUrl,
     provider,
+    providers: rawProviders,
+    identities: identitiesList.map((i) => ({
+      id: i.id,
+      provider: i.provider,
+      identity_data: i.identity_data,
+    })),
+    hasGoogle,
+    hasEmailPassword,
     createdAt: sessionUser.created_at,
   };
 }
@@ -348,7 +386,24 @@ async function signOut() {
   }
 }
 
-const actions: AuthActions = { register, signIn, signInWithGoogle, signOut };
+/**
+ * Refreshes user identities and session directly from Supabase Auth.
+ */
+async function refreshUser() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const mapped = mapSessionToUser(user);
+      snapshot = {
+        status: "authenticated",
+        user: mapped,
+      };
+      notify();
+    }
+  } catch {}
+}
+
+const actions: AuthActions = { register, signIn, signInWithGoogle, signOut, refreshUser };
 
 export function AuthProvider({
   children,
