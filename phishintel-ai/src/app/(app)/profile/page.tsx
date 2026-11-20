@@ -588,9 +588,9 @@ export default function ProfilePage() {
   };
 
   // Handle Sign Out
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (window.confirm("Are you sure you want to sign out of this analyst workstation session?")) {
-      signOut();
+      // Clear in-memory profile cache immediately so stale data can't appear
       cachedProfileData = null;
       cachedPreferencesData = null;
       cachedSecurityData = null;
@@ -598,7 +598,9 @@ export default function ProfilePage() {
       setProfileData(null);
       setSecurityData(null);
       setActivityEvents([]);
-      showToast("Signed out successfully");
+      // signOut() is async: awaits Supabase token invalidation, clears localStorage,
+      // and performs window.location.href = "/" — no additional redirect needed here.
+      await signOut();
     }
   };
 

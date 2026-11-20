@@ -4,11 +4,24 @@ import React, { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { TopBar } from "@/components/layout/TopBar";
 import { usePhishGuard } from "@/context/PhishGuardContext";
+import { useAuth } from "@/components/auth/AuthProvider";
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { toasts } = usePhishGuard();
+  const { status } = useAuth();
   const gPressedRef = useRef<number>(0);
+
+  // Route guard: redirect unauthenticated users to the landing page.
+  // "loading" is allowed through — the guard only fires once auth is resolved
+  // so there is no flash of content for authenticated users.
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      // Use window.location for a hard redirect so the browser history entry
+      // for the protected page is replaced — prevents back-button restore.
+      window.location.replace("/");
+    }
+  }, [status]);
 
   // Global keyboard shortcuts (G then A, H, O, E, S)
   useEffect(() => {
@@ -53,7 +66,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <TopBar />
       <div className="shell flex-1 flex flex-col justify-between">
         <main className="page" id="main-content">
-          {children}
+          {/* While auth is loading or unauthenticated redirect is in progress, render nothing
+              to prevent flashing protected content. */}
+          {status === "loading" || status === "unauthenticated" ? null : children}
         </main>
 
         <footer className="foot" role="contentinfo">

@@ -4,29 +4,39 @@ import React, { useMemo, useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { usePhishGuard } from "@/context/PhishGuardContext";
+import { useAuth } from "@/components/auth/AuthProvider";
 import { LiquidNavbar, LiquidNavItem } from "@/components/ui/liquid-glass-navbar";
 
 export function TopBar() {
   const pathname = usePathname();
   const { serviceStatus, settings, profile } = usePhishGuard();
+  // Use live Supabase session user as the primary identity source for the avatar.
+  // Falls back to PhishGuardContext.profile for backwards-compat with legacy sessions.
+  const { user: authUser } = useAuth();
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // Prefer Supabase session name → PhishGuardContext profile name → fallback
+  const displayName = useMemo(() => {
+    if (!mounted) return "Analyst";
+    return authUser?.name || profile.name || "Analyst";
+  }, [mounted, authUser?.name, profile.name]);
+
   const initials = useMemo(() => {
     if (!mounted) return "AN";
-    const raw = (profile.name || "Analyst").trim();
+    const raw = displayName.trim();
     if (!raw) return "AN";
     const w = raw.split(/\s+/);
     return (w.length > 1 ? w[0][0] + w[1][0] : w[0].slice(0, 2)).toUpperCase();
-  }, [mounted, profile.name]);
+  }, [mounted, displayName]);
 
   const avatarTitle = useMemo(() => {
-    if (!mounted || !profile.name) return "Open profile";
-    return `${profile.name} · Open profile`;
-  }, [mounted, profile.name]);
+    if (!mounted || !displayName || displayName === "Analyst") return "Open profile";
+    return `${displayName} · Open profile`;
+  }, [mounted, displayName]);
 
   const svcLabel = useMemo(() => {
     if (!mounted) return "Model service · not connected";

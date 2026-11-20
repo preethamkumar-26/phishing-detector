@@ -27,10 +27,14 @@ interface AuthActions {
   register: (name: string, email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: (next?: string) => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
 }
 
 const SESSION_KEY = "phishintel-session";
+// The key Supabase v2 uses for the session in localStorage.
+// Clearing it on sign-out prevents getSession() from restoring a stale session on reload.
+const SUPABASE_SESSION_KEY = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1]?.split(".")[0] ?? "ujulxbzyornwmqhtlley"}-auth-token`;
+
 const INITIAL_SNAPSHOT: AuthSnapshot = { status: "loading", user: null };
 const AuthContext = createContext<AuthActions | null>(null);
 
@@ -48,6 +52,10 @@ function notify() {
 }
 
 function refreshSnapshot() {
+  // refreshSnapshot is ONLY called as a last-resort when Supabase getSession()
+  // has not returned yet or fails. It must not override a valid Supabase session.
+  // If there is already a confirmed authenticated or loading state from Supabase,
+  // do not downgrade it with a localStorage-only derivation.
   if (snapshot.status === "authenticated" && snapshot.user) {
     return;
   }
@@ -92,6 +100,7 @@ function initialize() {
             id: session.user.id,
             name:
               (session.user.user_metadata?.display_name as string) ||
+              (session.user.user_metadata?.full_name as string) ||
               (session.user.user_metadata?.name as string) ||
               session.user.email?.split("@")[0] ||
               "Analyst",
@@ -101,7 +110,10 @@ function initialize() {
         };
         notify();
       } else {
-        refreshSnapshot();
+        // No Supabase session — also clear any stale legacy key
+        window.localStorage.removeItem(SESSION_KEY);
+        snapshot = { status: "unauthenticated", user: null };
+        notify();
       }
     }).catch(() => {
       refreshSnapshot();
@@ -116,6 +128,7 @@ function initialize() {
             id: session.user.id,
             name:
               (session.user.user_metadata?.display_name as string) ||
+              (session.user.user_metadata?.full_name as string) ||
               (session.user.user_metadata?.name as string) ||
               session.user.email?.split("@")[0] ||
               "Analyst",
@@ -126,6 +139,8 @@ function initialize() {
         notify();
       } else if (event === "SIGNED_OUT") {
         window.localStorage.removeItem(SESSION_KEY);
+        // Also remove the Supabase token so getSession() returns null on reload
+        try { window.localStorage.removeItem(SUPABASE_SESSION_KEY); } catch {}
         snapshot = { status: "unauthenticated", user: null };
         notify();
       }
@@ -261,22 +276,42 @@ async function signInWithGoogle(next = "/dashboard") {
 }
 
 /**
- * Sign out from Supabase Auth and clear local session state.
+ * Sign out from Supabase Auth and clear ALL local session state.
+ * Awaits Supabase sign-out so the SIGNED_OUT event fires before we redirect.
+ * Also manually clears the Supabase localStorage token so getSession() returns
+ * null on a hard reload — preventing session restoration after sign-out.
  */
-function signOut() {
+async function signOut() {
   try {
     lastManualSignOutAt = Date.now();
 
+    // 1. Tell Supabase to invalidate the server-side refresh token
     try {
-      supabase.auth.signOut().catch(() => {});
+      await supabase.auth.signOut();
     } catch {}
 
-    window.localStorage.removeItem(SESSION_KEY);
+    // 2. Clear ALL client-side session storage (belt-and-suspenders)
     try {
+      window.localStorage.removeItem(SESSION_KEY);
+      window.localStorage.removeItem(SUPABASE_SESSION_KEY);
+      // Also wipe any other sb-* keys in case the project ref changes
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          window.localStorage.removeItem(key);
+        }
+      }
       document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
     } catch {}
+
+    // 3. Update in-memory snapshot so React re-renders immediately
     snapshot = { status: "unauthenticated", user: null };
     notify();
+
+    // 4. Hard-redirect to landing page — prevents back-button access to dashboard.
+    // We intentionally use window.location (not Next router) so React state is fully
+    // reset and the browser does not restore the previous page on Back.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.href = "/";
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : "Unable to sign out.");
   }
