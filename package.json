@@ -7,6 +7,8 @@
     "build": "npm --prefix phishintel-ai run build",
     "start": "npm --prefix phishintel-ai run start",
     "lint": "npm --prefix phishintel-ai run lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.119.2"
   }
 }
-
