@@ -22,9 +22,17 @@ export async function saveScanToSupabase(
   }
 
   try {
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        finalUserId = session.user.id;
+      }
+    }
+
     const row = {
       id: scan.id,
-      user_id: userId || null,
+      user_id: finalUserId || null,
       created_at: new Date(scan.ts).toISOString(),
       subject: scan.email.subject || "Untitled Email",
       from_email: scan.email.from || "",
@@ -177,9 +185,17 @@ export async function clearScansFromSupabase(userId?: string): Promise<{ success
   if (!isSupabaseConfigured()) return { success: false };
 
   try {
+    let finalUserId = userId;
+    if (!finalUserId) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        finalUserId = session.user.id;
+      }
+    }
+
     let query = supabase.from("scans").delete();
-    if (userId) {
-      query = query.eq("user_id", userId);
+    if (finalUserId) {
+      query = query.eq("user_id", finalUserId);
     } else {
       query = query.neq("id", "");
     }

@@ -6,6 +6,7 @@ import {
   useSyncExternalStore,
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { safeNext, getSiteUrl } from "@/lib/authRedirect";
 
 export interface AuthUser {
   id?: string;
@@ -30,6 +31,7 @@ interface AuthSnapshot {
 interface AuthActions {
   register: (name: string, email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: (next?: string) => Promise<void>;
   signOut: () => void;
 }
 
@@ -406,6 +408,24 @@ async function signIn(email: string, password: string) {
   }
 }
 
+async function signInWithGoogle(next = "/dashboard") {
+  try {
+    const siteUrl = getSiteUrl();
+    const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(safeNext(next))}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+      },
+    });
+    if (error) {
+      throw new Error(error.message || "Failed to initiate Google sign-in.");
+    }
+  } catch (error) {
+    throw new Error(error instanceof Error ? error.message : "Unable to continue with Google.");
+  }
+}
+
 function signOut() {
   try {
     lastManualSignOutAt = Date.now();
@@ -430,7 +450,7 @@ function signOut() {
   }
 }
 
-const actions: AuthActions = { register, signIn, signOut };
+const actions: AuthActions = { register, signIn, signInWithGoogle, signOut };
 
 export function AuthProvider({
   children,

@@ -62,7 +62,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
     }
     if (status === "authenticated") return;
     e.preventDefault();
-    requireAuth(destination, { mode, triggerEl: e.currentTarget });
+    router.push(`/sign-in?next=${encodeURIComponent(destination)}`);
   };
 
   const handleHeaderAuthClick = (
@@ -71,14 +71,10 @@ export function LandingPage({ className = "" }: LandingPageProps) {
   ) => {
     markFromLanding();
     if (status === "authenticated") {
-      router.push(mode === "signIn" ? "/account" : "/dashboard");
+      router.push("/dashboard");
       return;
     }
-    openAuthDialog({
-      mode,
-      destination: "/dashboard",
-      triggerEl: e.currentTarget,
-    });
+    router.push(mode === "signIn" ? "/sign-in" : "/sign-up");
   };
 
   return (
@@ -238,26 +234,49 @@ export function LandingPage({ className = "" }: LandingPageProps) {
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link
-              href="/analyzer"
-              onClick={(e) => handleProtectedNav(e, "/analyzer")}
-              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
-            >
-              <Button variant="primary" size="lg" className="shadow-md shadow-blue-900/20" tabIndex={-1}>
-                <BrainCircuit className="w-5 h-5 mr-2" />
-                Analyze an Email
-              </Button>
-            </Link>
-            <Link
-              href="/analytics"
-              onClick={(e) => handleProtectedNav(e, "/analytics")}
-              className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
-            >
-              <Button variant="outline" size="lg" tabIndex={-1}>
-                <BarChart3 className="w-5 h-5 mr-2 text-[var(--primary-accent)]" />
-                Explore the Research
-              </Button>
-            </Link>
+            {status === "authenticated" ? (
+              <>
+                <Link
+                  href="/dashboard"
+                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                >
+                  <Button variant="primary" size="lg" className="shadow-md shadow-blue-900/20" tabIndex={-1}>
+                    <BrainCircuit className="w-5 h-5 mr-2" />
+                    Open Dashboard
+                  </Button>
+                </Link>
+                <Link
+                  href="/analyzer"
+                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                >
+                  <Button variant="outline" size="lg" tabIndex={-1}>
+                    <ArrowRight className="w-5 h-5 mr-2 text-[var(--primary-accent)]" />
+                    Analyze an Email
+                  </Button>
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link
+                  href="/sign-up"
+                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                >
+                  <Button variant="primary" size="lg" className="shadow-md shadow-blue-900/20" tabIndex={-1}>
+                    <Shield className="w-5 h-5 mr-2" />
+                    Create Secure Workspace
+                  </Button>
+                </Link>
+                <Link
+                  href="/sign-in"
+                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                >
+                  <Button variant="outline" size="lg" tabIndex={-1}>
+                    <ArrowRight className="w-5 h-5 mr-2 text-[var(--primary-accent)]" />
+                    Sign In
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Animated Email Detection Showcase */}
