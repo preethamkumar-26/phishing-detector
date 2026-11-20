@@ -522,7 +522,9 @@ export default function ProfilePage() {
     setPasswordError(null);
     setPasswordSuccess(null);
 
-    if (!currentPassword) {
+    const isGoogleUser = authUser?.provider === "Google";
+
+    if (!isGoogleUser && !currentPassword) {
       setPasswordError("Please enter your current password.");
       return;
     }
@@ -538,26 +540,54 @@ export default function ProfilePage() {
       setPasswordError("New password confirmation does not match.");
       return;
     }
-    if (currentPassword === newPassword) {
+    if (currentPassword && currentPassword === newPassword) {
       setPasswordError("New password must be different from current password.");
       return;
     }
 
     setIsChangingPassword(true);
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
+    const activeEmail = authUser?.email || (typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null);
 
     try {
+      // 1. Verify and update against Supabase Auth if a live Supabase session exists
+      const { data: sessionData } = await supabase.auth.getSession();
+      const hasSupabaseSession = Boolean(sessionData?.session);
+
+      if (hasSupabaseSession && activeEmail) {
+        // If regular email user, verify current password first against Supabase
+        if (!isGoogleUser && currentPassword) {
+          const { error: verifyErr } = await supabase.auth.signInWithPassword({
+            email: activeEmail,
+            password: currentPassword,
+          });
+          if (verifyErr) {
+            const isInvalidCreds = verifyErr.message.toLowerCase().includes("invalid login credentials");
+            throw new Error(isInvalidCreds ? "Current password is incorrect. Please verify your existing password." : verifyErr.message);
+          }
+        }
+
+        // Update password in Supabase Auth
+        const { error: updateErr } = await supabase.auth.updateUser({
+          password: newPassword,
+        });
+        if (updateErr) {
+          throw new Error(updateErr.message || "Unable to update credentials in authentication provider.");
+        }
+      }
+
+      // 2. Synchronize new password hash, salt, and activity log to local SQLite WAL database
       const res = await fetch("/api/account/password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(sessionUser ? { "x-user-email": sessionUser } : {}),
+          ...(activeEmail ? { "x-user-email": activeEmail } : {}),
         },
         credentials: "include",
         body: JSON.stringify({
           currentPassword,
           newPassword,
           confirmPassword,
+          supabaseVerified: hasSupabaseSession,
         }),
       });
 
@@ -571,6 +601,33 @@ export default function ProfilePage() {
       setNewPassword("");
       setConfirmPassword("");
       showToast("Account password changed successfully");
+
+      // 3. Immediately refresh Security & Activity telemetry on the screen
+      if (activeEmail) {
+        const authHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+          "x-user-email": activeEmail,
+        };
+        fetch("/api/account/security", { headers: authHeaders, credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.security) {
+              setSecurityData(d.security);
+              cachedSecurityData = d.security;
+            }
+          })
+          .catch(() => {});
+
+        fetch("/api/account/activity", { headers: authHeaders, credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.activities) {
+              setActivityEvents(d.activities);
+              cachedActivityEvents = d.activities;
+            }
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       setPasswordError(err instanceof Error ? err.message : "Password change failed.");
     } finally {
@@ -1349,14 +1406,23 @@ export default function ProfilePage() {
                 <form onSubmit={handleChangePassword}>
                   <div className="grid g3" style={{ gap: 14 }}>
                     <div className="field">
-                      <label htmlFor="sec-cur-pwd">Current password</label>
+                      <label htmlFor="sec-cur-pwd">
+                        {authUser?.provider === "Google"
+                          ? "Current password (optional for Google sign-in)"
+                          : "Current password"}
+                      </label>
                       <input
                         className="input"
                         id="sec-cur-pwd"
                         type="password"
-                        required
-                        value={currentPassword}
-                        placeholder="••••••••"
+                        required={authUser?.provider !== "Google"}
+                        disabled={authUser?.provider === "Google"}
+                        value={authUser?.provider === "Google" ? "" : currentPassword}
+                        placeholder={
+                          authUser?.provider === "Google"
+                            ? "Not required (managed via Google OAuth)"
+                            : "••••••••"
+                        }
                         onChange={(e) => setCurrentPassword(e.target.value)}
                       />
                     </div>
@@ -1387,6 +1453,12 @@ export default function ProfilePage() {
                       />
                     </div>
                   </div>
+
+                  {authUser?.provider === "Google" && (
+                    <p style={{ fontSize: 12, color: "var(--muted)", marginTop: 8, marginBottom: 0 }}>
+                      ℹ️ You signed in with Google. Setting a new password will enable direct email/password login for your account.
+                    </p>
+                  )}
 
                   <div className="row" style={{ justifyContent: "flex-end", marginTop: 14 }}>
                     <button
