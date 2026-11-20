@@ -10,12 +10,14 @@
     "start:prod": "next build && next start",
     "check:legacy": "node scripts/check-no-legacy.mjs",
     "lint": "eslint",
+    "test:supabase": "node scripts/test-supabase.mjs",
     "test": "node scripts/check-no-legacy.mjs && node --experimental-strip-types tests/prohibited-legacy-codes.test.mjs && node --experimental-strip-types tests/eval-artifact.test.mjs && node --experimental-strip-types tests/mail-source.test.mjs"
   },
   "dependencies": {
     "@heroui/react": "^3.2.7",
     "@hugeicons/core-free-icons": "^4.4.0",
     "@hugeicons/react": "^1.1.10",
+    "@supabase/supabase-js": "^2.119.2",
     "clsx": "^2.1.1",
     "framer-motion": "^14.14.0",
     "gsap": "^3.15.1",

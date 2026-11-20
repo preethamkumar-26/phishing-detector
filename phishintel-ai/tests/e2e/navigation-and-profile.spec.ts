@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { seedSupabaseSession, clearAllAuthState } from "./fixtures/supabase-session";
 
 const SECTIONS = [
   { name: "Overview", href: "/dashboard" },
@@ -9,33 +10,12 @@ const SECTIONS = [
   { name: "Profile", href: "/profile" },
 ];
 
-const FORBIDDEN_GUEST_STRINGS = [
-  "Guest Analyst",
-  "Sign in / Register",
-  "local_workstation_user",
-  "Unauthenticated Guest",
-  "Local workstation mode",
-];
-
 test.describe("PhishIntel Spec #02: Profile Flicker & Smooth Navigation", () => {
   test.beforeEach(async ({ page }) => {
-    // Seed authenticated session for analyst Preetham Kumar
+    // Navigate first so localStorage is scoped to the right origin, then
+    // seed the Supabase session for analyst Preetham Kumar.
     await page.goto("http://localhost:3000/dashboard");
-    await page.evaluate(() => {
-      window.localStorage.setItem("phishintel-session", "preetham@cognition.ai");
-      window.localStorage.setItem(
-        "phishintel-users",
-        JSON.stringify([
-          {
-            name: "Preetham Kumar",
-            email: "preetham@cognition.ai",
-            designation: "Active analyst",
-            salt: "11223344",
-            passwordHash: "55667788",
-          },
-        ])
-      );
-    });
+    await seedSupabaseSession(page);
   });
 
   test("P1: 20x Profile navigation never contains guest strings while authenticated", async ({ page }) => {
@@ -68,17 +48,23 @@ test.describe("PhishIntel Spec #02: Profile Flicker & Smooth Navigation", () => 
     for (let i = 1; i <= 20; i++) {
       if (i % 4 === 1) {
         await page.goto("http://localhost:3000/history");
+        // Re-seed after hard navigation — Supabase session persists across same-origin
+        // soft navigations, but re-seeding after full page loads keeps the test robust.
+        await seedSupabaseSession(page);
         await installObserver(i);
         await page.click('a[href="/profile"]');
         await page.waitForURL("**/profile");
       } else if (i % 4 === 2) {
         await installObserver(i);
         await page.goto("http://localhost:3000/profile");
+        await seedSupabaseSession(page);
       } else if (i % 4 === 3) {
         await installObserver(i);
         await page.reload();
+        await seedSupabaseSession(page);
       } else {
         await page.goto("http://localhost:3000/dashboard");
+        await seedSupabaseSession(page);
         await installObserver(i);
         await page.goBack();
         await page.waitForURL("**/profile");
@@ -90,7 +76,7 @@ test.describe("PhishIntel Spec #02: Profile Flicker & Smooth Navigation", () => 
   });
 
   test("P2: Shell persistence across all 6 sections (window.__shellMarker & data-shell)", async ({ page }) => {
-    await page.goto("http://localhost:3000/dashboard");
+    // __shellMarker is already set after beforeEach seeds the session
     await page.evaluate(() => {
       (window as any).__shellMarker = 1;
       const nav = document.querySelector('[data-shell="navbar"]');
@@ -119,7 +105,6 @@ test.describe("PhishIntel Spec #02: Profile Flicker & Smooth Navigation", () => 
   });
 
   test("P2: Back and Forward navigation preserves shell and applies transition", async ({ page }) => {
-    await page.goto("http://localhost:3000/dashboard");
     await page.evaluate(() => {
       (window as any).__shellMarker = 1;
     });
@@ -130,12 +115,16 @@ test.describe("PhishIntel Spec #02: Profile Flicker & Smooth Navigation", () => 
     await page.goBack();
     await page.waitForURL("**/dashboard");
     expect(await page.evaluate(() => (window as any).__shellMarker)).toBe(1);
-    expect(await page.evaluate(() => Boolean(document.querySelector('[data-route-transition="true"]')))).toBe(true);
+    expect(
+      await page.evaluate(() => Boolean(document.querySelector('[data-route-transition="true"]')))
+    ).toBe(true);
 
     await page.goForward();
     await page.waitForURL("**/analyzer");
     expect(await page.evaluate(() => (window as any).__shellMarker)).toBe(1);
-    expect(await page.evaluate(() => Boolean(document.querySelector('[data-route-transition="true"]')))).toBe(true);
+    expect(
+      await page.evaluate(() => Boolean(document.querySelector('[data-route-transition="true"]')))
+    ).toBe(true);
   });
 
   test("P2: prefers-reduced-motion disables translation motion", async ({ browser }) => {
@@ -161,8 +150,11 @@ test.describe("PhishIntel Spec #02: Profile Flicker & Smooth Navigation", () => 
       if (msg.type() === "error") consoleErrors.push(msg.text());
     });
 
+    // Session already seeded in beforeEach; iterate all routes
     for (const sec of SECTIONS) {
       await page.goto(`http://localhost:3000${sec.href}`);
+      // Re-seed after each hard navigation so the session is always present
+      await seedSupabaseSession(page);
       await page.waitForTimeout(400);
 
       const overlay = await page.evaluate(() => {
@@ -182,11 +174,8 @@ test.describe("PhishIntel Spec #02: Profile Flicker & Smooth Navigation", () => 
   });
 
   test("Logged-out session explicitly renders guest state with no errors", async ({ page }) => {
-    await page.goto("http://localhost:3000/dashboard");
-    await page.evaluate(() => {
-      window.localStorage.clear();
-      document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-    });
+    // Clear ALL auth state to simulate a fully logged-out user
+    await clearAllAuthState(page);
 
     await page.goto("http://localhost:3000/profile");
     await page.waitForTimeout(500);

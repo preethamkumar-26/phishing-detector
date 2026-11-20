@@ -5,16 +5,14 @@ import {
   useContext,
   useSyncExternalStore,
 } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import { safeNext, getSiteUrl } from "@/lib/authRedirect";
 
 export interface AuthUser {
+  id?: string;
   name: string;
   email: string;
   designation?: string;
-}
-
-interface StoredUser extends AuthUser {
-  salt: string;
-  passwordHash: string;
 }
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "error";
@@ -28,10 +26,10 @@ interface AuthSnapshot {
 interface AuthActions {
   register: (name: string, email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: (next?: string) => Promise<void>;
   signOut: () => void;
 }
 
-const USERS_KEY = "phishintel-users";
 const SESSION_KEY = "phishintel-session";
 const INITIAL_SNAPSHOT: AuthSnapshot = { status: "loading", user: null };
 const AuthContext = createContext<AuthActions | null>(null);
@@ -49,79 +47,27 @@ function notify() {
   listeners.forEach((listener) => listener());
 }
 
-function readUsers(): StoredUser[] {
-  const rawUsers = window.localStorage.getItem(USERS_KEY);
-  if (!rawUsers) return [];
-
-  const users: unknown = JSON.parse(rawUsers);
-  if (!Array.isArray(users)) {
-    throw new Error("Saved account data is invalid. Clear this site's saved data and try again.");
+function refreshSnapshot() {
+  if (snapshot.status === "authenticated" && snapshot.user) {
+    return;
   }
 
-  return users.map((user: unknown) => {
-    if (
-      typeof user !== "object" ||
-      user === null ||
-      !("name" in user) ||
-      typeof user.name !== "string" ||
-      !("email" in user) ||
-      typeof user.email !== "string" ||
-      !("salt" in user) ||
-      typeof user.salt !== "string" ||
-      !("passwordHash" in user) ||
-      typeof user.passwordHash !== "string"
-    ) {
-      throw new Error("Saved account data is invalid. Clear this site's saved data and try again.");
-    }
-
-    return {
-      name: user.name,
-      email: user.email,
-      designation: typeof (user as Record<string, unknown>).designation === "string" ? ((user as Record<string, unknown>).designation as string) : undefined,
-      salt: user.salt,
-      passwordHash: user.passwordHash,
-    };
-  });
-}
-
-function refreshSnapshot() {
   try {
-    const email = window.localStorage.getItem(SESSION_KEY);
-    const user = email
-      ? readUsers().find((storedUser) => storedUser.email === email)
-      : undefined;
-
-    if (user) {
+    const sessionEmail = typeof window !== "undefined" ? window.localStorage.getItem(SESSION_KEY) : null;
+    if (sessionEmail) {
       snapshot = {
         status: "authenticated",
-        user: { name: user.name, email: user.email, designation: user.designation },
+        user: {
+          name: sessionEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          email: sessionEmail,
+          designation: "Active analyst",
+        },
       };
-      // Sync session to backend cookie
-      try {
-        fetch("/api/account/sync", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "sync",
-            email: user.email,
-            name: user.name,
-            salt: user.salt,
-            passwordHash: user.passwordHash,
-          }),
-        }).catch(() => {});
-      } catch {}
     } else {
-      if (email) {
-        window.localStorage.removeItem(SESSION_KEY);
-      }
       snapshot = { status: "unauthenticated", user: null };
     }
-  } catch (error) {
-    snapshot = {
-      status: "error",
-      user: null,
-      error: error instanceof Error ? error.message : "Unable to load saved account data.",
-    };
+  } catch {
+    snapshot = { status: "unauthenticated", user: null };
   }
   notify();
 }
@@ -129,13 +75,67 @@ function refreshSnapshot() {
 function initialize() {
   if (initialized) return;
   initialized = true;
-  refreshSnapshot();
+
+  // Purge any legacy client-stored accounts or password hashes
+  try {
+    window.localStorage.removeItem("phishintel-users");
+  } catch {}
+
+  // Active Supabase Auth session listener
+  try {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        window.localStorage.setItem(SESSION_KEY, session.user.email || "");
+        snapshot = {
+          status: "authenticated",
+          user: {
+            id: session.user.id,
+            name:
+              (session.user.user_metadata?.display_name as string) ||
+              (session.user.user_metadata?.name as string) ||
+              session.user.email?.split("@")[0] ||
+              "Analyst",
+            email: session.user.email || "",
+            designation: (session.user.user_metadata?.designation as string) || "Active analyst",
+          },
+        };
+        notify();
+      } else {
+        refreshSnapshot();
+      }
+    }).catch(() => {
+      refreshSnapshot();
+    });
+
+    supabase.auth.onAuthStateChange((event, session) => {
+      if (session?.user) {
+        window.localStorage.setItem(SESSION_KEY, session.user.email || "");
+        snapshot = {
+          status: "authenticated",
+          user: {
+            id: session.user.id,
+            name:
+              (session.user.user_metadata?.display_name as string) ||
+              (session.user.user_metadata?.name as string) ||
+              session.user.email?.split("@")[0] ||
+              "Analyst",
+            email: session.user.email || "",
+            designation: (session.user.user_metadata?.designation as string) || "Active analyst",
+          },
+        };
+        notify();
+      } else if (event === "SIGNED_OUT") {
+        window.localStorage.removeItem(SESSION_KEY);
+        snapshot = { status: "unauthenticated", user: null };
+        notify();
+      }
+    });
+  } catch {
+    refreshSnapshot();
+  }
+
   window.addEventListener("storage", (event) => {
-    if (
-      event.key === USERS_KEY ||
-      event.key === SESSION_KEY ||
-      event.key === null
-    ) {
+    if (event.key === SESSION_KEY || event.key === null) {
       lastManualSignOutAt = 0;
       refreshSnapshot();
     }
@@ -148,47 +148,10 @@ function subscribe(listener: () => void) {
   return () => listeners.delete(listener);
 }
 
-function bytesToHex(bytes: Uint8Array) {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
-}
-
-function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let index = 0; index < bytes.length; index += 1) {
-    bytes[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
-  }
-  return bytes;
-}
-
-async function hashPassword(password: string, salt: Uint8Array<ArrayBuffer>) {
-  if (!window.crypto?.subtle) {
-    throw new Error("Secure password hashing is unavailable in this browser context.");
-  }
-
-  const key = await window.crypto.subtle.importKey(
-    "raw",
-    new TextEncoder().encode(password),
-    "PBKDF2",
-    false,
-    ["deriveBits"],
-  );
-  const bits = await window.crypto.subtle.deriveBits(
-    { name: "PBKDF2", hash: "SHA-256", salt, iterations: 210_000 },
-    key,
-    256,
-  );
-  return bytesToHex(new Uint8Array(bits));
-}
-
-function hashesMatch(left: string, right: string) {
-  if (left.length !== right.length) return false;
-  let difference = 0;
-  for (let index = 0; index < left.length; index += 1) {
-    difference |= left.charCodeAt(index) ^ right.charCodeAt(index);
-  }
-  return difference === 0;
-}
-
+/**
+ * Register a new user account exclusively in Supabase Auth.
+ * Never stores credentials or password hashes in local storage or SQLite.
+ */
 async function register(name: string, email: string, password: string) {
   const normalizedName = name.trim();
   const normalizedEmail = email.trim().toLowerCase();
@@ -198,101 +161,119 @@ async function register(name: string, email: string, password: string) {
   }
   if (password.length < 8) throw new Error("Use a password with at least 8 characters.");
 
-  try {
-    const users = readUsers();
-    if (users.some((user) => user.email === normalizedEmail)) {
+  const { data, error } = await supabase.auth.signUp({
+    email: normalizedEmail,
+    password,
+    options: {
+      data: {
+        name: normalizedName,
+        display_name: normalizedName,
+        designation: "Active analyst",
+      },
+    },
+  });
+
+  if (error) {
+    if (
+      error.message.toLowerCase().includes("already registered") ||
+      error.message.toLowerCase().includes("already exists")
+    ) {
       throw new Error("An account with this email already exists. Sign in instead.");
     }
+    throw new Error(error.message || "Unable to create your account.");
+  }
 
-    const salt = window.crypto.getRandomValues(new Uint8Array(16));
-    const user: StoredUser = {
-      name: normalizedName,
-      email: normalizedEmail,
-      salt: bytesToHex(salt),
-      passwordHash: await hashPassword(password, salt),
-    };
-
-    window.localStorage.setItem(USERS_KEY, JSON.stringify([...users, user]));
+  if (data?.session?.user) {
     window.localStorage.setItem(SESSION_KEY, normalizedEmail);
     lastManualSignOutAt = 0;
     snapshot = {
       status: "authenticated",
-      user: { name: user.name, email: user.email },
+      user: {
+        id: data.session.user.id,
+        name: normalizedName,
+        email: normalizedEmail,
+        designation: "Active analyst",
+      },
     };
     notify();
-
-    // Sync to backend SQLite database
-    try {
-      fetch("/api/account/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "register",
-          name: user.name,
-          email: user.email,
-          salt: user.salt,
-          passwordHash: user.passwordHash,
-        }),
-      }).catch(() => {});
-    } catch {}
-  } catch (error) {
-    if (error instanceof Error && error.message.startsWith("An account")) throw error;
-    throw new Error(error instanceof Error ? error.message : "Unable to create your account.");
+  } else if (data?.user && !data.session) {
+    throw new Error("Check your inbox for a confirmation link to activate your workspace.");
   }
 }
 
+/**
+ * Sign in exclusively against Supabase Auth.
+ */
 async function signIn(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedEmail || !password) throw new Error("Enter your email and password.");
 
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: normalizedEmail,
+    password,
+  });
+
+  if (error) {
+    throw new Error("Email or password is incorrect.");
+  }
+
+  if (!data?.user) {
+    throw new Error("No session was created. Please try again.");
+  }
+
+  window.localStorage.setItem(SESSION_KEY, data.user.email || normalizedEmail);
+  lastManualSignOutAt = 0;
+  snapshot = {
+    status: "authenticated",
+    user: {
+      id: data.user.id,
+      name:
+        (data.user.user_metadata?.display_name as string) ||
+        (data.user.user_metadata?.name as string) ||
+        (data.user.user_metadata?.full_name as string) ||
+        normalizedEmail.split("@")[0],
+      email: data.user.email || normalizedEmail,
+      designation: (data.user.user_metadata?.designation as string) || "Active analyst",
+    },
+  };
+  notify();
+}
+
+/**
+ * Sign in with Google identity provider through Supabase Auth.
+ */
+async function signInWithGoogle(next = "/dashboard") {
   try {
-    const user = readUsers().find((storedUser) => storedUser.email === normalizedEmail);
-    if (!user) throw new Error("Email or password is incorrect.");
-
-    const passwordHash = await hashPassword(password, hexToBytes(user.salt));
-    if (!hashesMatch(passwordHash, user.passwordHash)) {
-      throw new Error("Email or password is incorrect.");
+    const siteUrl = getSiteUrl();
+    const redirectTo = `${siteUrl}/auth/callback?next=${encodeURIComponent(safeNext(next))}`;
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo,
+      },
+    });
+    if (error) {
+      throw new Error(error.message || "Failed to initiate Google sign-in.");
     }
-
-    window.localStorage.setItem(SESSION_KEY, user.email);
-    lastManualSignOutAt = 0;
-    snapshot = {
-      status: "authenticated",
-      user: { name: user.name, email: user.email },
-    };
-    notify();
-
-    // Sync to backend SQLite database
-    try {
-      fetch("/api/account/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "login",
-          name: user.name,
-          email: user.email,
-          salt: user.salt,
-          passwordHash: user.passwordHash,
-          password,
-        }),
-      }).catch(() => {});
-    } catch {}
   } catch (error) {
-    throw new Error(error instanceof Error ? error.message : "Unable to sign in.");
+    throw new Error(error instanceof Error ? error.message : "Unable to continue with Google.");
   }
 }
 
+/**
+ * Sign out from Supabase Auth and clear local session state.
+ */
 function signOut() {
   try {
     lastManualSignOutAt = Date.now();
+
+    try {
+      supabase.auth.signOut().catch(() => {});
+    } catch {}
+
     window.localStorage.removeItem(SESSION_KEY);
     try {
       document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
-      fetch("/api/account/sync", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "logout" }),
-      }).catch(() => {});
     } catch {}
     snapshot = { status: "unauthenticated", user: null };
     notify();
@@ -301,7 +282,7 @@ function signOut() {
   }
 }
 
-const actions: AuthActions = { register, signIn, signOut };
+const actions: AuthActions = { register, signIn, signInWithGoogle, signOut };
 
 export function AuthProvider({
   children,

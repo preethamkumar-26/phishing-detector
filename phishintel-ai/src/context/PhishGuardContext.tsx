@@ -7,6 +7,12 @@ import {
   FastAPIVerificationDetails,
 } from "@/services/scanService";
 import {
+  saveScanToSupabase,
+  fetchScansFromSupabase,
+  deleteScanFromSupabase,
+  clearScansFromSupabase,
+} from "@/lib/supabaseScans";
+import {
   MODEL_ENDPOINT_STORAGE_KEY,
   USE_MODEL_SERVICE_STORAGE_KEY,
 } from "@/lib/backendDiscovery";
@@ -917,19 +923,11 @@ export function PhishGuardProvider({
     try {
       const sessionEmail = localStorage.getItem("phishintel-session");
       if (sessionEmail) {
-        const rawUsers = localStorage.getItem("phishintel-users");
-        if (rawUsers) {
-          const users = JSON.parse(rawUsers);
-          const u = users.find((x: { email: string }) => x.email.toLowerCase() === sessionEmail.toLowerCase());
-          if (u) {
-            setProfile({
-              name: u.name || "",
-              role: u.designation || "",
-              org: u.organization || "",
-              team: "",
-            });
-          }
-        }
+        setProfile((prev) => ({
+          ...prev,
+          name: prev.name || sessionEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          role: prev.role || "Active analyst",
+        }));
       } else {
         const savedProfile = localStorage.getItem("pg.profile");
         if (savedProfile) {
@@ -1287,6 +1285,9 @@ export function PhishGuardProvider({
 
       logActivity(`Analysed “${newScan.email.subject}” · ${newScan.decision}`);
 
+      // Save to Supabase cloud storage in background
+      saveScanToSupabase(newScan).catch(() => {});
+
       // Backend sync
       try {
         const sessionUser =
@@ -1328,6 +1329,9 @@ export function PhishGuardProvider({
     setScans([]);
     try {
       localStorage.removeItem("pg.scans");
+      // Clear from Supabase cloud storage in background
+      clearScansFromSupabase().catch(() => {});
+
       const sessionUser =
         typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
       if (sessionUser) {
@@ -1351,6 +1355,9 @@ export function PhishGuardProvider({
           typeof window !== "undefined"
             ? localStorage.getItem("phishintel-session")
             : null;
+
+        // Delete from Supabase cloud storage in background
+        deleteScanFromSupabase(scanId).catch(() => {});
 
         // Backend delete if authenticated session exists
         if (sessionUser) {

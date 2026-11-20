@@ -515,6 +515,7 @@ a {
   padding: 20px;
   position: relative;
   min-width: 0;
+  overflow: hidden;
   transform: translateY(0) scale(1);
   box-shadow: 0 1px 3px rgba(28, 31, 26, 0.04);
   transition:
@@ -1779,8 +1780,8 @@ input[type=range]::-moz-range-thumb {
 
 .abl {
   display: grid;
-  grid-template-columns: minmax(180px, max-content) minmax(60px, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: minmax(0, auto) minmax(36px, 1fr) auto;
+  gap: 10px;
   align-items: center;
   font-size: 12.5px;
   padding: 4px 0;
@@ -1789,6 +1790,8 @@ input[type=range]::-moz-range-thumb {
 
 .abl > span:first-child {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   min-width: 0;
 }
 
@@ -1797,7 +1800,7 @@ input[type=range]::-moz-range-thumb {
   background: rgba(236, 238, 229, 0.07);
   border-radius: 1px;
   position: relative;
-  min-width: 40px;
+  min-width: 36px;
 }
 
 .abl .track i {
@@ -1811,8 +1814,8 @@ input[type=range]::-moz-range-thumb {
   text-align: right;
   font: 400 12px var(--m);
   white-space: nowrap;
-  min-width: max-content;
   justify-self: end;
+  flex-shrink: 0;
 }
 
 .ind {
@@ -2395,7 +2398,7 @@ kbd {
     grid-column: 2 / 4;
   }
   .abl {
-    grid-template-columns: minmax(170px, max-content) minmax(50px, 1fr) auto;
+    grid-template-columns: minmax(0, auto) minmax(36px, 1fr) auto;
     gap: 10px;
   }
   .profile-grid {

@@ -1,5 +1,18 @@
-# Ignore the virtual environment
+# Environment files
+.env
+.env*.local
+.env*
+!.env.example
+
+# Python & Virtual Environments
+.venv/
+.venv*/
 venv/
+venv*/
+env/
+env*/
+backend/.venv/
+backend/.venv*/
 
 # Ignore heavy dataset files
 data/
