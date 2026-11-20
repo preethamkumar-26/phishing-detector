@@ -19,7 +19,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     if (status === "unauthenticated") {
       // Use window.location for a hard redirect so the browser history entry
       // for the protected page is replaced — prevents back-button restore.
-      window.location.replace("/");
+      if (typeof window !== "undefined" && window.location.pathname !== "/") {
+        window.location.replace("/");
+      }
     }
   }, [status]);
 

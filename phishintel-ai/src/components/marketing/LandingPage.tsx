@@ -152,42 +152,54 @@ export function LandingPage({ className = "" }: LandingPageProps) {
               <>
                 <Link
                   href="/dashboard"
-                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                  role="button"
+                  onClick={() => {
+                    markFromLanding();
+                    router.push("/dashboard");
+                  }}
+                  className="inline-flex items-center justify-center font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] select-none bg-[var(--primary-accent)] hover:bg-[var(--primary-hover)] text-white shadow-md shadow-blue-900/20 border border-white/20 hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(37,99,235,0.28)] dark:hover:shadow-[0_4px_20px_rgba(59,130,246,0.32)] active:translate-y-0 active:scale-[0.98] text-base px-6 py-2.5 h-11 rounded-full gap-2.5 cursor-pointer"
                 >
-                  <Button variant="primary" size="lg" className="shadow-md shadow-blue-900/20" tabIndex={-1}>
-                    <BrainCircuit className="w-5 h-5 mr-2" />
-                    Open Dashboard
-                  </Button>
+                  <BrainCircuit className="w-5 h-5 mr-2" />
+                  Open Dashboard
                 </Link>
                 <Link
                   href="/analyzer"
-                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                  role="button"
+                  onClick={() => {
+                    markFromLanding();
+                    router.push("/analyzer");
+                  }}
+                  className="inline-flex items-center justify-center font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] select-none bg-transparent hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--primary-accent)]/50 hover:text-[var(--primary-accent)] hover:-translate-y-px hover:shadow-xs active:translate-y-0 active:scale-[0.98] text-base px-6 py-2.5 h-11 rounded-full gap-2.5 cursor-pointer"
                 >
-                  <Button variant="outline" size="lg" tabIndex={-1}>
-                    <ArrowRight className="w-5 h-5 mr-2 text-[var(--primary-accent)]" />
-                    Analyze an Email
-                  </Button>
+                  <ArrowRight className="w-5 h-5 mr-2 text-[var(--primary-accent)]" />
+                  Analyze an Email
                 </Link>
               </>
             ) : (
               <>
                 <Link
                   href="/sign-up"
-                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                  role="button"
+                  onClick={() => {
+                    markFromLanding();
+                    router.push("/sign-up");
+                  }}
+                  className="inline-flex items-center justify-center font-semibold transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] select-none bg-[var(--primary-accent)] hover:bg-[var(--primary-hover)] text-white shadow-md shadow-blue-900/20 border border-white/20 hover:-translate-y-0.5 hover:shadow-[0_4px_16px_rgba(37,99,235,0.28)] dark:hover:shadow-[0_4px_20px_rgba(59,130,246,0.32)] active:translate-y-0 active:scale-[0.98] text-base px-6 py-2.5 h-11 rounded-full gap-2.5 cursor-pointer"
                 >
-                  <Button variant="primary" size="lg" className="shadow-md shadow-blue-900/20" tabIndex={-1}>
-                    <Shield className="w-5 h-5 mr-2" />
-                    Create Secure Workspace
-                  </Button>
+                  <Shield className="w-5 h-5 mr-2" />
+                  Create Secure Workspace
                 </Link>
                 <Link
                   href="/sign-in"
-                  className="rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)]"
+                  role="button"
+                  onClick={() => {
+                    markFromLanding();
+                    router.push("/sign-in");
+                  }}
+                  className="inline-flex items-center justify-center font-medium transition-all duration-200 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary-accent)]/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--bg-primary)] select-none bg-transparent hover:bg-[var(--bg-elevated)] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--primary-accent)]/50 hover:text-[var(--primary-accent)] hover:-translate-y-px hover:shadow-xs active:translate-y-0 active:scale-[0.98] text-base px-6 py-2.5 h-11 rounded-full gap-2.5 cursor-pointer"
                 >
-                  <Button variant="outline" size="lg" tabIndex={-1}>
-                    <ArrowRight className="w-5 h-5 mr-2 text-[var(--primary-accent)]" />
-                    Sign In
-                  </Button>
+                  <ArrowRight className="w-5 h-5 mr-2 text-[var(--primary-accent)]" />
+                  Sign In
                 </Link>
               </>
             )}

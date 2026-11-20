@@ -135,11 +135,10 @@ export function ProfileSummaryCard() {
           <Button
             variant="danger"
             size="sm"
-            onClick={() => {
+            onClick={async () => {
               try {
-                signOut();
                 setSignOutOpen(false);
-                router.replace("/");
+                await signOut();
               } catch (error) {
                 setSignOutError(error instanceof Error ? error.message : "Unable to sign out.");
               }

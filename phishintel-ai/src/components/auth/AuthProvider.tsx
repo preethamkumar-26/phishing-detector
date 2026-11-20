@@ -38,12 +38,36 @@ const SESSION_KEY = "phishintel-session";
 // Clearing it on sign-out prevents getSession() from restoring a stale session on reload.
 const SUPABASE_SESSION_KEY = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1]?.split(".")[0] ?? "ujulxbzyornwmqhtlley"}-auth-token`;
 
-const INITIAL_SNAPSHOT: AuthSnapshot = { status: "loading", user: null };
+let lastManualSignOutAt = 0;
+
+export function wasManualSignOutRecently(): boolean {
+  return Date.now() - lastManualSignOutAt < 5000;
+}
+
+function getInitialSnapshot(): AuthSnapshot {
+  if (typeof window === "undefined") {
+    return { status: "unauthenticated", user: null };
+  }
+  try {
+    if (Date.now() - lastManualSignOutAt < 5000) {
+      return { status: "unauthenticated", user: null };
+    }
+    const hasSbToken = Object.keys(window.localStorage).some(
+      (k) => (k.startsWith("sb-") && k.endsWith("-auth-token")) || k === SESSION_KEY
+    );
+    const hasCookie = document.cookie.includes("phishintel_session=");
+    if (!hasSbToken && !hasCookie) {
+      return { status: "unauthenticated", user: null };
+    }
+  } catch {}
+  return { status: "loading", user: null };
+}
+
+const INITIAL_SNAPSHOT: AuthSnapshot = { status: "unauthenticated", user: null };
 const AuthContext = createContext<AuthActions | null>(null);
 
-let snapshot = INITIAL_SNAPSHOT;
+let snapshot: AuthSnapshot = getInitialSnapshot();
 let initialized = false;
-let lastManualSignOutAt = 0;
 const listeners = new Set<() => void>();
 
 export function mapSessionToUser(sessionUser: import("@supabase/supabase-js").User): AuthUser {
@@ -76,10 +100,6 @@ export function mapSessionToUser(sessionUser: import("@supabase/supabase-js").Us
     provider,
     createdAt: sessionUser.created_at,
   };
-}
-
-export function wasManualSignOutRecently(): boolean {
-  return Date.now() - lastManualSignOutAt < 2000;
 }
 
 function notify() {
@@ -309,17 +329,20 @@ async function signOut() {
         }
       }
       document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
+      if (typeof document !== "undefined" && document.body) {
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+      }
     } catch {}
 
     // 3. Update in-memory snapshot so React re-renders immediately
     snapshot = { status: "unauthenticated", user: null };
     notify();
 
-    // 4. Hard-redirect to landing page — prevents back-button access to dashboard.
-    // We intentionally use window.location (not Next router) so React state is fully
-    // reset and the browser does not restore the previous page on Back.
-    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-    window.location.href = "/";
+    // 4. Clean navigation to landing page with history replacement
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    }
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : "Unable to sign out.");
   }

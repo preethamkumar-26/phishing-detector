@@ -10,7 +10,7 @@ import React, {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { useAuth, wasManualSignOutRecently } from "@/components/auth/AuthProvider";
 import { AuthDialog } from "@/components/auth/AuthDialog";
 import { AuthModalMode, sanitizeInternalDestination } from "@/lib/authGate";
 
@@ -167,6 +167,14 @@ export function AuthGateProvider({ children }: { children: React.ReactNode }) {
 
   // Flush queued click or handle cross-tab auth resolution asynchronously without dialog flicker
   useEffect(() => {
+    if (wasManualSignOutRecently()) {
+      queuedRequestRef.current = null;
+      if (isOpenRef.current) {
+        closeAuthDialog();
+      }
+      return;
+    }
+
     if (status === "loading") return;
 
     const queued = queuedRequestRef.current;
@@ -188,7 +196,7 @@ export function AuthGateProvider({ children }: { children: React.ReactNode }) {
       }, 0);
       return () => window.clearTimeout(timer);
     }
-  }, [status, isOpen, handleAuthSuccess, navigateSafe, openAuthDialog]);
+  }, [status, isOpen, closeAuthDialog, handleAuthSuccess, navigateSafe, openAuthDialog]);
 
   const contextValue = useMemo<AuthGateContextValue>(
     () => ({

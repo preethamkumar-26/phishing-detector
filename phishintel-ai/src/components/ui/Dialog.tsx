@@ -200,12 +200,17 @@ export function Dialog({
       <div
         className={cn(
           "fixed inset-0 z-50 flex justify-center",
+          !open && "pointer-events-none",
           mobileSheet ? "items-end p-0 sm:items-center sm:p-4" : "items-center p-4"
         )}
+        aria-hidden={!open}
       >
         <div
           data-state={state}
-          className="pg-dialog-backdrop fixed inset-0 bg-[rgba(20,24,20,0.44)] backdrop-blur-sm"
+          className={cn(
+            "pg-dialog-backdrop fixed inset-0 bg-[rgba(20,24,20,0.44)] backdrop-blur-sm",
+            !open && "pointer-events-none"
+          )}
           onClick={requestClose}
           aria-hidden="true"
         />
