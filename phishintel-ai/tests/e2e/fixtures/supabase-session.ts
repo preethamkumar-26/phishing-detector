@@ -77,6 +77,7 @@ export async function seedSupabaseSession(page: import("@playwright/test").Page)
       window.localStorage.setItem(key, value);
       // Legacy compat: profile/page.tsx still passes this as x-user-email to backend APIs
       window.localStorage.setItem("phishintel-session", "preetham@cognition.ai");
+      document.cookie = "phishintel_session=preetham@cognition.ai; Path=/; SameSite=Lax;";
       // Confirm old local hash store is gone
       window.localStorage.removeItem("phishintel-users");
     },
@@ -93,6 +94,7 @@ export async function clearAllAuthState(page: import("@playwright/test").Page): 
     window.localStorage.removeItem(key);
     window.localStorage.removeItem("phishintel-session");
     window.localStorage.removeItem("phishintel-users");
+    window.localStorage.removeItem("pg.profile");
     // Clear any other phishintel keys that might hold session data
     for (const k of Object.keys(window.localStorage)) {
       if (k.startsWith("sb-") || k.startsWith("phishintel-")) {

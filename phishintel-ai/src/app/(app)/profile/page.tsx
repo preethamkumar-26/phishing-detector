@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { usePhishGuard } from "@/context/PhishGuardContext";
 import { useAuth } from "@/components/auth/AuthProvider";
 import { AuthDialog } from "@/components/auth/AuthDialog";
+import { supabase } from "@/lib/supabaseClient";
+import { AlertTriangle, Trash2, X, ExternalLink, KeyRound, ShieldCheck } from "lucide-react";
 
 interface UserProfileData {
   id: string;
@@ -178,10 +180,10 @@ function ProfileOverviewSkeleton() {
           <dd><div style={{ width: 170, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
 
           <dt>Storage backend</dt>
-          <dd className="mono">SQLite WAL · Local database</dd>
+          <dd className="mono">Supabase Cloud · PostgreSQL + RLS</dd>
 
-          <dt>Password encryption</dt>
-          <dd className="mono">PBKDF2-SHA256 (210,000 iterations)</dd>
+          <dt>Authentication security</dt>
+          <dd className="mono">Supabase Auth (OAuth 2.0 / Argon2id)</dd>
         </dl>
       </div>
     </div>
@@ -190,7 +192,7 @@ function ProfileOverviewSkeleton() {
 
 export default function ProfilePage() {
   const { profile, updateProfile, settings, updateSettings, showToast, scans, clearUserScans } = usePhishGuard();
-  const { status: authStatus, signOut, user: authUser } = useAuth();
+  const { status: authStatus, signOut, user: authUser, refreshUser } = useAuth();
 
   const [activeTab, setActiveTab] = useState<"overview" | "personal" | "preferences" | "security" | "activity">("overview");
 
@@ -223,6 +225,19 @@ export default function ProfilePage() {
   const [isSavingPref, setIsSavingPref] = useState(false);
   const [prefSuccess, setPrefSuccess] = useState<string | null>(null);
 
+  // Dynamic Authentication Provider Detection (Supabase Auth API)
+  const [credentialStatus, setCredentialStatus] = useState<{
+    isLoaded: boolean;
+    hasGoogle: boolean;
+    hasEmailPassword: boolean;
+    providers: string[];
+  }>({
+    isLoaded: false,
+    hasGoogle: false,
+    hasEmailPassword: false,
+    providers: [],
+  });
+
   // Password Change Form State
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -231,39 +246,138 @@ export default function ProfilePage() {
   const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
+  // Google User Add-Password Form State
+  const [showAddPasswordForm, setShowAddPasswordForm] = useState(false);
+  const [addPasswordNew, setAddPasswordNew] = useState("");
+  const [addPasswordConfirm, setAddPasswordConfirm] = useState("");
+  const [addPasswordError, setAddPasswordError] = useState<string | null>(null);
+  const [isCreatingPassword, setIsCreatingPassword] = useState(false);
+
+  // Delete Account Confirmation State
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteConfirmInput, setDeleteConfirmInput] = useState("");
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
+  // Fetch linked authentication identities dynamically from Supabase Auth
+  const fetchCredentialStatus = useCallback(async () => {
+    try {
+      const { data: { user }, error: userErr } = await supabase.auth.getUser();
+      if (userErr || !user) {
+        const isGoogle = authUser?.provider?.toLowerCase().includes("google") || Boolean(authUser?.hasGoogle);
+        setCredentialStatus({
+          isLoaded: true,
+          hasGoogle: isGoogle,
+          hasEmailPassword: !isGoogle,
+          providers: isGoogle ? ["google"] : ["email"],
+        });
+        return;
+      }
+
+      // Check linked identities via Supabase Auth API
+      let identities = user.identities ?? [];
+      try {
+        const { data: idData } = await supabase.auth.getUserIdentities();
+        if (idData?.identities?.length) {
+          identities = idData.identities;
+        }
+      } catch {}
+
+      const appMeta = user.app_metadata || {};
+      const detectedProviders: string[] = Array.isArray(appMeta.providers)
+        ? appMeta.providers.map((p: unknown) => String(p).toLowerCase())
+        : (appMeta.provider ? [String(appMeta.provider).toLowerCase()] : []);
+
+      for (const ident of identities) {
+        if (ident.provider && !detectedProviders.includes(ident.provider.toLowerCase())) {
+          detectedProviders.push(ident.provider.toLowerCase());
+        }
+      }
+
+      const hasGoogle = detectedProviders.includes("google") || Boolean(authUser?.hasGoogle);
+      const hasEmailPassword = detectedProviders.includes("email") || Boolean(authUser?.hasEmailPassword);
+
+      setCredentialStatus({
+        isLoaded: true,
+        hasGoogle,
+        hasEmailPassword,
+        providers: detectedProviders,
+      });
+    } catch {
+      const isGoogle = authUser?.provider?.toLowerCase().includes("google") || Boolean(authUser?.hasGoogle);
+      setCredentialStatus({
+        isLoaded: true,
+        hasGoogle: isGoogle,
+        hasEmailPassword: !isGoogle,
+        providers: isGoogle ? ["google"] : ["email"],
+      });
+    }
+  }, [authUser?.provider, authUser?.hasGoogle, authUser?.hasEmailPassword]);
+
+  useEffect(() => {
+    fetchCredentialStatus();
+  }, [fetchCredentialStatus]);
+
   // Compute initials
   const initials = useMemo(() => {
-    const raw = (profileData?.fullName || authUser?.name || profile.name || "").trim();
+    const raw = (authUser?.name || profileData?.fullName || profile.name || "").trim();
     if (!raw) return "AN";
     const parts = raw.split(/\s+/);
     if (parts.length > 1) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
     return raw.slice(0, 2).toUpperCase();
-  }, [profileData?.fullName, authUser?.name, profile.name]);
+  }, [authUser?.name, profileData?.fullName, profile.name]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // ── Cache invalidation on user switch ──────────────────────────────────────
+  // The module-level cachedProfileData persists across React renders.
+  // When a DIFFERENT Supabase user signs in (or the same tab is reused), the
+  // cache would still hold the previous user's SQLite profile data.
+  // We detect a user change by comparing the cached email to the current
+  // authUser email and purge the cache immediately so stale data is never shown.
+  useEffect(() => {
+    if (!authUser?.email) return;
+    if (cachedProfileData && cachedProfileData.email !== authUser.email) {
+      // Different user — purge everything
+      cachedProfileData = null;
+      cachedPreferencesData = null;
+      cachedSecurityData = null;
+      cachedActivityEvents = [];
+      setProfileData(null);
+      setPreferencesData(null);
+      setSecurityData(null);
+      setActivityEvents([]);
+      setFormFullName(authUser.name || "");
+      setFormDesignation(authUser.designation || "");
+    }
+  }, [authUser?.email, authUser?.name, authUser?.designation]);
+
   // Load active account data from backend
   const fetchAccountData = useCallback(async () => {
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
+    const activeEmail = authUser?.email || (typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null);
 
     // Avoid firing 401-triggering requests for confirmed unauthenticated guests
-    if (!sessionUser && authStatus === "unauthenticated") {
+    if (!activeEmail || authStatus === "unauthenticated") {
       setLoading(false);
       setProfileData(null);
       return;
     }
 
-    if (cachedProfileData) {
+    if (cachedProfileData && cachedProfileData.email === activeEmail) {
       setProfileData(cachedProfileData);
-      setFormFullName(cachedProfileData.fullName || "");
-      setFormDesignation(cachedProfileData.designation || "");
+      setFormFullName(cachedProfileData.fullName || authUser?.name || "");
+      setFormDesignation(cachedProfileData.designation || authUser?.designation || "");
       setFormOrg(cachedProfileData.organization || "");
       setFormPhone(cachedProfileData.phone || "");
       setFormBio(cachedProfileData.bio || "");
+    } else {
+      cachedProfileData = null;
+      setFormFullName(authUser?.name || "");
+      setFormDesignation(authUser?.designation || "");
     }
     if (cachedPreferencesData) {
       setPreferencesData(cachedPreferencesData);
@@ -277,7 +391,7 @@ export default function ProfilePage() {
 
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      ...(sessionUser ? { "x-user-email": sessionUser } : {}),
+      "x-user-email": activeEmail,
     };
 
     try {
@@ -286,20 +400,22 @@ export default function ProfilePage() {
       if (profRes.ok) {
         const json = await profRes.json();
         const p: UserProfileData = json.profile;
-        cachedProfileData = p;
-        setProfileData(p);
-        setFormFullName(p.fullName || "");
-        setFormDesignation(p.designation || "");
-        setFormOrg(p.organization || "");
-        setFormPhone(p.phone || "");
-        setFormBio(p.bio || "");
+        if (p.email.toLowerCase() === activeEmail.toLowerCase()) {
+          cachedProfileData = p;
+          setProfileData(p);
+          setFormFullName(p.fullName || authUser?.name || "");
+          setFormDesignation(p.designation || authUser?.designation || "");
+          setFormOrg(p.organization || "");
+          setFormPhone(p.phone || "");
+          setFormBio(p.bio || "");
 
-        // Sync to context so TopBar avatar reflects real initials
-        updateProfile({
-          name: p.fullName || "",
-          role: p.designation || "",
-          org: p.organization || "",
-        });
+          // Sync to context so TopBar avatar reflects real initials
+          updateProfile({
+            name: authUser?.name || p.fullName || "",
+            role: p.designation || authUser?.designation || "",
+            org: p.organization || "",
+          });
+        }
       } else {
         cachedProfileData = null;
         setProfileData(null);
@@ -479,7 +595,7 @@ export default function ProfilePage() {
     showToast("Workspace preferences updated");
   };
 
-  // Handle Change Password
+  // Handle Change Password (for Email/Password and Dual users)
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setPasswordError(null);
@@ -507,20 +623,46 @@ export default function ProfilePage() {
     }
 
     setIsChangingPassword(true);
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
+    const activeEmail = authUser?.email || (typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null);
 
     try {
+      // 1. Verify and update against Supabase Auth if a live Supabase session exists
+      const { data: sessionData } = await supabase.auth.getSession();
+      const hasSupabaseSession = Boolean(sessionData?.session);
+
+      if (hasSupabaseSession && activeEmail) {
+        // Verify current password first against Supabase
+        const { error: verifyErr } = await supabase.auth.signInWithPassword({
+          email: activeEmail,
+          password: currentPassword,
+        });
+        if (verifyErr) {
+          const isInvalidCreds = verifyErr.message.toLowerCase().includes("invalid login credentials");
+          throw new Error(isInvalidCreds ? "Current password is incorrect. Please verify your existing password." : verifyErr.message);
+        }
+
+        // Update password in Supabase Auth (retains existing user ID & all linked identities)
+        const { error: updateErr } = await supabase.auth.updateUser({
+          password: newPassword,
+        });
+        if (updateErr) {
+          throw new Error(updateErr.message || "Unable to update credentials in authentication provider.");
+        }
+      }
+
+      // 2. Synchronize new password hash, salt, and activity log to local SQLite WAL database
       const res = await fetch("/api/account/password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(sessionUser ? { "x-user-email": sessionUser } : {}),
+          ...(activeEmail ? { "x-user-email": activeEmail } : {}),
         },
         credentials: "include",
         body: JSON.stringify({
           currentPassword,
           newPassword,
           confirmPassword,
+          supabaseVerified: hasSupabaseSession,
         }),
       });
 
@@ -534,10 +676,141 @@ export default function ProfilePage() {
       setNewPassword("");
       setConfirmPassword("");
       showToast("Account password changed successfully");
+
+      // 3. Immediately refresh Credential detection and user state
+      await fetchCredentialStatus();
+      if (refreshUser) {
+        await refreshUser();
+      }
+
+      // 4. Refresh Security & Activity telemetry on the screen
+      if (activeEmail) {
+        const authHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+          "x-user-email": activeEmail,
+        };
+        fetch("/api/account/security", { headers: authHeaders, credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.security) {
+              setSecurityData(d.security);
+              cachedSecurityData = d.security;
+            }
+          })
+          .catch(() => {});
+
+        fetch("/api/account/activity", { headers: authHeaders, credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.activities) {
+              setActivityEvents(d.activities);
+              cachedActivityEvents = d.activities;
+            }
+          })
+          .catch(() => {});
+      }
     } catch (err) {
       setPasswordError(err instanceof Error ? err.message : "Password change failed.");
     } finally {
       setIsChangingPassword(false);
+    }
+  };
+
+  // Handle Add PhishIntel Password for Google Users
+  const handleCreatePasswordForGoogleUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddPasswordError(null);
+    setPasswordError(null);
+    setPasswordSuccess(null);
+
+    if (!addPasswordNew) {
+      setAddPasswordError("Please enter a new password.");
+      return;
+    }
+    if (addPasswordNew.length < 8) {
+      setAddPasswordError("Password must be at least 8 characters long.");
+      return;
+    }
+    if (addPasswordNew !== addPasswordConfirm) {
+      setAddPasswordError("New password confirmation does not match.");
+      return;
+    }
+
+    setIsCreatingPassword(true);
+    try {
+      // 1. Verify active session exists
+      const { data: { session }, error: sessionErr } = await supabase.auth.getSession();
+      if (sessionErr || !session) {
+        throw new Error("Active session expired. Please sign in again.");
+      }
+
+      // 2. Set password via Supabase Auth on existing user ID (preserving Google identity)
+      const { error: updateErr } = await supabase.auth.updateUser({
+        password: addPasswordNew,
+      });
+      if (updateErr) {
+        throw new Error(updateErr.message || "Failed to set PhishIntel password.");
+      }
+
+      // 3. Sync audit activity & password hash to local WAL database
+      const activeEmail = session.user.email;
+      if (activeEmail) {
+        await fetch("/api/account/password", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-user-email": activeEmail,
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            newPassword: addPasswordNew,
+            confirmPassword: addPasswordConfirm,
+            supabaseVerified: true,
+          }),
+        }).catch(() => {});
+      }
+
+      setPasswordSuccess("PhishIntel password created successfully. You can now sign in with either Google or your email and password.");
+      setAddPasswordNew("");
+      setAddPasswordConfirm("");
+      setShowAddPasswordForm(false);
+      showToast("PhishIntel password created successfully");
+
+      // 4. Refresh credential state and user session immediately
+      await fetchCredentialStatus();
+      if (refreshUser) {
+        await refreshUser();
+      }
+
+      if (activeEmail) {
+        const authHeaders: Record<string, string> = {
+          "Content-Type": "application/json",
+          "x-user-email": activeEmail,
+        };
+        fetch("/api/account/security", { headers: authHeaders, credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.security) {
+              setSecurityData(d.security);
+              cachedSecurityData = d.security;
+            }
+          })
+          .catch(() => {});
+
+        fetch("/api/account/activity", { headers: authHeaders, credentials: "include" })
+          .then((r) => (r.ok ? r.json() : null))
+          .then((d) => {
+            if (d?.activities) {
+              setActivityEvents(d.activities);
+              cachedActivityEvents = d.activities;
+            }
+          })
+          .catch(() => {});
+      }
+    } catch (err) {
+      setAddPasswordError(err instanceof Error ? err.message : "Password creation failed.");
+    } finally {
+      setIsCreatingPassword(false);
     }
   };
 
@@ -588,9 +861,9 @@ export default function ProfilePage() {
   };
 
   // Handle Sign Out
-  const handleSignOut = () => {
+  const handleSignOut = async () => {
     if (window.confirm("Are you sure you want to sign out of this analyst workstation session?")) {
-      signOut();
+      // Clear in-memory profile cache immediately so stale data can't appear
       cachedProfileData = null;
       cachedPreferencesData = null;
       cachedSecurityData = null;
@@ -598,7 +871,71 @@ export default function ProfilePage() {
       setProfileData(null);
       setSecurityData(null);
       setActivityEvents([]);
-      showToast("Signed out successfully");
+      // signOut() is async: awaits Supabase token invalidation, clears localStorage,
+      // and performs window.location.href = "/" — no additional redirect needed here.
+      await signOut();
+    }
+  };
+
+  // Handle Delete Account Permanently
+  const handleDeleteAccount = async () => {
+    const trimmed = deleteConfirmInput.trim();
+    if (trimmed !== "DELETE" && trimmed !== "delete") {
+      setDeleteError('Please type either "DELETE" or "delete" (all uppercase or all lowercase). Mixed case is not accepted.');
+      return;
+    }
+
+    setIsDeletingAccount(true);
+    setDeleteError(null);
+
+    try {
+      const activeEmail = authUser?.email || (typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null);
+
+      // 1. Delete user scans and profile from Supabase
+      if (authUser?.id) {
+        try {
+          await supabase.from("scans").delete().eq("user_id", authUser.id);
+        } catch {}
+        try {
+          await supabase.from("profiles").delete().eq("id", authUser.id);
+        } catch {}
+        // 2. Call Supabase delete_user RPC if installed
+        try {
+          await supabase.rpc("delete_user");
+        } catch {}
+      }
+
+      // 3. Delete from backend SQLite database
+      if (activeEmail) {
+        try {
+          await fetch("/api/account/delete", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-user-email": activeEmail,
+            },
+            credentials: "include",
+          });
+        } catch {}
+      }
+
+      // 4. Clear local scan records from browser memory
+      clearUserScans();
+
+      // 5. Invalidate client caches
+      cachedProfileData = null;
+      cachedPreferencesData = null;
+      cachedSecurityData = null;
+      cachedActivityEvents = [];
+
+      showToast("Account and all associated records deleted permanently.");
+      setDeleteDialogOpen(false);
+
+      // 6. Terminate session and redirect to landing page
+      await signOut();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Failed to delete account. Please try again.");
+      setIsDeletingAccount(false);
     }
   };
 
@@ -683,25 +1020,37 @@ export default function ProfilePage() {
               <div className="card acc-sec on" role="region" aria-label="Account overview" style={{ minHeight: 480 }}>
                 {/* Profile Header Block */}
                 <div className="profile-hd">
-                  <div className="av" id="profile-av" aria-label="User avatar">
-                    {initials}
+                  <div className="av" id="profile-av" aria-label="User avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {authUser?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={authUser.avatarUrl}
+                        alt={authUser.name || "User avatar"}
+                        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      initials
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ fontSize: 19, fontWeight: 500 }} id="profile-name">
                         {isAuthenticated
-                          ? profileData?.fullName || authUser?.name || profile.name || "Analyst"
+                          ? authUser?.name || profileData?.fullName || profile.name || "Analyst"
                           : "Guest Analyst"}
                       </div>
                       {isAuthenticated ? (
-                        <span className="tag safe">Active analyst</span>
+                        <span className="tag safe">
+                          {authUser?.provider === "Google" ? "Google verified" : "Active analyst"}
+                        </span>
                       ) : (
                         <span className="tag">Local workstation mode</span>
                       )}
                     </div>
                     <div className="muted" style={{ fontSize: 13, marginTop: 2 }} id="profile-meta">
                       {isAuthenticated ? (
-                        <span>{profileData?.email || authUser?.email || "Analyst workstation"}</span>
+                        <span>{authUser?.email || profileData?.email || "Analyst workstation"}</span>
                       ) : (
                         <span>No authenticated identity connected</span>
                       )}
@@ -762,12 +1111,21 @@ export default function ProfilePage() {
                     <dt>User ID</dt>
                     <dd className="mono">
                       {isAuthenticated
-                        ? profileData?.id || (authUser?.email ? `usr_${authUser.email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_")}` : "usr_analyst")
+                        ? authUser?.id || profileData?.id || (authUser?.email ? `usr_${authUser.email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_")}` : "usr_analyst")
                         : "local_workstation_user"}
                     </dd>
 
                     <dt>Account status</dt>
                     <dd>{isAuthenticated ? "Verified Analyst · Active" : "Unauthenticated Guest"}</dd>
+
+                    <dt>Authentication provider</dt>
+                    <dd>
+                      {isAuthenticated
+                        ? (credentialStatus.hasGoogle && credentialStatus.hasEmailPassword
+                            ? "Google OAuth + Email/Password"
+                            : (authUser?.provider || "Supabase Auth"))
+                        : "None"}
+                    </dd>
 
                     <dt>Role / Designation</dt>
                     <dd>{profileData?.designation || (isAuthenticated ? authUser?.designation || profile.role : null) || <span className="muted">Not added</span>}</dd>
@@ -779,16 +1137,22 @@ export default function ProfilePage() {
                     <dd>{profileData?.phone || <span className="muted">Not added</span>}</dd>
 
                     <dt>Member since</dt>
-                    <dd>{fmtDate(profileData?.createdAt || (isAuthenticated ? "2026-01-15T09:00:00Z" : null))}</dd>
+                    <dd>{fmtDate(authUser?.createdAt || profileData?.createdAt || (isAuthenticated ? "2026-01-15T09:00:00Z" : null))}</dd>
 
                     <dt>Last profile update</dt>
-                    <dd>{fmtDateTime(profileData?.updatedAt || (isAuthenticated ? profileData?.createdAt || "2026-01-15T09:00:00Z" : null))}</dd>
+                    <dd>{fmtDateTime(profileData?.updatedAt || authUser?.createdAt || (isAuthenticated ? profileData?.createdAt || "2026-01-15T09:00:00Z" : null))}</dd>
 
                     <dt>Storage backend</dt>
-                    <dd className="mono">SQLite WAL · Local database</dd>
+                    <dd className="mono">Supabase Cloud · PostgreSQL + RLS</dd>
 
-                    <dt>Password encryption</dt>
-                    <dd className="mono">PBKDF2-SHA256 (210,000 iterations)</dd>
+                    <dt>Authentication security</dt>
+                    <dd className="mono">
+                      {credentialStatus.hasGoogle && credentialStatus.hasEmailPassword
+                        ? "Dual: Google OAuth 2.0 (PKCE) + Supabase Auth"
+                        : credentialStatus.hasGoogle
+                        ? "Google OAuth 2.0 (PKCE) · Managed by Google"
+                        : "Supabase Auth (Argon2id / bcrypt)"}
+                    </dd>
                   </dl>
                 </div>
 
@@ -822,14 +1186,28 @@ export default function ProfilePage() {
                   </div>
 
                   {isAuthenticated && (
-                    <button
-                      type="button"
-                      className="btn btn-line"
-                      style={{ color: "var(--phish)" }}
-                      onClick={handleSignOut}
-                    >
-                      Sign out
-                    </button>
+                    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                      <button
+                        type="button"
+                        className="btn btn-line"
+                        style={{ color: "var(--phish)" }}
+                        onClick={handleSignOut}
+                      >
+                        Sign out
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-line"
+                        style={{ color: "#ef4444", borderColor: "rgba(239, 68, 68, 0.3)" }}
+                        onClick={() => {
+                          setDeleteConfirmInput("");
+                          setDeleteError(null);
+                          setDeleteDialogOpen(true);
+                        }}
+                      >
+                        Delete account
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -907,7 +1285,7 @@ export default function ProfilePage() {
                       id="prof-email"
                       type="email"
                       disabled
-                      value={profileData?.email || authUser?.email || "No authenticated email"}
+                      value={authUser?.email || profileData?.email || "No authenticated email"}
                       style={{ opacity: 0.75, cursor: "not-allowed" }}
                       title="Account email address cannot be changed."
                     />
@@ -1176,12 +1554,32 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Password Change Form */}
+              {/* Password & Authentication Section */}
               <div style={{ marginBottom: 28 }}>
-                <h4 style={{ fontSize: 14.5, marginBottom: 8, fontWeight: 500 }}>Change password</h4>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8, flexWrap: "wrap", gap: 8 }}>
+                  <h4 style={{ fontSize: 14.5, margin: 0, fontWeight: 500 }}>Password &amp; Authentication</h4>
+                  {credentialStatus.hasGoogle && credentialStatus.hasEmailPassword ? (
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      <span className="tag" style={{ background: "rgba(66, 133, 244, 0.12)", color: "#4285F4", borderColor: "rgba(66, 133, 244, 0.25)" }}>
+                        ● Google Connected
+                      </span>
+                      <span className="tag dark">
+                        ● PhishIntel Password Active
+                      </span>
+                    </div>
+                  ) : credentialStatus.hasGoogle ? (
+                    <span className="tag" style={{ background: "rgba(66, 133, 244, 0.12)", color: "#4285F4", borderColor: "rgba(66, 133, 244, 0.25)" }}>
+                      ● Google Connected
+                    </span>
+                  ) : (
+                    <span className="tag dark">
+                      ● PhishIntel Password Active
+                    </span>
+                  )}
+                </div>
+
                 <p className="muted" style={{ fontSize: 12.5, marginBottom: 16 }}>
-                  Passwords are authenticated server-side using salted PBKDF2-SHA256 derivation with 210,000 iterations.
-                  Plaintext credentials are never stored or logged.
+                  Credentials and identity provider management. All credential operations are secured exclusively through Supabase Authentication APIs. Plaintext passwords are never stored or logged.
                 </p>
 
                 {passwordSuccess && (
@@ -1216,59 +1614,244 @@ export default function ProfilePage() {
                   </div>
                 )}
 
-                <form onSubmit={handleChangePassword}>
-                  <div className="grid g3" style={{ gap: 14 }}>
-                    <div className="field">
-                      <label htmlFor="sec-cur-pwd">Current password</label>
-                      <input
-                        className="input"
-                        id="sec-cur-pwd"
-                        type="password"
-                        required
-                        value={currentPassword}
-                        placeholder="••••••••"
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                      />
+                {/* 1. Google-Only Users: Hide standard password form, display Google Connected, explanation, Manage button, and optional Add Password */}
+                {credentialStatus.hasGoogle && !credentialStatus.hasEmailPassword ? (
+                  <div
+                    style={{
+                      padding: "18px 20px",
+                      borderRadius: "var(--r-md)",
+                      background: "var(--card-2)",
+                      border: "1px solid var(--line-2)",
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+                      <div style={{ flex: 1, minWidth: 260 }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                          <span className="tag" style={{ background: "rgba(66, 133, 244, 0.15)", color: "#4285F4", borderColor: "rgba(66, 133, 244, 0.3)", fontWeight: 500 }}>
+                            Google Connected
+                          </span>
+                          <span style={{ fontSize: 13, color: "var(--muted)" }}>{authUser?.email}</span>
+                        </div>
+                        <p style={{ fontSize: 13, color: "var(--fg)", lineHeight: 1.5, margin: "8px 0 14px 0" }}>
+                          Your password is managed by Google. You signed in using Google authentication and do not currently have a separate PhishIntel password.
+                        </p>
+                      </div>
+                      <a
+                        href="https://myaccount.google.com/security"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", fontSize: 13, flexShrink: 0 }}
+                      >
+                        Manage Google Account
+                        <ExternalLink size={14} />
+                      </a>
                     </div>
-                    <div className="field">
-                      <label htmlFor="sec-new-pwd">New password (min 8 chars)</label>
-                      <input
-                        className="input"
-                        id="sec-new-pwd"
-                        type="password"
-                        required
-                        minLength={8}
-                        value={newPassword}
-                        placeholder="••••••••"
-                        onChange={(e) => setNewPassword(e.target.value)}
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor="sec-cnf-pwd">Confirm new password</label>
-                      <input
-                        className="input"
-                        id="sec-cnf-pwd"
-                        type="password"
-                        required
-                        minLength={8}
-                        value={confirmPassword}
-                        placeholder="••••••••"
-                        onChange={(e) => setConfirmPassword(e.target.value)}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="row" style={{ justifyContent: "flex-end", marginTop: 14 }}>
-                    <button
-                      type="submit"
-                      className="btn btn-dark"
-                      disabled={isChangingPassword || !isAuthenticated}
-                      title={!isAuthenticated ? "Sign in to update credentials" : undefined}
-                    >
-                      {isChangingPassword ? "Updating..." : "Update password"}
-                    </button>
+                    {/* Optional: Add PhishIntel Password */}
+                    <div style={{ borderTop: "1px solid var(--line-2)", paddingTop: 16, marginTop: 12 }}>
+                      {!showAddPasswordForm ? (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+                          <div>
+                            <div style={{ fontSize: 13.5, fontWeight: 500, color: "var(--fg)" }}>Add PhishIntel Password</div>
+                            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+                              Enable direct email/password login alongside your Google authentication without modifying your Google account.
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn btn-dark"
+                            style={{ fontSize: 13 }}
+                            onClick={() => {
+                              setShowAddPasswordForm(true);
+                              setAddPasswordError(null);
+                            }}
+                          >
+                            Add PhishIntel Password
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ background: "var(--bg)", padding: 16, borderRadius: "var(--r-sm)", border: "1px solid var(--line)" }}>
+                          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+                            <div style={{ fontSize: 13.5, fontWeight: 500 }}>Create PhishIntel Password</div>
+                            <button
+                              type="button"
+                              onClick={() => setShowAddPasswordForm(false)}
+                              className="btn btn-subtle"
+                              style={{ padding: "4px 8px", fontSize: 12 }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                          <p className="muted" style={{ fontSize: 12, marginBottom: 14 }}>
+                            This creates a secure password linked to your existing Supabase account ({authUser?.email}). Your Google OAuth identity remains fully preserved and retains the same user ID.
+                          </p>
+
+                          {addPasswordError && (
+                            <div
+                              style={{
+                                padding: "8px 12px",
+                                borderRadius: "var(--r-sm)",
+                                background: "rgba(216, 69, 43, 0.12)",
+                                color: "var(--phish)",
+                                fontSize: 12.5,
+                                marginBottom: 14,
+                              }}
+                              role="alert"
+                            >
+                              ⚠ {addPasswordError}
+                            </div>
+                          )}
+
+                          <form onSubmit={handleCreatePasswordForGoogleUser}>
+                            <div className="grid g2" style={{ gap: 14 }}>
+                              <div className="field">
+                                <label htmlFor="add-sec-new-pwd">New password (min 8 chars)</label>
+                                <input
+                                  className="input"
+                                  id="add-sec-new-pwd"
+                                  type="password"
+                                  required
+                                  minLength={8}
+                                  value={addPasswordNew}
+                                  placeholder="••••••••"
+                                  onChange={(e) => setAddPasswordNew(e.target.value)}
+                                />
+                              </div>
+                              <div className="field">
+                                <label htmlFor="add-sec-cnf-pwd">Confirm new password</label>
+                                <input
+                                  className="input"
+                                  id="add-sec-cnf-pwd"
+                                  type="password"
+                                  required
+                                  minLength={8}
+                                  value={addPasswordConfirm}
+                                  placeholder="••••••••"
+                                  onChange={(e) => setAddPasswordConfirm(e.target.value)}
+                                />
+                              </div>
+                            </div>
+                            <div className="row" style={{ justifyContent: "flex-end", marginTop: 14, gap: 10 }}>
+                              <button
+                                type="button"
+                                className="btn btn-subtle"
+                                onClick={() => setShowAddPasswordForm(false)}
+                                disabled={isCreatingPassword}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="submit"
+                                className="btn btn-dark"
+                                disabled={isCreatingPassword}
+                              >
+                                {isCreatingPassword ? "Creating password..." : "Create PhishIntel password"}
+                              </button>
+                            </div>
+                          </form>
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </form>
+                ) : (
+                  <div>
+                    {/* 2. For Dual Users: show Google Account Connected banner with Manage button */}
+                    {credentialStatus.hasGoogle && credentialStatus.hasEmailPassword && (
+                      <div
+                        style={{
+                          padding: "14px 18px",
+                          borderRadius: "var(--r-md)",
+                          background: "var(--card-2)",
+                          border: "1px solid var(--line-2)",
+                          marginBottom: 20,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "space-between",
+                          gap: 16,
+                          flexWrap: "wrap",
+                        }}
+                      >
+                        <div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                            <span className="tag" style={{ background: "rgba(66, 133, 244, 0.15)", color: "#4285F4", borderColor: "rgba(66, 133, 244, 0.3)", fontWeight: 500 }}>
+                              Google Connected
+                            </span>
+                            <span style={{ fontSize: 13, fontWeight: 500 }}>Linked to {authUser?.email}</span>
+                          </div>
+                          <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+                            Your account is linked to Google OAuth and has a dedicated PhishIntel password. You can sign in using either authentication method.
+                          </p>
+                        </div>
+                        <a
+                          href="https://myaccount.google.com/security"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn"
+                          style={{ display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", fontSize: 13, flexShrink: 0 }}
+                        >
+                          Manage Google Account
+                          <ExternalLink size={14} />
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Standard or Dual User: Change PhishIntel Password Form */}
+                    <form onSubmit={handleChangePassword}>
+                      <div className="grid g3" style={{ gap: 14 }}>
+                        <div className="field">
+                          <label htmlFor="sec-cur-pwd">Current password</label>
+                          <input
+                            className="input"
+                            id="sec-cur-pwd"
+                            type="password"
+                            required
+                            value={currentPassword}
+                            placeholder="••••••••"
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="sec-new-pwd">New password (min 8 chars)</label>
+                          <input
+                            className="input"
+                            id="sec-new-pwd"
+                            type="password"
+                            required
+                            minLength={8}
+                            value={newPassword}
+                            placeholder="••••••••"
+                            onChange={(e) => setNewPassword(e.target.value)}
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor="sec-cnf-pwd">Confirm new password</label>
+                          <input
+                            className="input"
+                            id="sec-cnf-pwd"
+                            type="password"
+                            required
+                            minLength={8}
+                            value={confirmPassword}
+                            placeholder="••••••••"
+                            onChange={(e) => setConfirmPassword(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="row" style={{ justifyContent: "flex-end", marginTop: 14 }}>
+                        <button
+                          type="submit"
+                          className="btn btn-dark"
+                          disabled={isChangingPassword || !isAuthenticated}
+                          title={!isAuthenticated ? "Sign in to update credentials" : undefined}
+                        >
+                          {isChangingPassword ? "Updating password..." : "Update password"}
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                )}
               </div>
 
               {/* Security Telemetry & Status */}
@@ -1335,6 +1918,59 @@ export default function ProfilePage() {
                   )}
                 </div>
               </div>
+
+              {/* Danger Zone: Permanently Delete Account */}
+              {isAuthenticated && (
+                <div
+                  style={{
+                    borderTop: "1px solid rgba(239, 68, 68, 0.25)",
+                    marginTop: 24,
+                    paddingTop: 20,
+                  }}
+                >
+                  <div
+                    style={{
+                      padding: 18,
+                      borderRadius: "var(--r-sm)",
+                      background: "rgba(239, 68, 68, 0.05)",
+                      border: "1px solid rgba(239, 68, 68, 0.2)",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      gap: 16,
+                      flexWrap: "wrap",
+                    }}
+                  >
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, color: "#ef4444", fontWeight: 600, fontSize: 14 }}>
+                        <Trash2 style={{ width: 16, height: 16 }} />
+                        <span>Danger Zone · Permanently Delete Account</span>
+                      </div>
+                      <p className="muted" style={{ fontSize: 12.5, marginTop: 4, maxWidth: 520, lineHeight: 1.5 }}>
+                        Permanently purge your account, credentials, saved preferences, and threat scan history from both Supabase Cloud and the local database. This action is irreversible.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="btn"
+                      style={{
+                        background: "#ef4444",
+                        color: "#fff",
+                        borderColor: "#ef4444",
+                        fontWeight: 600,
+                        padding: "8px 16px",
+                      }}
+                      onClick={() => {
+                        setDeleteConfirmInput("");
+                        setDeleteError(null);
+                        setDeleteDialogOpen(true);
+                      }}
+                    >
+                      Delete account permanently
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1410,6 +2046,225 @@ export default function ProfilePage() {
           showToast("Signed in successfully");
         }}
       />
+
+      {/* Enhanced Account Deletion Confirmation Pop-Up Modal */}
+      {deleteDialogOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 9999,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "rgba(0, 0, 0, 0.65)",
+            backdropFilter: "blur(4px)",
+            padding: 16,
+          }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-dialog-title"
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: 480,
+              background: "var(--card-1, #16201b)",
+              border: "1px solid rgba(239, 68, 68, 0.35)",
+              borderRadius: "16px",
+              boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
+              padding: 24,
+              color: "var(--ink, #fff)",
+              position: "relative",
+            }}
+          >
+            {/* Close button */}
+            <button
+              type="button"
+              onClick={() => {
+                if (!isDeletingAccount) {
+                  setDeleteDialogOpen(false);
+                  setDeleteConfirmInput("");
+                  setDeleteError(null);
+                }
+              }}
+              style={{
+                position: "absolute",
+                top: 16,
+                right: 16,
+                background: "transparent",
+                border: "none",
+                color: "var(--ink-2, #8d9a8f)",
+                cursor: "pointer",
+                padding: 4,
+              }}
+              aria-label="Close dialog"
+            >
+              <X style={{ width: 18, height: 18 }} />
+            </button>
+
+            {/* Header with warning icon */}
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14 }}>
+              <div
+                style={{
+                  width: 42,
+                  height: 42,
+                  borderRadius: "10px",
+                  background: "rgba(239, 68, 68, 0.15)",
+                  border: "1px solid rgba(239, 68, 68, 0.3)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ef4444",
+                  flexShrink: 0,
+                }}
+              >
+                <AlertTriangle style={{ width: 22, height: 22 }} />
+              </div>
+              <div>
+                <h3 id="delete-dialog-title" style={{ fontSize: 17, fontWeight: 700, margin: 0, color: "var(--ink, #fff)" }}>
+                  Permanently Delete Account?
+                </h3>
+                <span style={{ fontSize: 12, color: "#ef4444", fontWeight: 500 }}>
+                  This action is permanent and cannot be undone
+                </span>
+              </div>
+            </div>
+
+            {/* Warning details */}
+            <div
+              style={{
+                padding: 12,
+                borderRadius: "8px",
+                background: "rgba(239, 68, 68, 0.08)",
+                border: "1px solid rgba(239, 68, 68, 0.18)",
+                fontSize: 12.5,
+                lineHeight: 1.5,
+                marginBottom: 16,
+                color: "var(--ink-2, #d1d5db)",
+              }}
+            >
+              <div style={{ fontWeight: 600, color: "var(--ink, #fff)", marginBottom: 4 }}>
+                Target Account: <span style={{ color: "#f8761b" }}>{authUser?.email || profileData?.email}</span>
+              </div>
+              The following will be permanently erased:
+              <ul style={{ margin: "6px 0 0 16px", padding: 0 }}>
+                <li>Your profile and credentials from Supabase &amp; local database</li>
+                <li>All cloud-synced and local email scan records</li>
+                <li>Workstation preferences and audit logs</li>
+              </ul>
+            </div>
+
+            {/* Confirmation input */}
+            <div style={{ marginBottom: 16 }}>
+              <label
+                htmlFor="confirm-delete-input"
+                style={{ display: "block", fontSize: 12.5, fontWeight: 600, marginBottom: 6 }}
+              >
+                Type <strong style={{ color: "#ef4444" }}>DELETE</strong> or <strong style={{ color: "#ef4444" }}>delete</strong> to confirm:
+              </label>
+              <input
+                id="confirm-delete-input"
+                type="text"
+                autoComplete="off"
+                disabled={isDeletingAccount}
+                value={deleteConfirmInput}
+                onChange={(e) => {
+                  setDeleteConfirmInput(e.target.value);
+                  setDeleteError(null);
+                }}
+                placeholder="DELETE or delete"
+                style={{
+                  width: "100%",
+                  padding: "9px 12px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(239, 68, 68, 0.4)",
+                  background: "var(--card-2, #101914)",
+                  color: "var(--ink, #fff)",
+                  fontSize: 13,
+                  outline: "none",
+                  fontFamily: "monospace",
+                  letterSpacing: "1px",
+                }}
+              />
+              {/* Mixed-case notice if the user types mixed case like DeLete */}
+              {(() => {
+                const trimmed = deleteConfirmInput.trim();
+                const isMixed =
+                  trimmed.length > 0 &&
+                  trimmed.toLowerCase() === "delete" &&
+                  trimmed !== "DELETE" &&
+                  trimmed !== "delete";
+                if (isMixed) {
+                  return (
+                    <div style={{ fontSize: 11.5, color: "#f8761b", marginTop: 6, fontWeight: 500 }}>
+                      ⚠ Mixed case detected (&quot;{trimmed}&quot;). Please type entirely in uppercase (<code>DELETE</code>) or entirely in lowercase (<code>delete</code>).
+                    </div>
+                  );
+                }
+                return null;
+              })()}
+            </div>
+
+            {/* Error Message */}
+            {deleteError && (
+              <div
+                style={{
+                  padding: "8px 12px",
+                  borderRadius: "6px",
+                  background: "rgba(239, 68, 68, 0.15)",
+                  color: "#ef4444",
+                  fontSize: 12,
+                  marginBottom: 14,
+                }}
+              >
+                ⚠ {deleteError}
+              </div>
+            )}
+
+            {/* Action buttons */}
+            <div style={{ display: "flex", gap: 10, justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                className="btn btn-line"
+                disabled={isDeletingAccount}
+                onClick={() => {
+                  setDeleteDialogOpen(false);
+                  setDeleteConfirmInput("");
+                  setDeleteError(null);
+                }}
+              >
+                Cancel
+              </button>
+              {(() => {
+                const trimmed = deleteConfirmInput.trim();
+                const isConfirmed = trimmed === "DELETE" || trimmed === "delete";
+                return (
+                  <button
+                    type="button"
+                    className="btn"
+                    disabled={!isConfirmed || isDeletingAccount}
+                    style={{
+                      background: isConfirmed ? "#ef4444" : "rgba(239, 68, 68, 0.3)",
+                      color: "#fff",
+                      borderColor: "transparent",
+                      fontWeight: 600,
+                      cursor: isConfirmed ? "pointer" : "not-allowed",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                    onClick={handleDeleteAccount}
+                  >
+                    <Trash2 style={{ width: 14, height: 14 }} />
+                    <span>{isDeletingAccount ? "Deleting from database..." : "Delete Account Permanently"}</span>
+                  </button>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

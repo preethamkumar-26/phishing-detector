@@ -13,6 +13,17 @@ export interface AuthUser {
   name: string;
   email: string;
   designation?: string;
+  avatarUrl?: string;
+  provider?: string;
+  providers?: string[];
+  identities?: Array<{
+    id: string;
+    provider: string;
+    identity_data?: Record<string, unknown>;
+  }>;
+  hasGoogle?: boolean;
+  hasEmailPassword?: boolean;
+  createdAt?: string;
 }
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "error";
@@ -27,20 +38,106 @@ interface AuthActions {
   register: (name: string, email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: (next?: string) => Promise<void>;
-  signOut: () => void;
+  signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const SESSION_KEY = "phishintel-session";
-const INITIAL_SNAPSHOT: AuthSnapshot = { status: "loading", user: null };
-const AuthContext = createContext<AuthActions | null>(null);
+// The key Supabase v2 uses for the session in localStorage.
+// Clearing it on sign-out prevents getSession() from restoring a stale session on reload.
+const SUPABASE_SESSION_KEY = `sb-${process.env.NEXT_PUBLIC_SUPABASE_URL?.split("//")[1]?.split(".")[0] ?? "ujulxbzyornwmqhtlley"}-auth-token`;
 
-let snapshot = INITIAL_SNAPSHOT;
-let initialized = false;
 let lastManualSignOutAt = 0;
-const listeners = new Set<() => void>();
 
 export function wasManualSignOutRecently(): boolean {
-  return Date.now() - lastManualSignOutAt < 2000;
+  return Date.now() - lastManualSignOutAt < 5000;
+}
+
+function getInitialSnapshot(): AuthSnapshot {
+  if (typeof window === "undefined") {
+    return { status: "unauthenticated", user: null };
+  }
+  try {
+    if (Date.now() - lastManualSignOutAt < 5000) {
+      return { status: "unauthenticated", user: null };
+    }
+    const hasSbToken = Object.keys(window.localStorage).some(
+      (k) => (k.startsWith("sb-") && k.endsWith("-auth-token")) || k === SESSION_KEY
+    );
+    const hasCookie = document.cookie.includes("phishintel_session=");
+    if (!hasSbToken && !hasCookie) {
+      return { status: "unauthenticated", user: null };
+    }
+  } catch {}
+  return { status: "loading", user: null };
+}
+
+const INITIAL_SNAPSHOT: AuthSnapshot = { status: "unauthenticated", user: null };
+const AuthContext = createContext<AuthActions | null>(null);
+
+let snapshot: AuthSnapshot = getInitialSnapshot();
+let initialized = false;
+const listeners = new Set<() => void>();
+
+export function mapSessionToUser(sessionUser: import("@supabase/supabase-js").User): AuthUser {
+  const meta = sessionUser.user_metadata || {};
+  const appMeta = sessionUser.app_metadata || {};
+
+  // Extract all provider identities dynamically from Supabase Auth
+  const rawProviders: string[] = Array.isArray(appMeta.providers)
+    ? appMeta.providers.map((p: unknown) => String(p).toLowerCase())
+    : (appMeta.provider ? [String(appMeta.provider).toLowerCase()] : []);
+
+  const identitiesList = Array.isArray(sessionUser.identities) ? sessionUser.identities : [];
+  for (const ident of identitiesList) {
+    if (ident.provider && !rawProviders.includes(ident.provider.toLowerCase())) {
+      rawProviders.push(ident.provider.toLowerCase());
+    }
+  }
+
+  const hasGoogle = rawProviders.includes("google");
+  const hasEmailPassword = rawProviders.includes("email");
+
+  let provider = "Email";
+  if (hasGoogle && hasEmailPassword) {
+    provider = "Google + Email";
+  } else if (hasGoogle) {
+    provider = "Google";
+  } else if (hasEmailPassword) {
+    provider = "Email";
+  }
+
+  // Google OAuth sends 'full_name' or 'name', whereas our email signup sends 'name' or 'display_name'
+  const name =
+    (meta.full_name as string) ||
+    (meta.name as string) ||
+    (meta.display_name as string) ||
+    sessionUser.email?.split("@")[0] ||
+    "Analyst";
+
+  // Google OAuth sends 'avatar_url' or 'picture'
+  const avatarUrl =
+    (meta.avatar_url as string) ||
+    (meta.picture as string) ||
+    undefined;
+
+  return {
+    id: sessionUser.id,
+    name: name.trim(),
+    email: sessionUser.email || "",
+    designation: (meta.designation as string) || (hasGoogle ? "Google Verified Analyst" : "Active analyst"),
+    avatarUrl,
+    provider,
+    providers: rawProviders,
+    identities: identitiesList.map((i) => ({
+      id: i.id,
+      provider: i.provider,
+      identity_data: i.identity_data,
+    })),
+    hasGoogle,
+    hasEmailPassword,
+    createdAt: sessionUser.created_at,
+  };
 }
 
 function notify() {
@@ -51,25 +148,12 @@ function refreshSnapshot() {
   if (snapshot.status === "authenticated" && snapshot.user) {
     return;
   }
-
-  try {
-    const sessionEmail = typeof window !== "undefined" ? window.localStorage.getItem(SESSION_KEY) : null;
-    if (sessionEmail) {
-      snapshot = {
-        status: "authenticated",
-        user: {
-          name: sessionEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
-          email: sessionEmail,
-          designation: "Active analyst",
-        },
-      };
-    } else {
-      snapshot = { status: "unauthenticated", user: null };
-    }
-  } catch {
+  // When Supabase has completed initialization and found no session,
+  // do not synthesize a user out of stale localStorage email.
+  if (initialized) {
     snapshot = { status: "unauthenticated", user: null };
+    notify();
   }
-  notify();
 }
 
 function initialize() {
@@ -85,53 +169,55 @@ function initialize() {
   try {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        window.localStorage.setItem(SESSION_KEY, session.user.email || "");
+        const user = mapSessionToUser(session.user);
+        window.localStorage.setItem(SESSION_KEY, user.email);
+        try {
+          document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
+        } catch {}
         snapshot = {
           status: "authenticated",
-          user: {
-            id: session.user.id,
-            name:
-              (session.user.user_metadata?.display_name as string) ||
-              (session.user.user_metadata?.name as string) ||
-              session.user.email?.split("@")[0] ||
-              "Analyst",
-            email: session.user.email || "",
-            designation: (session.user.user_metadata?.designation as string) || "Active analyst",
-          },
+          user,
         };
         notify();
       } else {
-        refreshSnapshot();
+        // No Supabase session — clear any stale keys and cookies
+        window.localStorage.removeItem(SESSION_KEY);
+        try {
+          document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
+        } catch {}
+        snapshot = { status: "unauthenticated", user: null };
+        notify();
       }
     }).catch(() => {
-      refreshSnapshot();
+      snapshot = { status: "unauthenticated", user: null };
+      notify();
     });
 
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
-        window.localStorage.setItem(SESSION_KEY, session.user.email || "");
+        const user = mapSessionToUser(session.user);
+        window.localStorage.setItem(SESSION_KEY, user.email);
+        try {
+          document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
+        } catch {}
         snapshot = {
           status: "authenticated",
-          user: {
-            id: session.user.id,
-            name:
-              (session.user.user_metadata?.display_name as string) ||
-              (session.user.user_metadata?.name as string) ||
-              session.user.email?.split("@")[0] ||
-              "Analyst",
-            email: session.user.email || "",
-            designation: (session.user.user_metadata?.designation as string) || "Active analyst",
-          },
+          user,
         };
         notify();
       } else if (event === "SIGNED_OUT") {
         window.localStorage.removeItem(SESSION_KEY);
+        try { window.localStorage.removeItem(SUPABASE_SESSION_KEY); } catch {}
+        try {
+          document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
+        } catch {}
         snapshot = { status: "unauthenticated", user: null };
         notify();
       }
     });
   } catch {
-    refreshSnapshot();
+    snapshot = { status: "unauthenticated", user: null };
+    notify();
   }
 
   window.addEventListener("storage", (event) => {
@@ -184,16 +270,15 @@ async function register(name: string, email: string, password: string) {
   }
 
   if (data?.session?.user) {
-    window.localStorage.setItem(SESSION_KEY, normalizedEmail);
+    const user = mapSessionToUser(data.session.user);
+    window.localStorage.setItem(SESSION_KEY, user.email);
+    try {
+      document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
+    } catch {}
     lastManualSignOutAt = 0;
     snapshot = {
       status: "authenticated",
-      user: {
-        id: data.session.user.id,
-        name: normalizedName,
-        email: normalizedEmail,
-        designation: "Active analyst",
-      },
+      user,
     };
     notify();
   } else if (data?.user && !data.session) {
@@ -221,20 +306,15 @@ async function signIn(email: string, password: string) {
     throw new Error("No session was created. Please try again.");
   }
 
-  window.localStorage.setItem(SESSION_KEY, data.user.email || normalizedEmail);
+  const user = mapSessionToUser(data.user);
+  window.localStorage.setItem(SESSION_KEY, user.email);
+  try {
+    document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
+  } catch {}
   lastManualSignOutAt = 0;
   snapshot = {
     status: "authenticated",
-    user: {
-      id: data.user.id,
-      name:
-        (data.user.user_metadata?.display_name as string) ||
-        (data.user.user_metadata?.name as string) ||
-        (data.user.user_metadata?.full_name as string) ||
-        normalizedEmail.split("@")[0],
-      email: data.user.email || normalizedEmail,
-      designation: (data.user.user_metadata?.designation as string) || "Active analyst",
-    },
+    user,
   };
   notify();
 }
@@ -261,39 +341,76 @@ async function signInWithGoogle(next = "/dashboard") {
 }
 
 /**
- * Sign out from Supabase Auth and clear local session state.
+ * Sign out from Supabase Auth and clear ALL local session state.
+ * Awaits Supabase sign-out so the SIGNED_OUT event fires before we redirect.
+ * Also manually clears the Supabase localStorage token so getSession() returns
+ * null on a hard reload — preventing session restoration after sign-out.
  */
-function signOut() {
+async function signOut() {
   try {
     lastManualSignOutAt = Date.now();
 
+    // 1. Tell Supabase to invalidate the server-side refresh token
     try {
-      supabase.auth.signOut().catch(() => {});
+      await supabase.auth.signOut();
     } catch {}
 
-    window.localStorage.removeItem(SESSION_KEY);
+    // 2. Clear ALL client-side session storage (belt-and-suspenders)
     try {
+      window.localStorage.removeItem(SESSION_KEY);
+      window.localStorage.removeItem(SUPABASE_SESSION_KEY);
+      window.localStorage.removeItem("pg.profile");
+      // Also wipe any other sb-* keys in case the project ref changes
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          window.localStorage.removeItem(key);
+        }
+      }
       document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
+      if (typeof document !== "undefined" && document.body) {
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+      }
     } catch {}
+
+    // 3. Update in-memory snapshot so React re-renders immediately
     snapshot = { status: "unauthenticated", user: null };
     notify();
+
+    // 4. Clean navigation to landing page with history replacement
+    if (typeof window !== "undefined") {
+      window.location.replace("/");
+    }
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : "Unable to sign out.");
   }
 }
 
-const actions: AuthActions = { register, signIn, signInWithGoogle, signOut };
+/**
+ * Refreshes user identities and session directly from Supabase Auth.
+ */
+async function refreshUser() {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const mapped = mapSessionToUser(user);
+      snapshot = {
+        status: "authenticated",
+        user: mapped,
+      };
+      notify();
+    }
+  } catch {}
+}
+
+const actions: AuthActions = { register, signIn, signInWithGoogle, signOut, refreshUser };
 
 export function AuthProvider({
   children,
-  initialUser,
 }: {
   children: React.ReactNode;
   initialUser?: AuthUser | null;
 }) {
-  if (initialUser && snapshot.status === "loading") {
-    snapshot = { status: "authenticated", user: initialUser };
-  }
   return <AuthContext.Provider value={actions}>{children}</AuthContext.Provider>;
 }
 

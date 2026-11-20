@@ -8,9 +8,9 @@ export async function POST(req: Request) {
     const user = authenticateRequest(req);
     const body = await req.json();
 
-    const { currentPassword, newPassword, confirmPassword } = body;
+    const { currentPassword, newPassword, confirmPassword, supabaseVerified } = body;
 
-    if (!currentPassword || typeof currentPassword !== "string") {
+    if (!supabaseVerified && (!currentPassword || typeof currentPassword !== "string")) {
       return NextResponse.json({ error: "Current password is required." }, { status: 400 });
     }
     if (!newPassword || typeof newPassword !== "string") {
@@ -22,18 +22,20 @@ export async function POST(req: Request) {
     if (newPassword !== confirmPassword) {
       return NextResponse.json({ error: "New passwords do not match." }, { status: 400 });
     }
-    if (currentPassword === newPassword) {
+    if (currentPassword && currentPassword === newPassword) {
       return NextResponse.json({ error: "New password must be different from current password." }, { status: 400 });
     }
 
-    // Verify current password server-side
-    const isValid = verifyPassword(currentPassword, user.salt, user.password_hash);
-    if (!isValid) {
-      logActivity(user.id, "password_change_failed", "Failed password change attempt", "failure", "Incorrect current password");
-      return NextResponse.json({ error: "Current password is incorrect." }, { status: 401 });
+    // Verify current password server-side if not pre-verified via Supabase Auth
+    if (!supabaseVerified) {
+      const isValid = verifyPassword(currentPassword, user.salt, user.password_hash);
+      if (!isValid) {
+        logActivity(user.id, "password_change_failed", "Failed password change attempt", "failure", "Incorrect current password");
+        return NextResponse.json({ error: "Current password is incorrect." }, { status: 401 });
+      }
     }
 
-    // Generate new salt & hash
+    // Generate new salt & hash for local SQLite database
     const newSalt = crypto.randomBytes(16).toString("hex");
     const newHash = hashPassword(newPassword, newSalt);
     const now = new Date().toISOString();
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: "Password updated successfully. Your new credentials are now active.",
+      updatedAt: now,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unable to change password.";

@@ -36,6 +36,10 @@ function CallbackContent() {
         }
 
         if (session?.user) {
+          try {
+            window.localStorage.setItem("phishintel-session", session.user.email || "");
+            document.cookie = `phishintel_session=${encodeURIComponent(session.user.email || "")}; Path=/; SameSite=Lax;`;
+          } catch {}
           router.replace(next);
           return;
         }
@@ -48,6 +52,10 @@ function CallbackContent() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
       if (session?.user && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")) {
+        try {
+          window.localStorage.setItem("phishintel-session", session.user.email || "");
+          document.cookie = `phishintel_session=${encodeURIComponent(session.user.email || "")}; Path=/; SameSite=Lax;`;
+        } catch {}
         router.replace(next);
       }
     });
