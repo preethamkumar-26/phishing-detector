@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     TRANCO_MAX_RANK: int = 1_000_000
     OFFLINE_PHISH_LIST_FILENAME: str = "offline_phish_domains.txt"
 
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:5173"]
     MAX_REQUEST_BYTES: int = 5 * 1024 * 1024
     MAX_EMAIL_CHARS: int = 1_000_000
     MAX_SUBJECT_CHARS: int = 998
@@ -32,6 +32,14 @@ class Settings(BaseSettings):
     MAX_HEADERS_CHARS: int = 100_000
     RATE_LIMIT_REQUESTS: int = 30
     RATE_LIMIT_WINDOW_SECONDS: int = 60
+
+    SUPABASE_URL: str = "https://ujulxbzyornwmqhtlley.supabase.co"
+    SUPABASE_PUBLISHABLE_KEY: str = "sb_publishable_ZS8sBglkzRUv3C0zlJzXfA_PXygXPcI"
+    SUPABASE_ANON_KEY: str = ""
+
+    @property
+    def resolved_supabase_key(self) -> str:
+        return self.SUPABASE_PUBLISHABLE_KEY or self.SUPABASE_ANON_KEY
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

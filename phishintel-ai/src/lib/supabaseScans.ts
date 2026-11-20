@@ -15,24 +15,22 @@ export function isSupabaseConfigured(): boolean {
  */
 export async function saveScanToSupabase(
   scan: ScanItem,
-  userId?: string
+  _userIdOverride?: string
 ): Promise<{ success: boolean; error?: string }> {
   if (!isSupabaseConfigured()) {
     return { success: false, error: "Supabase credentials not configured." };
   }
 
   try {
-    let finalUserId = userId;
-    if (!finalUserId) {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user?.id) {
-        finalUserId = session.user.id;
-      }
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) {
+      return { success: false, error: "Authentication required to persist scan." };
     }
+    const verifiedUserId = session.user.id;
 
     const row = {
       id: scan.id,
-      user_id: finalUserId || null,
+      user_id: verifiedUserId,
       created_at: new Date(scan.ts).toISOString(),
       subject: scan.email.subject || "Untitled Email",
       from_email: scan.email.from || "",
@@ -74,23 +72,25 @@ export async function saveScanToSupabase(
 }
 
 /**
- * Fetch scans from Supabase public.scans table.
+ * Fetch scans from Supabase public.scans table scoped strictly to the authenticated user.
  */
-export async function fetchScansFromSupabase(userId?: string): Promise<ScanItem[]> {
+export async function fetchScansFromSupabase(_userIdOverride?: string): Promise<ScanItem[]> {
   if (!isSupabaseConfigured()) return [];
 
   try {
-    let query = supabase
-      .from("scans")
-      .select("*")
-      .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (userId) {
-      query = query.eq("user_id", userId);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user?.id) {
+      return [];
     }
 
-    const { data, error } = await query;
+    const verifiedUserId = session.user.id;
+
+    const { data, error } = await supabase
+      .from("scans")
+      .select("*")
+      .eq("user_id", verifiedUserId)
+      .order("created_at", { ascending: false })
+      .limit(100);
 
     if (error) {
       if (error.code !== "PGRST205") {

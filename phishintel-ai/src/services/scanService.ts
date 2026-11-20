@@ -5,6 +5,7 @@ import {
   fetchWithBackendAutoRetry,
   getActiveAnalyzeEndpoint,
 } from "@/lib/backendDiscovery";
+import { supabase } from "@/lib/supabaseClient";
 
 // In-memory session store initialized with demo records
 let sessionScans: ScanRecord[] = [...DEMO_RECENT_SCANS];
@@ -261,6 +262,16 @@ export async function analyzeEmailWithBackend(
   endpoint?: string,
   signal?: AbortSignal
 ): Promise<FastAPIAnalysisResponse> {
+  // Retrieve active Supabase user session token
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession();
+
+  if (sessionError || !session?.access_token) {
+    throw new Error("Please sign in before scanning an email.");
+  }
+
   const activeEndpoint = endpoint
     ? endpoint
     : await getActiveAnalyzeEndpoint();
@@ -270,6 +281,7 @@ export async function analyzeEmailWithBackend(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
       },
       signal,
       body: JSON.stringify({

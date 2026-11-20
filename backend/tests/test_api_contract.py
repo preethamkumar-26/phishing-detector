@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
+from app.auth import AuthenticatedUser, get_current_user
 from app.main import app
 from app.services.model_service import ModelService, model_service
 
@@ -22,26 +23,37 @@ SCAN_RESPONSE = {
 
 class AnalyzeApiContractTests(unittest.TestCase):
     def test_analyze_returns_standard_scan_response_for_frontend_aliases(self) -> None:
-        with (
-            patch.object(model_service, "load_model"),
-            patch.object(model_service, "is_ready", True),
-            patch.object(model_service, "predict", return_value=SCAN_RESPONSE) as predict,
-            TestClient(app) as client,
-        ):
-            response = client.post(
-                "/api/v1/analyze",
-                json={
-                    "body": "Email body",
-                    "subject": "Email subject",
-                    "from": "sender@example.test",
-                    "replyTo": "reply@example.test",
-                    "urls": ["https://example.test"],
-                    "headers": "X-Source: client",
-                },
-            )
+        mock_user = AuthenticatedUser(
+            id="contract-test-user-id",
+            email="analyst@phishintel.test",
+            role="authenticated",
+            token="contract-mock-token",
+        )
+        app.dependency_overrides[get_current_user] = lambda: mock_user
+        try:
+            with (
+                patch.object(model_service, "load_model"),
+                patch.object(model_service, "is_ready", True),
+                patch.object(model_service, "predict", return_value=SCAN_RESPONSE) as predict,
+                TestClient(app) as client,
+            ):
+                response = client.post(
+                    "/api/v1/analyze",
+                    headers={"Authorization": "Bearer contract-mock-token"},
+                    json={
+                        "body": "Email body",
+                        "subject": "Email subject",
+                        "from": "sender@example.test",
+                        "replyTo": "reply@example.test",
+                        "urls": ["https://example.test"],
+                        "headers": "X-Source: client",
+                    },
+                )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), SCAN_RESPONSE)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.json(), SCAN_RESPONSE)
+        finally:
+            app.dependency_overrides.clear()
         self.assertEqual(
             set(response.json()),
             {
