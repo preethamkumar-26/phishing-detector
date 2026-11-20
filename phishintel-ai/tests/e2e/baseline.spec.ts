@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { seedSupabaseSession } from "./fixtures/supabase-session";
 
 test.describe("P0 Baseline Reproduction", () => {
   test("reproduce profile guest flash and shell persistence", async ({ page }) => {
@@ -13,22 +14,13 @@ test.describe("P0 Baseline Reproduction", () => {
       }
     });
 
-    // Seed session in localStorage to simulate logged-in user Preetham Kumar
+    // Navigate first so localStorage is scoped to the right origin, then
+    // seed a Supabase session (replaces legacy phishintel-users / phishintel-session).
     await page.goto("http://localhost:3000/dashboard");
+    await seedSupabaseSession(page);
+
+    // Set the shell marker AFTER seeding so it's not wiped
     await page.evaluate(() => {
-      window.localStorage.setItem("phishintel-session", "preetham@cognition.ai");
-      window.localStorage.setItem(
-        "phishintel-users",
-        JSON.stringify([
-          {
-            name: "Preetham Kumar",
-            email: "preetham@cognition.ai",
-            designation: "Active analyst",
-            salt: "aabbcc",
-            passwordHash: "ddeeff",
-          },
-        ])
-      );
       (window as any).__shellMarker = 1;
     });
 
@@ -73,7 +65,9 @@ test.describe("P0 Baseline Reproduction", () => {
     console.log("Console errors observed:", consoleErrors);
 
     // Check dev overlay badge presence
-    const issueBadge = await page.locator("nextjs-portal, [data-nextjs-dev-overlay], [aria-label*='issue'], [data-nextjs-toast]").all();
+    const issueBadge = await page
+      .locator("nextjs-portal, [data-nextjs-dev-overlay], [aria-label*='issue'], [data-nextjs-toast]")
+      .all();
     console.log("Dev overlay elements found:", issueBadge.length);
   });
 });
