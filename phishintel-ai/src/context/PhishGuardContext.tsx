@@ -923,19 +923,11 @@ export function PhishGuardProvider({
     try {
       const sessionEmail = localStorage.getItem("phishintel-session");
       if (sessionEmail) {
-        const rawUsers = localStorage.getItem("phishintel-users");
-        if (rawUsers) {
-          const users = JSON.parse(rawUsers);
-          const u = users.find((x: { email: string }) => x.email.toLowerCase() === sessionEmail.toLowerCase());
-          if (u) {
-            setProfile({
-              name: u.name || "",
-              role: u.designation || "",
-              org: u.organization || "",
-              team: "",
-            });
-          }
-        }
+        setProfile((prev) => ({
+          ...prev,
+          name: prev.name || sessionEmail.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
+          role: prev.role || "Active analyst",
+        }));
       } else {
         const savedProfile = localStorage.getItem("pg.profile");
         if (savedProfile) {
