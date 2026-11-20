@@ -178,10 +178,10 @@ function ProfileOverviewSkeleton() {
           <dd><div style={{ width: 170, height: 14, borderRadius: 4, background: "var(--card-2)" }} /></dd>
 
           <dt>Storage backend</dt>
-          <dd className="mono">SQLite WAL · Local database</dd>
+          <dd className="mono">Supabase Cloud · PostgreSQL + RLS</dd>
 
-          <dt>Password encryption</dt>
-          <dd className="mono">PBKDF2-SHA256 (210,000 iterations)</dd>
+          <dt>Authentication security</dt>
+          <dd className="mono">Supabase Auth (OAuth 2.0 / Argon2id)</dd>
         </dl>
       </div>
     </div>
@@ -233,37 +233,64 @@ export default function ProfilePage() {
 
   // Compute initials
   const initials = useMemo(() => {
-    const raw = (profileData?.fullName || authUser?.name || profile.name || "").trim();
+    const raw = (authUser?.name || profileData?.fullName || profile.name || "").trim();
     if (!raw) return "AN";
     const parts = raw.split(/\s+/);
     if (parts.length > 1) {
       return (parts[0][0] + parts[1][0]).toUpperCase();
     }
     return raw.slice(0, 2).toUpperCase();
-  }, [profileData?.fullName, authUser?.name, profile.name]);
+  }, [authUser?.name, profileData?.fullName, profile.name]);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
+  // ── Cache invalidation on user switch ──────────────────────────────────────
+  // The module-level cachedProfileData persists across React renders.
+  // When a DIFFERENT Supabase user signs in (or the same tab is reused), the
+  // cache would still hold the previous user's SQLite profile data.
+  // We detect a user change by comparing the cached email to the current
+  // authUser email and purge the cache immediately so stale data is never shown.
+  useEffect(() => {
+    if (!authUser?.email) return;
+    if (cachedProfileData && cachedProfileData.email !== authUser.email) {
+      // Different user — purge everything
+      cachedProfileData = null;
+      cachedPreferencesData = null;
+      cachedSecurityData = null;
+      cachedActivityEvents = [];
+      setProfileData(null);
+      setPreferencesData(null);
+      setSecurityData(null);
+      setActivityEvents([]);
+      setFormFullName(authUser.name || "");
+      setFormDesignation(authUser.designation || "");
+    }
+  }, [authUser?.email, authUser?.name, authUser?.designation]);
+
   // Load active account data from backend
   const fetchAccountData = useCallback(async () => {
-    const sessionUser = typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null;
+    const activeEmail = authUser?.email || (typeof window !== "undefined" ? window.localStorage.getItem("phishintel-session") : null);
 
     // Avoid firing 401-triggering requests for confirmed unauthenticated guests
-    if (!sessionUser && authStatus === "unauthenticated") {
+    if (!activeEmail || authStatus === "unauthenticated") {
       setLoading(false);
       setProfileData(null);
       return;
     }
 
-    if (cachedProfileData) {
+    if (cachedProfileData && cachedProfileData.email === activeEmail) {
       setProfileData(cachedProfileData);
-      setFormFullName(cachedProfileData.fullName || "");
-      setFormDesignation(cachedProfileData.designation || "");
+      setFormFullName(cachedProfileData.fullName || authUser?.name || "");
+      setFormDesignation(cachedProfileData.designation || authUser?.designation || "");
       setFormOrg(cachedProfileData.organization || "");
       setFormPhone(cachedProfileData.phone || "");
       setFormBio(cachedProfileData.bio || "");
+    } else {
+      cachedProfileData = null;
+      setFormFullName(authUser?.name || "");
+      setFormDesignation(authUser?.designation || "");
     }
     if (cachedPreferencesData) {
       setPreferencesData(cachedPreferencesData);
@@ -277,7 +304,7 @@ export default function ProfilePage() {
 
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      ...(sessionUser ? { "x-user-email": sessionUser } : {}),
+      "x-user-email": activeEmail,
     };
 
     try {
@@ -286,20 +313,22 @@ export default function ProfilePage() {
       if (profRes.ok) {
         const json = await profRes.json();
         const p: UserProfileData = json.profile;
-        cachedProfileData = p;
-        setProfileData(p);
-        setFormFullName(p.fullName || "");
-        setFormDesignation(p.designation || "");
-        setFormOrg(p.organization || "");
-        setFormPhone(p.phone || "");
-        setFormBio(p.bio || "");
+        if (p.email.toLowerCase() === activeEmail.toLowerCase()) {
+          cachedProfileData = p;
+          setProfileData(p);
+          setFormFullName(p.fullName || authUser?.name || "");
+          setFormDesignation(p.designation || authUser?.designation || "");
+          setFormOrg(p.organization || "");
+          setFormPhone(p.phone || "");
+          setFormBio(p.bio || "");
 
-        // Sync to context so TopBar avatar reflects real initials
-        updateProfile({
-          name: p.fullName || "",
-          role: p.designation || "",
-          org: p.organization || "",
-        });
+          // Sync to context so TopBar avatar reflects real initials
+          updateProfile({
+            name: authUser?.name || p.fullName || "",
+            role: p.designation || authUser?.designation || "",
+            org: p.organization || "",
+          });
+        }
       } else {
         cachedProfileData = null;
         setProfileData(null);
@@ -685,25 +714,37 @@ export default function ProfilePage() {
               <div className="card acc-sec on" role="region" aria-label="Account overview" style={{ minHeight: 480 }}>
                 {/* Profile Header Block */}
                 <div className="profile-hd">
-                  <div className="av" id="profile-av" aria-label="User avatar">
-                    {initials}
+                  <div className="av" id="profile-av" aria-label="User avatar" style={{ overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                    {authUser?.avatarUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={authUser.avatarUrl}
+                        alt={authUser.name || "User avatar"}
+                        style={{ width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover" }}
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      initials
+                    )}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
                       <div style={{ fontSize: 19, fontWeight: 500 }} id="profile-name">
                         {isAuthenticated
-                          ? profileData?.fullName || authUser?.name || profile.name || "Analyst"
+                          ? authUser?.name || profileData?.fullName || profile.name || "Analyst"
                           : "Guest Analyst"}
                       </div>
                       {isAuthenticated ? (
-                        <span className="tag safe">Active analyst</span>
+                        <span className="tag safe">
+                          {authUser?.provider === "Google" ? "Google verified" : "Active analyst"}
+                        </span>
                       ) : (
                         <span className="tag">Local workstation mode</span>
                       )}
                     </div>
                     <div className="muted" style={{ fontSize: 13, marginTop: 2 }} id="profile-meta">
                       {isAuthenticated ? (
-                        <span>{profileData?.email || authUser?.email || "Analyst workstation"}</span>
+                        <span>{authUser?.email || profileData?.email || "Analyst workstation"}</span>
                       ) : (
                         <span>No authenticated identity connected</span>
                       )}
@@ -764,12 +805,15 @@ export default function ProfilePage() {
                     <dt>User ID</dt>
                     <dd className="mono">
                       {isAuthenticated
-                        ? profileData?.id || (authUser?.email ? `usr_${authUser.email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_")}` : "usr_analyst")
+                        ? authUser?.id || profileData?.id || (authUser?.email ? `usr_${authUser.email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "_")}` : "usr_analyst")
                         : "local_workstation_user"}
                     </dd>
 
                     <dt>Account status</dt>
                     <dd>{isAuthenticated ? "Verified Analyst · Active" : "Unauthenticated Guest"}</dd>
+
+                    <dt>Authentication provider</dt>
+                    <dd>{isAuthenticated ? (authUser?.provider || "Supabase Auth") : "None"}</dd>
 
                     <dt>Role / Designation</dt>
                     <dd>{profileData?.designation || (isAuthenticated ? authUser?.designation || profile.role : null) || <span className="muted">Not added</span>}</dd>
@@ -781,16 +825,16 @@ export default function ProfilePage() {
                     <dd>{profileData?.phone || <span className="muted">Not added</span>}</dd>
 
                     <dt>Member since</dt>
-                    <dd>{fmtDate(profileData?.createdAt || (isAuthenticated ? "2026-01-15T09:00:00Z" : null))}</dd>
+                    <dd>{fmtDate(authUser?.createdAt || profileData?.createdAt || (isAuthenticated ? "2026-01-15T09:00:00Z" : null))}</dd>
 
                     <dt>Last profile update</dt>
-                    <dd>{fmtDateTime(profileData?.updatedAt || (isAuthenticated ? profileData?.createdAt || "2026-01-15T09:00:00Z" : null))}</dd>
+                    <dd>{fmtDateTime(profileData?.updatedAt || authUser?.createdAt || (isAuthenticated ? profileData?.createdAt || "2026-01-15T09:00:00Z" : null))}</dd>
 
                     <dt>Storage backend</dt>
-                    <dd className="mono">SQLite WAL · Local database</dd>
+                    <dd className="mono">Supabase Cloud · PostgreSQL + RLS</dd>
 
-                    <dt>Password encryption</dt>
-                    <dd className="mono">PBKDF2-SHA256 (210,000 iterations)</dd>
+                    <dt>Authentication security</dt>
+                    <dd className="mono">{authUser?.provider === "Google" ? "Google OAuth 2.0 (PKCE)" : "Supabase Auth (Argon2id / bcrypt)"}</dd>
                   </dl>
                 </div>
 
@@ -909,7 +953,7 @@ export default function ProfilePage() {
                       id="prof-email"
                       type="email"
                       disabled
-                      value={profileData?.email || authUser?.email || "No authenticated email"}
+                      value={authUser?.email || profileData?.email || "No authenticated email"}
                       style={{ opacity: 0.75, cursor: "not-allowed" }}
                       title="Account email address cannot be changed."
                     />

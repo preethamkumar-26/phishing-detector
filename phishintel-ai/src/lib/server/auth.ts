@@ -214,22 +214,8 @@ export function authenticateRequest(req: Request): DbUser {
     }
   }
 
-  // 2. Check phishintel_session cookie
-  const cookieHeader = req.headers.get("cookie") || "";
-  const match = cookieHeader.match(/phishintel_session=([^;]+)/);
-  if (match) {
-    const token = decodeURIComponent(match[1].trim());
-    const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;
-    if (session) {
-      const user = findUserById(session.user_id);
-      if (user) return user;
-    }
-    // Check if cookie holds direct email
-    const user = findUserByEmail(token);
-    if (user) return user;
-  }
-
-  // 3. Check x-user-email header (bridged from client session)
+  // 2. Priority check: x-user-email header (explicitly sent by frontend for the current active session)
+  // This takes priority over cookies to prevent stale cookies from restoring a previously authenticated user
   const emailHeader = req.headers.get("x-user-email");
   if (emailHeader) {
     let user = findUserByEmail(emailHeader);
@@ -242,6 +228,21 @@ export function authenticateRequest(req: Request): DbUser {
       const passwordHash = hashPassword("workstation_local", salt);
       user = upsertUser(emailHeader, defaultName, salt, passwordHash);
     }
+    if (user) return user;
+  }
+
+  // 3. Fallback: Check phishintel_session cookie
+  const cookieHeader = req.headers.get("cookie") || "";
+  const match = cookieHeader.match(/phishintel_session=([^;]+)/);
+  if (match) {
+    const token = decodeURIComponent(match[1].trim());
+    const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;
+    if (session) {
+      const user = findUserById(session.user_id);
+      if (user) return user;
+    }
+    // Check if cookie holds direct email
+    const user = findUserByEmail(token);
     if (user) return user;
   }
 

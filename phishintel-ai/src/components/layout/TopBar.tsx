@@ -218,8 +218,19 @@ export function TopBar() {
             aria-label="Open profile"
             title={avatarTitle}
             suppressHydrationWarning
+            style={{ overflow: "hidden", padding: 0 }}
           >
-            {initials}
+            {authUser?.avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={authUser.avatarUrl}
+                alt={displayName}
+                style={{ width: "100%", height: "100%", objectFit: "cover", borderRadius: "50%" }}
+                referrerPolicy="no-referrer"
+              />
+            ) : (
+              initials
+            )}
           </Link>
         </div>
       </div>
