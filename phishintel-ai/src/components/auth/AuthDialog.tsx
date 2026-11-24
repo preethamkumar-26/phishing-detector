@@ -2,6 +2,7 @@
 
 import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { AlertCircle, CheckCircle2, LockKeyhole, Mail, Shield, UserRound } from "lucide-react";
 import { AuthRateLimitError, useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
@@ -307,8 +308,21 @@ export function AuthDialog({
               </div>
             ) : (
               <>
-                <label className="block space-y-1.5 text-xs font-medium text-[var(--text-muted)]">
-                  Password
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label htmlFor="dialog-password" className="text-xs font-medium text-[var(--text-muted)]">
+                      Password
+                    </label>
+                    {mode === "signIn" && (
+                      <Link
+                        href="/forgot-password"
+                        onClick={() => handleOpenChange(false)}
+                        className="text-xs font-medium text-[var(--primary-accent)] hover:underline"
+                      >
+                        Forgot password?
+                      </Link>
+                    )}
+                  </div>
                   <PasswordInput
                     id="dialog-password"
                     autoComplete={mode === "signIn" ? "current-password" : "new-password"}
@@ -321,7 +335,7 @@ export function AuthDialog({
                     className="h-11 w-full rounded-xl border border-[var(--border-color)] bg-[var(--bg-elevated)] pl-10 pr-11 text-sm text-[var(--text-primary)] placeholder:text-[var(--text-muted)]/70 outline-none focus:border-[var(--primary-accent)] focus:ring-2 focus:ring-[var(--accent-glow)] disabled:opacity-60"
                     placeholder={mode === "register" ? "At least 8 characters" : "Your password"}
                   />
-                </label>
+                </div>
 
                 {mode === "register" && (
                   <label className="block space-y-1.5 text-xs font-medium text-[var(--text-muted)]">

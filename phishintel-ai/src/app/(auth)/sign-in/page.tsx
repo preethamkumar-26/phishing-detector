@@ -178,12 +178,20 @@ function SignInForm() {
             </div>
 
             <div>
-              <label
-                htmlFor="signin-password"
-                className="block text-xs font-semibold text-[#17211b] uppercase tracking-wider mb-1.5"
-              >
-                Password
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label
+                  htmlFor="signin-password"
+                  className="block text-xs font-semibold text-[#17211b] uppercase tracking-wider"
+                >
+                  Password
+                </label>
+                <Link
+                  href="/forgot-password"
+                  className="text-xs font-medium text-[#f8761b] hover:text-[#dd650f] hover:underline focus:outline-none focus:ring-1 focus:ring-[#f8761b] rounded"
+                >
+                  Forgot password?
+                </Link>
+              </div>
               <PasswordInput
                 id="signin-password"
                 autoComplete="current-password"

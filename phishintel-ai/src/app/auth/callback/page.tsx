@@ -51,6 +51,10 @@ function CallbackContent() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!active) return;
+      if (event === "PASSWORD_RECOVERY") {
+        router.replace("/reset-password");
+        return;
+      }
       if (session?.user && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")) {
         try {
           window.localStorage.setItem("phishintel-session", session.user.email || "");

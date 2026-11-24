@@ -42,6 +42,7 @@ interface AuthActions {
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   resendConfirmation: (email: string) => Promise<void>;
+  resetPasswordForEmail: (email: string) => Promise<void>;
 }
 
 export class AuthRateLimitError extends Error {
@@ -388,6 +389,38 @@ async function resendConfirmation(email: string) {
 }
 
 /**
+ * Request password recovery email via Supabase Auth.
+ * Enforces email syntax validation, trims whitespace, protects against enumeration,
+ * and passes the dynamic absolute redirect URL to /reset-password.
+ */
+async function resetPasswordForEmail(email: string): Promise<void> {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) throw new Error("Enter your email address.");
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+    throw new Error("Enter a valid email address.");
+  }
+
+  const siteUrl = getSiteUrl();
+  const redirectTo = `${siteUrl}/reset-password`;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
+    redirectTo,
+  });
+
+  if (error) {
+    const lower = (error.message || "").toLowerCase();
+    if ((error as { status?: number }).status === 429 || lower.includes("rate limit") || lower.includes("seconds")) {
+      throw new Error("Password reset requests are temporarily rate-limited. Please wait a moment before trying again.");
+    }
+    // Prevent account enumeration: do not disclose if user does not exist
+    if (lower.includes("user not found") || lower.includes("not registered")) {
+      return;
+    }
+    throw new Error(error.message || "Failed to submit password reset request.");
+  }
+}
+
+/**
  * Sign in with Google identity provider through Supabase Auth.
  */
 async function signInWithGoogle(next = "/dashboard") {
@@ -471,7 +504,7 @@ async function refreshUser() {
   } catch {}
 }
 
-const actions: AuthActions = { register, signIn, signInWithGoogle, signOut, refreshUser, resendConfirmation };
+const actions: AuthActions = { register, signIn, signInWithGoogle, signOut, refreshUser, resendConfirmation, resetPasswordForEmail };
 
 export function AuthProvider({
   children,
