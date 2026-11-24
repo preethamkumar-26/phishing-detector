@@ -45,6 +45,83 @@
   --border-color: var(--line);
   --text-muted: var(--muted);
   --primary-accent: var(--accent);
+
+  /* PhishIntel Interactive Demo Tokens (§2) */
+  --pi-surface:        #e9ebdd;
+  --pi-text:           #1f2937;   /* 12.2:1 */
+  --pi-text-muted:     #4b5563;   /* ≥ 6:1, was too light */
+
+  /* DANGER */
+  --pi-danger-bg:      #fbd5d5;
+  --pi-danger-card:    #f3dcd6;
+  --pi-danger-text:    #9f1239;   /* 5.9–6.1:1 on danger bg/card */
+  --pi-danger-strong:  #7f1d1d;   /* 6.9:1 on highlight */
+  --pi-danger-mark:    #fecaca;   /* highlight fill */
+  --pi-danger-border:  #be123c;
+
+  /* SAFE */
+  --pi-safe-bg:        #bbf7d0;
+  --pi-safe-card:      #dcf0dc;
+  --pi-safe-text:      #166534;   /* 6.0:1 on safe card */
+  --pi-safe-strong:    #14532d;   /* 7.5:1 on safe bg */
+  --pi-safe-mark:      #bbf7d0;
+  --pi-safe-border:    #15803d;
+
+  /* Badges */
+  --pi-badge-flag-bg:  #fca5a5;
+  --pi-badge-flag-fg:  #7f1d1d;   /* 5.3:1 */
+  --pi-badge-ok-bg:    #86efac;
+  --pi-badge-ok-fg:    #14532d;   /* 6.5:1 */
+  --pi-preview-bg:     #fde68a;
+  --pi-preview-fg:     #713f12;   /* 7.0:1 */
+}
+
+/* Interactive Demo Full-Pane Sweep Scan Animation (§4) */
+.pi-scan-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  overflow: hidden;
+  border-radius: inherit;
+  z-index: 25;
+}
+
+.pi-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 72px;
+  background: linear-gradient(to bottom, transparent, rgba(59, 130, 246, 0.22) 70%, rgba(59, 130, 246, 0.45));
+  border-bottom: 2px solid #2563eb;
+  transform: translateY(-100%);
+  animation: pi-scan 1.8s cubic-bezier(0.4, 0, 0.2, 1) 1 forwards;
+  will-change: transform;
+}
+
+@keyframes pi-scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(var(--pane-h, 450px) + 72px));
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pi-scan {
+    animation: none;
+    transform: translateY(var(--pane-h, 100%));
+    opacity: 0;
+  }
 }
 
 * {

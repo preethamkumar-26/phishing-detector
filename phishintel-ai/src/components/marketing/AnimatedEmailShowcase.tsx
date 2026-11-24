@@ -297,7 +297,17 @@ export function AnimatedEmailShowcase() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const currentExample = SHOWCASE_EXAMPLES[currentIndex];
 
-  // Clear running timer
+  // Dynamic pane height measurement and progressive reveal tracking (§4)
+  const paneRef = useRef<HTMLDivElement>(null);
+  const highlightRefs = useRef<Map<number, HTMLSpanElement>>(new Map());
+  const [revealedHighlights, setRevealedHighlights] = useState<Set<number>>(new Set());
+  const [isLinkBadgeRevealed, setIsLinkBadgeRevealed] = useState(false);
+  const [revealedSignalsCount, setRevealedSignalsCount] = useState<number>(0);
+
+  const scanTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+  const signalTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
+
+  // Clear running step timer
   const clearCurrentTimer = useCallback(() => {
     if (timerRef.current) {
       clearTimeout(timerRef.current);
@@ -305,8 +315,33 @@ export function AnimatedEmailShowcase() {
     }
   }, []);
 
-  // Sequence state machine:
-  // intro (1.8s) -> inspecting (1.5s) -> highlighting (1.8s) -> evidence (1.5s) -> verdict (1.5s) -> hold (1.6s) -> next
+  // Clear all progressive reveal timeouts (§4.6)
+  const clearAllSubTimers = useCallback(() => {
+    scanTimeoutsRef.current.forEach(clearTimeout);
+    scanTimeoutsRef.current = [];
+    signalTimeoutsRef.current.forEach(clearTimeout);
+    signalTimeoutsRef.current = [];
+  }, []);
+
+  // Dynamically measure pane height and assign --pane-h CSS variable (§4.2)
+  useEffect(() => {
+    const updatePaneHeight = () => {
+      if (paneRef.current) {
+        const h = paneRef.current.offsetHeight || paneRef.current.clientHeight || 420;
+        paneRef.current.style.setProperty("--pane-h", `${h}px`);
+      }
+    };
+
+    updatePaneHeight();
+    const observer = new ResizeObserver(updatePaneHeight);
+    if (paneRef.current) {
+      observer.observe(paneRef.current);
+    }
+    return () => observer.disconnect();
+  }, [currentIndex]);
+
+  // Sequence state machine (§4.5):
+  // intro (1.8s) -> inspecting (1.8s) -> highlighting (1.8s) -> evidence (1.5s) -> verdict (1.5s) -> hold (1.8s) -> next
   useEffect(() => {
     clearCurrentTimer();
 
@@ -319,7 +354,7 @@ export function AnimatedEmailShowcase() {
       delayMs = 1800;
       nextPhase = "inspecting";
     } else if (phase === "inspecting") {
-      delayMs = 1500;
+      delayMs = 1800;
       nextPhase = "highlighting";
     } else if (phase === "highlighting") {
       delayMs = 1800;
@@ -349,24 +384,101 @@ export function AnimatedEmailShowcase() {
     };
   }, [phase, isPlaying, isReducedMotion, currentIndex, clearCurrentTimer]);
 
+  // Progressive highlight reveal synchronized with scan sweep (§4.3 & §4.4)
+  useEffect(() => {
+    scanTimeoutsRef.current.forEach(clearTimeout);
+    scanTimeoutsRef.current = [];
+
+    if (isReducedMotion) {
+      setRevealedHighlights(new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
+      setIsLinkBadgeRevealed(true);
+      return;
+    }
+
+    if (effectivePhase === "inspecting") {
+      const pane = paneRef.current;
+      const paneH = pane?.offsetHeight || 420;
+
+      // Stagger highlight reveals as scan line passes each phrase
+      highlightRefs.current.forEach((el, pIdx) => {
+        if (el) {
+          const elTop = el.offsetTop;
+          // Sweep duration is 1800ms. Calculate reveal intercept:
+          const ratio = Math.max(0.12, Math.min(0.85, (elTop + 16) / Math.max(1, paneH)));
+          const delay = Math.round(ratio * 1800);
+          const t = setTimeout(() => {
+            setRevealedHighlights((prev) => new Set(prev).add(pIdx));
+          }, delay);
+          scanTimeoutsRef.current.push(t);
+        }
+      });
+
+      // Link badge animates in when the scan line reaches the bottom (~1600ms)
+      const linkT = setTimeout(() => {
+        setIsLinkBadgeRevealed(true);
+      }, 1600);
+      scanTimeoutsRef.current.push(linkT);
+    } else if (effectivePhase === "intro") {
+      setRevealedHighlights(new Set());
+      setIsLinkBadgeRevealed(false);
+    } else {
+      // In highlighting, evidence, verdict, hold: all highlights & link badge are revealed
+      setRevealedHighlights(new Set([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]));
+      setIsLinkBadgeRevealed(true);
+    }
+
+    return () => {
+      scanTimeoutsRef.current.forEach(clearTimeout);
+      scanTimeoutsRef.current = [];
+    };
+  }, [effectivePhase, isReducedMotion, currentIndex]);
+
+  // Progressive signal cards reveal during Stage 3: "highlighting" (§4.5)
+  useEffect(() => {
+    signalTimeoutsRef.current.forEach(clearTimeout);
+    signalTimeoutsRef.current = [];
+
+    if (isReducedMotion) {
+      setRevealedSignalsCount(3);
+      return;
+    }
+
+    if (effectivePhase === "highlighting") {
+      // Stage 3 reveals signal cards one at a time, 250ms apart
+      setRevealedSignalsCount(1);
+      const t1 = setTimeout(() => setRevealedSignalsCount(2), 250);
+      const t2 = setTimeout(() => setRevealedSignalsCount(3), 500);
+      signalTimeoutsRef.current = [t1, t2];
+    } else if (
+      effectivePhase === "evidence" ||
+      effectivePhase === "verdict" ||
+      effectivePhase === "hold"
+    ) {
+      setRevealedSignalsCount(3);
+    } else {
+      setRevealedSignalsCount(0);
+    }
+
+    return () => {
+      signalTimeoutsRef.current.forEach(clearTimeout);
+      signalTimeoutsRef.current = [];
+    };
+  }, [effectivePhase, isReducedMotion]);
+
+  // Clean tab change handler (§4.6)
   const handleSelectExample = (index: number) => {
     clearCurrentTimer();
+    clearAllSubTimers();
+    setRevealedHighlights(new Set());
+    setIsLinkBadgeRevealed(false);
+    setRevealedSignalsCount(0);
     setCurrentIndex(index);
     setPhase("intro");
   };
 
   // State checks for showing elements
   const showScanBeam = effectivePhase === "inspecting" && !isReducedMotion;
-  const showHighlights =
-    effectivePhase === "highlighting" ||
-    effectivePhase === "evidence" ||
-    effectivePhase === "verdict" ||
-    effectivePhase === "hold";
-  const showEvidence =
-    effectivePhase === "evidence" ||
-    effectivePhase === "verdict" ||
-    effectivePhase === "hold";
-  const showVerdict = effectivePhase === "verdict" || effectivePhase === "hold";
+  const showVerdict = effectivePhase === "verdict" || effectivePhase === "hold" || isReducedMotion;
 
   // Stage description badge
   const getStageInfo = () => {
@@ -394,7 +506,7 @@ export function AnimatedEmailShowcase() {
 
   return (
     <div className="w-full text-left space-y-4">
-      {/* Honest Contextual Header (§9) */}
+      {/* Honest Contextual Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 px-1">
         <div>
           <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-blue-500/10 border border-blue-500/20 text-xs font-semibold text-[var(--primary-accent)] mb-2">
@@ -412,7 +524,7 @@ export function AnimatedEmailShowcase() {
 
       {/* Main Interactive Showcase Window */}
       <div className="rounded-2xl border border-[var(--border-color)] bg-[var(--bg-surface)]/95 shadow-2xl dark:shadow-black/80 overflow-hidden backdrop-blur-sm">
-        {/* Window Chrome Header */}
+        {/* Window Chrome Header with high-contrast preview badge (§3.F5) */}
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-[var(--border-color)]/70 bg-[var(--bg-elevated)]/40">
           <div className="flex items-center gap-2">
             <span className="w-3 h-3 rounded-full bg-red-500/80" />
@@ -424,7 +536,15 @@ export function AnimatedEmailShowcase() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[11px] uppercase tracking-wide font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+            <span
+              style={{
+                backgroundColor: "var(--pi-preview-bg)",
+                color: "var(--pi-preview-fg)",
+                border: "1px solid #b45309",
+                fontWeight: 700,
+              }}
+              className="text-[11px] uppercase tracking-wide px-2.5 py-0.5 rounded shadow-xs"
+            >
               Example preview — not a live model result
             </span>
           </div>
@@ -440,7 +560,7 @@ export function AnimatedEmailShowcase() {
                 <span
                   className={cn(
                     "w-2 h-2 rounded-full shrink-0",
-                    ex.category === "phishing" ? "bg-red-400" : "bg-emerald-400"
+                    ex.category === "phishing" ? "bg-red-500" : "bg-emerald-500"
                   )}
                 />
               ),
@@ -467,55 +587,91 @@ export function AnimatedEmailShowcase() {
               </span>
             </div>
 
-            {/* Email Container with scanning beam */}
-            <div className="relative rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] overflow-hidden p-4 flex-1 flex flex-col justify-between">
-              {/* Scan Beam Indicator */}
+            {/* Email Container with full-pane scanning beam (§3.F6 & §4) */}
+            <div
+              ref={paneRef}
+              className="relative rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] overflow-hidden p-4 flex-1 flex flex-col justify-start min-h-[380px]"
+            >
+              {/* Scan Beam Indicator spanning entire message pane (§4.1 & §4.2) */}
               {showScanBeam && (
-                <div
-                  className="pg-scan-beam absolute inset-x-0 h-16 pointer-events-none z-10 bg-gradient-to-b from-transparent via-blue-500/20 to-blue-500/35 border-b border-blue-400 shadow-[0_4px_12px_rgba(37,99,235,0.25)]"
-                  aria-hidden="true"
-                />
+                <div className="pi-scan-overlay" aria-hidden="true">
+                  <div className="pi-scan" />
+                </div>
               )}
 
               {/* Email Headers */}
-              <div className="space-y-2 pb-3 border-b border-[var(--border-color)]/70 text-xs">
+              <div className="space-y-2 pb-3 border-b border-[var(--border-color)]/70 text-xs shrink-0">
                 <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-center gap-1.5 text-[var(--text-muted)] truncate">
+                  <div className="flex items-center gap-1.5 text-[var(--pi-text-muted)] truncate">
                     <User className="w-3.5 h-3.5 shrink-0" />
-                    <span className="font-semibold text-[var(--text-primary)] truncate">
+                    <span className="font-semibold text-[var(--pi-text)] truncate">
                       {currentExample.senderName}
                     </span>
-                    <span className="font-mono text-[11px] text-[var(--text-muted)] truncate hidden sm:inline">
+                    <span className="font-mono text-[11px] text-[var(--pi-text-muted)] truncate hidden sm:inline">
                       &lt;{currentExample.senderEmail}&gt;
                     </span>
                   </div>
-                  <span className="font-mono text-[10px] uppercase text-[var(--text-muted)] px-1.5 py-0.5 rounded bg-[var(--bg-primary)] shrink-0 border border-[var(--border-color)]/50">
+                  <span className="font-mono text-[10px] uppercase text-[var(--pi-text-muted)] px-1.5 py-0.5 rounded bg-[var(--bg-primary)] shrink-0 border border-[var(--border-color)]/50">
                     {currentExample.dateLabel}
                   </span>
                 </div>
 
-                <div className="font-mono text-[11px] text-[var(--text-muted)] truncate sm:hidden">
+                <div className="font-mono text-[11px] text-[var(--pi-text-muted)] truncate sm:hidden">
                   From: {currentExample.senderEmail}
                 </div>
 
-                <div className="font-semibold text-sm text-[var(--text-primary)] tracking-tight">
+                <div className="font-semibold text-sm text-[var(--pi-text)] tracking-tight">
                   {currentExample.subject}
                 </div>
               </div>
 
-              {/* Email Body with contextual animated highlights */}
-              <div className="py-4 text-xs sm:text-sm text-[var(--text-primary)]/90 leading-relaxed font-sans min-h-[90px]">
+              {/* Email Body with high-contrast progressive highlights (§3.F1 & §3.F6) */}
+              <div
+                className="mt-4 mb-4 text-xs sm:text-sm text-[var(--pi-text)] font-sans select-text"
+                style={{ lineHeight: 1.75 }}
+              >
                 {currentExample.bodyParts.map((part, pIdx) => {
-                  if (part.isHighlight && showHighlights) {
+                  if (part.isHighlight) {
                     const isThreat = part.highlightType === "threat";
+                    const isRevealed =
+                      isReducedMotion ||
+                      effectivePhase === "highlighting" ||
+                      effectivePhase === "evidence" ||
+                      effectivePhase === "verdict" ||
+                      effectivePhase === "hold" ||
+                      revealedHighlights.has(pIdx);
+
                     return (
                       <span
                         key={pIdx}
+                        ref={(el) => {
+                          if (el) highlightRefs.current.set(pIdx, el);
+                          else highlightRefs.current.delete(pIdx);
+                        }}
+                        style={
+                          isRevealed
+                            ? isThreat
+                              ? {
+                                  color: "var(--pi-danger-strong)",
+                                  backgroundColor: "var(--pi-danger-mark)",
+                                  borderBottom: "2px solid var(--pi-danger-border)",
+                                  borderRadius: "4px",
+                                  padding: "1px 4px",
+                                  fontWeight: 600,
+                                }
+                              : {
+                                  color: "var(--pi-safe-strong)",
+                                  backgroundColor: "var(--pi-safe-mark)",
+                                  borderBottom: "2px solid var(--pi-safe-border)",
+                                  borderRadius: "4px",
+                                  padding: "1px 4px",
+                                  fontWeight: 600,
+                                }
+                            : undefined
+                        }
                         className={cn(
-                          "relative inline-block px-1 py-0.5 rounded font-medium transition-all duration-300",
-                          isThreat
-                            ? "bg-red-500/20 text-red-900 dark:text-red-200 border-b-2 border-red-500 shadow-[0_1px_6px_rgba(239,68,68,0.15)]"
-                            : "bg-emerald-500/20 text-emerald-900 dark:text-emerald-200 border-b-2 border-emerald-500 shadow-[0_1px_6px_rgba(34,197,94,0.15)]"
+                          "relative inline transition-all duration-200",
+                          !isRevealed && "text-[var(--pi-text)] font-normal"
                         )}
                         title={part.highlightLabel}
                       >
@@ -527,28 +683,55 @@ export function AnimatedEmailShowcase() {
                 })}
               </div>
 
-              {/* Inert Link / Action Item */}
+              {/* Inert Link / Action Item pinned to bottom with accessible badge (§3.F4) */}
               {currentExample.inertLink && (
-                <div className="mt-2 p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 truncate">
-                    <ExternalLink className="w-3.5 h-3.5 text-[var(--text-muted)] shrink-0" />
-                    <span className="text-[var(--text-muted)] shrink-0 hidden sm:inline">
-                      {currentExample.inertLink.label}:
-                    </span>
-                    <span className="font-mono text-[11px] text-[var(--text-primary)] truncate">
-                      {currentExample.inertLink.value}
+                <div className="mt-auto pt-3">
+                  <div className="p-2.5 rounded-lg bg-[var(--bg-primary)] border border-[var(--border-color)] text-xs flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 truncate">
+                      <ExternalLink className="w-3.5 h-3.5 text-[var(--pi-text-muted)] shrink-0" />
+                      <span className="text-[var(--pi-text-muted)] font-medium shrink-0 hidden sm:inline">
+                        {currentExample.inertLink.label}:
+                      </span>
+                      <span className="font-mono text-[11px] text-[var(--pi-text)] truncate font-semibold">
+                        {currentExample.inertLink.value}
+                      </span>
+                    </div>
+                    <span
+                      style={
+                        currentExample.inertLink.isSuspicious
+                          ? {
+                              backgroundColor: "var(--pi-badge-flag-bg)",
+                              color: "var(--pi-badge-flag-fg)",
+                              border: "1px solid var(--pi-danger-border)",
+                              fontWeight: 700,
+                            }
+                          : {
+                              backgroundColor: "var(--pi-badge-ok-bg)",
+                              color: "var(--pi-badge-ok-fg)",
+                              border: "1px solid var(--pi-safe-border)",
+                              fontWeight: 700,
+                            }
+                      }
+                      className={cn(
+                        "text-[10px] uppercase tracking-wider px-2 py-0.5 rounded shrink-0 flex items-center gap-1 transition-all duration-200 shadow-2xs",
+                        isLinkBadgeRevealed || isReducedMotion
+                          ? "scale-100 opacity-100"
+                          : "scale-90 opacity-0"
+                      )}
+                    >
+                      {currentExample.inertLink.isSuspicious ? (
+                        <>
+                          <AlertTriangle className="w-3 h-3 text-[var(--pi-badge-flag-fg)] shrink-0" />
+                          <span>Flagged Link</span>
+                        </>
+                      ) : (
+                        <>
+                          <CheckCircle2 className="w-3 h-3 text-[var(--pi-badge-ok-fg)] shrink-0" />
+                          <span>Verified Link</span>
+                        </>
+                      )}
                     </span>
                   </div>
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded shrink-0",
-                      currentExample.inertLink.isSuspicious
-                        ? "bg-red-500/15 text-red-700 dark:text-red-300 border border-red-500/30"
-                        : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
-                    )}
-                  >
-                    {currentExample.inertLink.isSuspicious ? "Flagged Link" : "Verified Link"}
-                  </span>
                 </div>
               )}
             </div>
@@ -567,44 +750,94 @@ export function AnimatedEmailShowcase() {
               </span>
             </div>
 
-            {/* Evidence & Signals Card */}
+            {/* Evidence & Signals Card with distinct Pending/Confirmed states (§3.F2) */}
             <div className="p-4 rounded-xl bg-[var(--bg-elevated)] border border-[var(--border-color)] space-y-3 flex-1 flex flex-col justify-between">
               <div className="space-y-2">
                 <div className="text-xs font-bold uppercase tracking-wider text-[var(--text-muted)] flex items-center justify-between">
                   <span>Detected Signals</span>
                   <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                    {showEvidence ? "3/3 signals analyzed" : "Extracting features..."}
+                    {revealedSignalsCount >= 3
+                      ? "3/3 signals analyzed"
+                      : revealedSignalsCount > 0
+                      ? `${revealedSignalsCount}/3 signals analyzed`
+                      : "Extracting features…"}
                   </span>
                 </div>
 
                 <div className="space-y-2">
                   {currentExample.evidencePoints.map((ev, evIdx) => {
-                    const isVisible = showEvidence;
                     const isThreat = ev.variant === "threat";
+                    const isRevealed = evIdx < revealedSignalsCount;
+
                     return (
                       <div
                         key={evIdx}
+                        style={
+                          isRevealed
+                            ? isThreat
+                              ? {
+                                  backgroundColor: "var(--pi-danger-card)",
+                                  border: "1px solid rgba(190, 18, 60, 0.35)",
+                                }
+                              : {
+                                  backgroundColor: "var(--pi-safe-card)",
+                                  border: "1px solid rgba(21, 128, 61, 0.35)",
+                                }
+                            : {
+                                backgroundColor: "var(--bg-surface)",
+                                border: "1px dashed var(--border-color)",
+                                opacity: 0.85,
+                              }
+                        }
                         className={cn(
-                          "p-2.5 rounded-lg border text-xs transition-all duration-300",
-                          isVisible ? "opacity-100 translate-y-0" : "opacity-30 translate-y-1",
-                          isThreat
-                            ? "bg-red-500/5 border-red-500/20 text-[var(--text-primary)]"
-                            : "bg-emerald-500/5 border-emerald-500/20 text-[var(--text-primary)]"
+                          "p-2.5 rounded-lg text-xs transition-all duration-300",
+                          isRevealed ? "translate-y-0 shadow-2xs" : "translate-y-0.5"
                         )}
                       >
                         <div className="flex items-center gap-1.5 font-bold mb-0.5">
                           {isThreat ? (
-                            <AlertTriangle className="w-3 h-3 text-red-500 dark:text-red-400 shrink-0" />
+                            <AlertTriangle
+                              className="w-3.5 h-3.5 shrink-0"
+                              style={{
+                                color: isRevealed
+                                  ? "var(--pi-danger-text)"
+                                  : "var(--pi-text-muted)",
+                              }}
+                            />
                           ) : (
-                            <CheckCircle2 className="w-3 h-3 text-emerald-500 dark:text-emerald-400 shrink-0" />
+                            <CheckCircle2
+                              className="w-3.5 h-3.5 shrink-0"
+                              style={{
+                                color: isRevealed
+                                  ? "var(--pi-safe-text)"
+                                  : "var(--pi-text-muted)",
+                              }}
+                            />
                           )}
                           <span
-                            className={isThreat ? "text-red-700 dark:text-red-300" : "text-emerald-700 dark:text-emerald-300"}
+                            style={{
+                              color: isRevealed
+                                ? isThreat
+                                  ? "var(--pi-danger-text)"
+                                  : "var(--pi-safe-text)"
+                                : "var(--pi-text-muted)",
+                              fontWeight: 700,
+                              fontSize: "0.8125rem",
+                            }}
                           >
                             {ev.title}
                           </span>
                         </div>
-                        <p className="text-[11px] text-[var(--text-muted)] leading-relaxed pl-4.5">
+                        <p
+                          style={{
+                            color: isRevealed
+                              ? "var(--pi-text)"
+                              : "var(--pi-text-muted)",
+                            fontSize: "0.6875rem",
+                            lineHeight: 1.5,
+                          }}
+                          className="pl-5"
+                        >
                           {ev.detail}
                         </p>
                       </div>
@@ -613,43 +846,80 @@ export function AnimatedEmailShowcase() {
                 </div>
               </div>
 
-              {/* Classification Verdict Area */}
+              {/* Classification Final Verdict Area (§3.F3) */}
               <div className="pt-3 border-t border-[var(--border-color)]/70">
                 <div className="text-[11px] font-bold uppercase tracking-wider text-[var(--text-muted)] mb-2 flex items-center justify-between">
                   <span>Final Verdict</span>
                   <span className="text-[10px] font-mono text-[var(--text-muted)]">
-                    {showVerdict ? "Verdict confirmed" : "Synthesizing..."}
+                    {showVerdict ? "Verdict confirmed" : "Synthesizing…"}
                   </span>
                 </div>
 
                 {showVerdict ? (
                   <div
-                    className={cn(
-                      "p-3 rounded-xl border text-left transition-all duration-300 animate-in fade-in zoom-in-95",
+                    style={
                       currentExample.verdict === "phishing"
-                        ? "bg-red-500/10 border-red-500/35 text-red-800 dark:text-red-200"
-                        : "bg-emerald-500/10 border-emerald-500/35 text-emerald-800 dark:text-emerald-200"
-                    )}
+                        ? {
+                            backgroundColor: "var(--pi-danger-bg)",
+                            border: "1.5px solid var(--pi-danger-border)",
+                          }
+                        : {
+                            backgroundColor: "var(--pi-safe-bg)",
+                            border: "1.5px solid var(--pi-safe-border)",
+                          }
+                    }
+                    className="p-3 rounded-xl text-left transition-all duration-300 animate-in fade-in zoom-in-95 shadow-sm"
                   >
-                    <div className="flex items-center gap-2 text-sm font-black tracking-wide mb-1.5">
+                    <div className="flex items-center gap-2 mb-1.5">
                       {currentExample.verdict === "phishing" ? (
                         <>
-                          <AlertTriangle className="w-4 h-4 text-red-500 dark:text-red-400 shrink-0" />
-                          <span>PHISHING DETECTED</span>
+                          <AlertTriangle
+                            className="w-4 h-4 shrink-0"
+                            style={{ color: "var(--pi-danger-strong)" }}
+                          />
+                          <span
+                            style={{
+                              color: "var(--pi-danger-strong)",
+                              fontWeight: 800,
+                              letterSpacing: "0.04em",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            PHISHING DETECTED
+                          </span>
                         </>
                       ) : (
                         <>
-                          <CheckCircle2 className="w-4 h-4 text-emerald-500 dark:text-emerald-400 shrink-0" />
-                          <span>LEGITIMATE EMAIL</span>
+                          <CheckCircle2
+                            className="w-4 h-4 shrink-0"
+                            style={{ color: "var(--pi-safe-strong)" }}
+                          />
+                          <span
+                            style={{
+                              color: "var(--pi-safe-strong)",
+                              fontWeight: 800,
+                              letterSpacing: "0.04em",
+                              fontSize: "0.875rem",
+                            }}
+                          >
+                            LEGITIMATE EMAIL
+                          </span>
                         </>
                       )}
                     </div>
-                    <p className="text-xs text-[var(--text-primary)]/90 leading-relaxed font-sans">
+                    <p
+                      style={{
+                        color: "var(--pi-text)",
+                        fontSize: "0.75rem",
+                        lineHeight: 1.5,
+                      }}
+                      className="font-sans"
+                    >
                       {currentExample.explanation}
                     </p>
                   </div>
                 ) : (
-                  <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-dashed border-[var(--border-color)] text-xs text-[var(--text-muted)] flex items-center justify-center gap-2 py-4">
+                  <div className="p-3 rounded-xl bg-[var(--bg-primary)] border border-dashed border-[var(--border-color)] text-xs text-[var(--text-muted)] flex items-center justify-center gap-2 py-4 min-h-[74px]">
                     <Clock className="w-3.5 h-3.5 animate-spin" />
                     <span>Evaluating linguistic context & signals…</span>
                   </div>
