@@ -1,369 +1,422 @@
-# 
+# PhishIntel
 
-<p align="center">
-  <strong>Explainable Phishing Email & URL Intelligence</strong><br />
-  <em>PAHF-Net · FastAPI · PyTorch · Next.js · TypeScript</em>
-</p>
+<div align="center">
 
-<p align="center">
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" /></a>
-  <a href="https://fastapi.tiangolo.com/"><img src="https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
-  <a href="https://pytorch.org/"><img src="https://img.shields.io/badge/ML-PyTorch-EE4C2C?logo=pytorch&logoColor=white" alt="PyTorch" /></a>
-  <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Frontend-Next.js-000000?logo=next.js&logoColor=white" alt="Next.js" /></a>
-  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-</p>
+**Explainable phishing-email and URL intelligence powered by PAHF-Net**
 
-**PhishIntel** is an explainable phishing-email and URL detection platform. A custom PyTorch **PAHF-Net** classifier is served by FastAPI and consumed by a Next.js application built with TypeScript, Tailwind CSS, and HeroUI.
+[![Python](https://img.shields.io/badge/Python-3.10+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![PyTorch](https://img.shields.io/badge/PyTorch-Inference-EE4C2C?logo=pytorch&logoColor=white)](https://pytorch.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=next.js&logoColor=white)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/License-Repository-blue.svg)](#license)
 
-The platform analyzes email content, sender and reply-to details, headers, and URLs; returns a phishing probability and threat indicators; and provides scan history and PDF report export. It is designed to help security analysts investigate social engineering, credential harvesting, and deceptive URL attacks. PhishIntel is a decision-support tool, not a substitute for security review or mail-gateway controls.
+[Quick Start](#-quick-start) · [Architecture](#-architecture) · [Model Performance](#-model-performance) · [Features](#-features) · [API](#-api) · [Evaluation](#-evaluation-dashboard) · [Development](#-development)
 
-The latest development work strengthens legitimate-email handling, adds runtime frontend–backend discovery, improves `.eml` analysis and forensic reporting, and tightens inference and repository workflows. These updates are documented below alongside the core platform architecture and setup instructions.
+**Regime F holdout artifact**
 
----
+`99.19%` Macro-F1 · `99.84%` ROC-AUC · `14,294` test emails
 
-## Table of Contents
-
-- [Features](#features)
-- [Architecture](#architecture)
-- [Email Classification Corrections](#email-classification-corrections)
-- [Runtime Backend Discovery and Connection Binding](#runtime-backend-discovery-and-connection-binding)
-- [Analyzer, EML Support, and Forensic PDF Export](#analyzer-eml-support-and-forensic-pdf-export)
-- [Performance and Repository Updates](#performance-and-repository-updates)
-- [Repository Layout](#repository-layout)
-- [Requirements](#requirements)
-- [Getting Started](#getting-started)
-- [API Overview](#api-overview)
-- [Model Evaluation and Metrics](#model-evaluation-and-metrics)
-- [Development and Tests](#development-and-tests)
-- [Privacy and Responsible Use](#privacy-and-responsible-use)
-- [Project Information](#project-information)
+</div>
 
 ---
 
-## Features
+## What is PhishIntel?
 
-### Detection and Explainability
+PhishIntel is an end-to-end email-security platform that combines a **Transformer-based content model**, compact structured-feature encoders, availability-aware fusion, and offline verification signals.
 
-- PAHF-Net inference through a versioned FastAPI contract.
-- Explainable scan results with verdict, phishing probability, risk score, and indicators.
-- Email scanning with subject, body, sender, reply-to, headers, and URL inputs.
-- `.eml` file parsing and analysis through the Email Analyzer.
-- Targeted correction-score filtering to reduce false positives on legitimate financial, billing, subscription, and promotional messages.
-- Distinction between deemed promotional/marketing spam and original malicious spam or phishing attempts.
+The system provides:
 
-### Application and Reporting
+- Email and `.eml` analysis
+- Sender, reply-to, header, URL, and attachment-oriented evidence
+- Calibrated malicious-email probability
+- Explainable modality contributions
+- Scan history and forensic PDF export
+- Automatic local backend discovery
+- Artifact-backed evaluation metrics
 
-- Scan history with filtering and pagination.
-- PDF export of scan-history reports in a forensic-style audit layout.
-- An analyzer interface with sample loaders and PAHF-Net score visualization.
-- An evaluation dashboard for verified PAHF-Net metrics and ranked baseline comparisons.
-- Model-service settings for endpoint configuration, connectivity testing, and saved preferences.
-- Automatic local backend discovery, endpoint synchronization, and one-time retry after eligible network failures.
+> **Scope:** This repository detects malicious email in the Anti-PLUTO / broader email corpus context. It should not be described as detecting every targeted-phishing threat or replacing mail-gateway controls.
 
-### Model and Runtime
+<details>
+<summary><b>Why PAHF-Net?</b></summary>
 
-- Versioned local model, tokenizer, and feature assets.
-- Startup-loaded PAHF-Net model service for reusable inference without reloading weights for every request.
-- Runtime health endpoints exposing backend readiness and the active analyze endpoint.
-- Artifact-backed evaluation metrics, served from a versioned JSON file rather than generated or assumed at request time.
+Email evidence is heterogeneous. A subject and body carry language, URLs carry link statistics, MIME and attachment metadata describe structure, and selected linguistic indicators summarize writing patterns.
+
+PAHF-Net encodes these views through separate branches, projects them into a shared representation, and gates unavailable or less-useful evidence rather than assuming every email has every modality.
+
+</details>
+
+---
+
+## Highlights
+
+| Area | Result |
+|---|---|
+| Text encoder | Microsoft DeBERTa-v3-base, 768d hidden state, mean pooled |
+| Encoded representation | Text `256d` + URL `32d` + Structure `32d` + Linguistic `32d` |
+| Shared fusion | `128d` availability-gated representation |
+| Max text length | `256` tokens with 192 head + 62 tail tokens |
+| Training seed | `42` |
+| Training hardware | Kaggle, 2 × NVIDIA Tesla T4 GPUs |
+| Holdout sample | `14,294` emails |
+| Holdout Macro-F1 | `0.9919` |
+| Holdout ROC-AUC | `0.9984` |
+| Holdout PR-AUC | `0.9975` |
+| Holdout accuracy | `99.24%` |
+
+---
+
+## Product Preview
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3>Analyzer</h3>
+      Inspect raw email text or <code>.eml</code> files, review threat indicators, and visualize PAHF-Net modality evidence.
+    </td>
+    <td width="50%">
+      <h3>Evaluation</h3>
+      Review artifact-backed metrics, confusion matrix, ROC curve, and operating thresholds.
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>Explainability</h3>
+      Trace branch availability and gate weights for a selected stored scan.
+    </td>
+    <td width="50%">
+      <h3>Audit & Export</h3>
+      Search scan history, filter decisions, and export a forensic-style PDF report.
+    </td>
+  </tr>
+</table>
 
 ---
 
 ## Architecture
 
-| Layer | Location / Component | Responsibilities |
-|---|---|---|
-| Next.js application | `phishintel-ai/` | App Router UI, TypeScript contracts, scan workflows, evaluation dashboard, history, analyzer, settings, and PDF export |
-| FastAPI application | `backend/app/` | Startup lifecycle, runtime backend registration, CORS, request validation, scan and evaluation endpoints |
-| Model service | `backend/app/services/model_service.py` | Loads PAHF-Net assets once at application startup and performs inference |
-| Evaluation service | `backend/app/services/evaluation_service.py` | Loads and validates the versioned evaluation report |
-| Backend discovery | `backend/app/main.py`, `backendDiscovery.ts` | Publishes the active backend endpoint and allows the frontend to discover and verify it at runtime |
-| Analyzer and reporting | `AnalyzerPage`, `AnalyzerContent`, `exportHistoryPdf` | Parses `.eml` files, presents PAHF-Net scores, and exports scan history as a forensic PDF report |
-| Model assets | `backend/saved_models/` | PyTorch checkpoints, tokenizer, feature transformations, and model configuration |
+### End-to-End System
 
-PAHF-Net uses a **DeBERTa-v3** text encoder with availability-gated text, URL, structure, and linguistic feature branches. The service also loads and validates the T/F regime assets; current prediction requests use the base `pahf_net.pt` checkpoint and base feature assets.
+```mermaid
+flowchart LR
+    A[Email / .eml] --> B[Schema & preprocessing]
+    B --> C1[Subject + Body]
+    B --> C2[URL features]
+    B --> C3[MIME + structure]
+    B --> C4[Linguistic features]
 
-The backend is initialized through FastAPI's application lifespan. At startup, it detects its active host and port and publishes the runtime connection information for the Next.js application. The frontend uses that information to bind its model-service settings and scan requests to the running backend.
+    C1 --> T[DeBERTa-v3-base<br/>768d pooled -> 256d]
+    C2 --> U[URL MLP<br/>6 -> 64 -> 32d]
+    C3 --> S[Structure MLP<br/>28 -> 64 -> 32d]
+    C4 --> L[Linguistic MLP<br/>9 -> 64 -> 32d]
 
----
+    T --> P1[Branch projection<br/>128d]
+    U --> P2[Branch projection<br/>128d]
+    S --> P3[Branch projection<br/>128d]
+    L --> P4[Branch projection<br/>128d]
 
-## Email Classification Corrections
+    P1 --> G[Availability-aware gate]
+    P2 --> G
+    P3 --> G
+    P4 --> G
+    G --> F[Fused representation<br/>128d]
+    F --> H[Binary MLP classifier]
+    F --> D[Class-conditional source discriminators]
+    H --> R[Logit -> sigmoid]
+    R --> CAL[Temperature scaling]
+    CAL --> V[Decision / review band]
+    V --> UI[FastAPI -> Next.js]
 
-PhishIntel's email-classification correction work focuses on reducing false positives without weakening the detection of credential theft, malicious spam, or targeted phishing attempts.
+    D --> GRL[Gradient reversal]
+    GRL -. training only .-> F
+```
 
-### Legitimate Email False-Positive Reduction
+<details open>
+<summary><b>Interactive branch map</b></summary>
 
-Correction-score filtering has been updated to address legitimate messages that were previously at risk of being classified as phishing, including:
+```mermaid
+graph TD
+    E[Email Record] --> TB[Text Branch]
+    E --> UB[URL Branch]
+    E --> SB[Structure Branch]
+    E --> LB[Linguistic Branch]
 
-- Bank statements and e-statements.
-- SaaS invoices, billing receipts, and subscription-plan notifications.
-- Reward notices and promotional messages from legitimate services.
-- Banking and other financial communications whose vocabulary or transactional signals may otherwise resemble phishing indicators.
+    TB --> T1[Subject + body]
+    T1 --> T2[Head-and-tail 256 tokens]
+    T2 --> T3[DeBERTa-v3-base]
+    T3 --> T4[Mean pooling]
+    T4 --> T5[256d text vector]
 
-The filtering logic is intended to interpret financial and transactional signals in context rather than treating their presence alone as evidence of malicious intent.
+    UB --> U1[URL count & length statistics]
+    U1 --> U2[6d input]
+    U2 --> U3[64d hidden -> 32d]
 
-### Transcode and Deemed/Original Spam Filtering
+    SB --> S1[Attachment & MIME metadata]
+    S1 --> S2[Top-15 MIME + top-10 languages]
+    S2 --> S3[28d input]
+    S3 --> S4[64d hidden -> 32d]
 
-The updated transcode filtering logic distinguishes between two broad categories:
+    LB --> L1[Keyword, character & punctuation indicators]
+    L1 --> L2[9d input]
+    L2 --> L3[64d hidden -> 32d]
 
-| Category | Interpretation | Classification objective |
-|---|---|---|
-| **Deemed spam** | Promotional or marketing-oriented messages and lures | Avoid automatically treating every promotional message as an original malicious or phishing email |
-| **Original / malicious spam** | Original spam campaigns and messages associated with malicious or phishing behavior | Preserve scrutiny for credential harvesting, deceptive requests, and other malicious intent |
+    T5 --> F[128d projected fusion]
+    U3 --> F
+    S4 --> F
+    L3 --> F
+```
 
-Banking and financial indicators are handled as contextual signals so that legitimate statements and receipts are not over-flagged merely because they contain financial terminology, balances, transaction references, or billing language.
+</details>
 
-### Rapid `.eml` Regression Test Suite
+### Availability-Gated Fusion
 
-A five-file `.eml` test set was created and bundled as **`phishintel_test_eml_samples.zip`**. It is designed for rapid testing of the **Track A V2 correction-score filters** against representative legitimate and malicious email edge cases.
+Each branch is projected into a shared `128d` space. A learned gate assigns branch weights while an availability mask gives unavailable branches an effectively zero softmax weight.
 
-| Test file | Intended scenario |
-|---|---|
-| `01_legitimate_saas_invoice.eml` | Legitimate SaaS invoice or billing notification |
-| `02_legitimate_bank_estatement.eml` | Legitimate bank e-statement |
-| `03_phishing_credential_harvest.eml` | Phishing attempt designed to harvest credentials |
-| `04_phishing_spear_bec_transfer.eml` | Spear-phishing / business email compromise (BEC) transfer scenario |
-| `05_legitimate_rewards_promotional_edge.eml` | Legitimate rewards or promotional message representing a classification edge case |
+$$
+h_{\text{fused}}=\sum_{i\in\{\text{text,url,structure,linguistic}\}} g_i z_i
+$$
 
-This suite provides a repeatable set of real-world-style edge cases for checking whether legitimate financial and promotional messages remain distinguishable from malicious email patterns.
+$$
+\sum_i g_i=1,\qquad g_i=0\text{ for an unavailable branch}
+$$
 
----
+Modality dropout (`p = 0.2`) randomly disables non-text branches during training. Text is always retained.
 
-## Runtime Backend Discovery and Connection Binding
+### Training Objectives
 
-PhishIntel now supports automatic local frontend–backend endpoint discovery. This reduces the need to manually synchronize ports when the FastAPI process starts on a different port or is restarted during development.
+```mermaid
+flowchart TB
+    X[Shared representation] --> C[Malicious-email classifier]
+    X --> B[Benign-source discriminator]
+    X --> M[Malicious-source discriminator]
+    C --> BCE[BCEWithLogitsLoss]
+    B --> DS1[Benign source loss]
+    M --> DS2[Malicious source loss]
+    DS1 --> GRL[Gradient Reversal Layer]
+    DS2 --> GRL
+    GRL -. $\lambda_{source}=0.1$ .-> X
+```
 
-### Backend Auto-Registration
-
-The backend startup lifespan logic in `backend/app/main.py`:
-
-1. Detects the active backend host and port.
-2. Writes the runtime connection descriptor to `public/runtime-backend.json` in the Next.js application's `public/` directory.
-3. Exposes `/health` and `/healthz` health endpoints, including `analyze_endpoint` information so the frontend can identify the active analysis endpoint.
-
-The generated `runtime-backend.json` contains local runtime information. It is excluded from Git so machine-specific ports and local runtime state do not pollute repository changes.
-
-### Local CORS Support
-
-CORS configuration has been broadened with `allow_origin_regex` support for local `localhost` and `127.0.0.1` origins across development ports. This allows browser preflight (`OPTIONS`) requests to succeed when the frontend and backend are running on different local ports, rather than relying only on a single fixed frontend port.
-
-### Frontend Discovery and Settings Synchronization
-
-The frontend discovery utility, `backendDiscovery.ts`, is connected to the **Model service** settings interface. The settings workflow supports:
-
-- **Endpoint (POST, JSON):** Displays and allows configuration of the model analysis endpoint.
-- **Use model service:** Enables or disables requests to the FastAPI model service.
-- **Test connection:** Verifies that the discovered or configured backend is reachable through `/health`.
-- **Save:** Persists the selected model-service settings cleanly in `localStorage`.
-
-When `runtime-backend.json` is available, the frontend reads it, checks backend connectivity through `/health`, and automatically populates the endpoint field with the discovered analysis endpoint.
-
-### Scan Client Retry and Error Handling
-
-Scan execution uses the discovered endpoint and follows a controlled recovery path:
-
-1. The scan client sends the request to the currently configured or discovered backend endpoint.
-2. When a network failure occurs—for example, after a backend restart on a new port—the client re-discovers the backend endpoint.
-3. The client retries the scan **once** using the refreshed endpoint.
-4. Connection failures and HTTP or response errors are surfaced clearly to the user.
-
-When **Use model service** is enabled, the application does not silently fall back to a local preview after a failed model-service request. This keeps the displayed result and error state aligned with the actual backend response.
-
----
-
-## Analyzer, EML Support, and Forensic PDF Export
-
-### Email Analyzer and `.eml` Support
-
-The Next.js/React analyzer experience has been expanded through the `AnalyzerPage` and `AnalyzerContent` components. It supports:
-
-- Parsing and analyzing `.eml` email files.
-- Loading sample emails for rapid analysis and interface testing.
-- Displaying PAHF-Net scores and related classification information.
-- Reviewing email evidence through the analyzer workflow.
-
-The analyzer provides a direct workflow for exercising the email-classification pipeline with both user-supplied `.eml` files and the supplied regression samples.
-
-### Forensic PDF Report Export
-
-A shared TypeScript PDF export utility, **`exportHistoryPdf`**, generates landscape A4 PhishIntel audit reports. The export uses:
-
-- `jspdf` for PDF document generation.
-- `jspdf-autotable` for structured tabular reporting.
-- Branded report headers.
-- KPI metric boxes.
-- Verdict tables for scan-history records.
-
-The result is a structured, forensic-style report intended to make scan-history evidence easier to review and retain.
+The source discriminator routes an email to the head matching its true class. The reported setup uses **10 benign sources** and **11 malicious sources**.
 
 ---
 
-## Performance and Repository Updates
+## Model Performance
 
-### Inference Performance
+### Regime F — Deployment-Oriented Holdout
 
-Warm CPU inference latency has been optimized to approximately **130 ms** in the measured development environment. Artificial progress delays were removed so the interface no longer adds unnecessary waiting time to the inference workflow.
+Regime F uses TREC07 in grouped training while holding out GPT-4o, Qwen3, and DeepSeek-V4. All values below are from the research handoff and the repository evaluation artifact.
 
-The reported figure represents warm inference under the measured environment; actual latency can vary with hardware, model state, and runtime conditions.
+| Evaluation set | Samples | Macro-F1 | ROC-AUC | FPR | FNR | ECE |
+|---|---:|---:|---:|---:|---:|---:|
+| In-domain test | 14,294 | 0.9919 | 0.9984 | 0.0065 | 0.0094 | 0.0020 |
+| Human test | 11,925 | 0.9926 | 0.9988 | 0.0062 | 0.0079 | 0.0027 |
+| LLM test | 2,369 | 0.9884 | 0.9983 | 0.0082 | 0.0155 | 0.0084 |
+| TREC07 in-domain | 4,817 | 0.9925 | 0.9998 | 0.0029 | 0.0090 | 0.0102 |
+| Unseen GPT-4o | 4,000 | 0.9882 | 0.9987 | 0.0195 | 0.0040 | 0.0090 |
+| Unseen Qwen3 | 903 | 0.8038 | 0.8706 | 0.1340 | 0.2460 | 0.1826 |
+| Unseen DeepSeek-V4 | 744 | 0.7488 | 0.8640 | 0.0526 | 0.3441 | 0.2445 |
 
-### Artifact-Backed Evaluation
+<details>
+<summary><b>View Macro-F1 comparison</b></summary>
 
-The `GET /api/v1/evaluation-metrics` endpoint is backed by `backend/saved_models/evaluation_metrics.json`. The endpoint reads and validates the saved evaluation artifact instead of fabricating, estimating, or calculating benchmark results during the request.
+```mermaid
+xychart-beta
+    title "Regime F — Macro-F1 across evaluation cohorts"
+    x-axis ["In-domain", "Human", "LLM", "TREC07", "GPT-4o", "Qwen3", "DeepSeek-V4"]
+    y-axis "Macro-F1" 0.70 --> 1.00
+    bar [0.9919, 0.9926, 0.9884, 0.9925, 0.9882, 0.8038, 0.7488]
+```
 
-### Git and Repository Synchronization
+</details>
 
-The repository rename and synchronization from **`phishguard-ai`** to **`phishintel-ai`** has been completed. Git LFS is configured to track model checkpoint files (`*.pt`) and dataset files so that large model and data artifacts are handled through Git LFS rather than ordinary Git object storage.
+<details>
+<summary><b>View ROC-AUC comparison</b></summary>
 
-The generated `public/runtime-backend.json` file is included in `.gitignore`, keeping local runtime ports and machine-specific backend connection data out of Git status and commits.
+```mermaid
+xychart-beta
+    title "Regime F — ROC-AUC across evaluation cohorts"
+    x-axis ["In-domain", "Human", "LLM", "TREC07", "GPT-4o", "Qwen3", "DeepSeek-V4"]
+    y-axis "ROC-AUC" 0.80 --> 1.00
+    bar [0.9984, 0.9988, 0.9983, 0.9998, 0.9987, 0.8706, 0.8640]
+```
+
+</details>
+
+### Regime T — Cross-Source Transfer
+
+Regime T excludes TREC07 and selected GPT-4o cohorts from training.
+
+| Evaluation set | Samples | Macro-F1 | ROC-AUC | FPR | FNR | ECE |
+|---|---:|---:|---:|---:|---:|---:|
+| In-domain test | 9,477 | 0.9854 | 0.9980 | 0.0091 | 0.0142 | 0.0067 |
+| Human test | 7,108 | 0.9863 | 0.9983 | 0.0063 | 0.0120 | 0.0068 |
+| LLM test | 2,369 | 0.9803 | 0.9970 | 0.0217 | 0.0165 | 0.0133 |
+| Unseen TREC07 | 46,971 | 0.8379 | 0.9604 | 0.2574 | 0.0825 | 0.1250 |
+| Unseen GPT-4o | 4,000 | 0.9710 | 0.9934 | 0.0530 | 0.0050 | 0.0266 |
+| Unseen Qwen3 | 903 | 0.7750 | 0.8613 | 0.2457 | 0.2040 | 0.1853 |
+| Unseen DeepSeek-V4 | 744 | 0.7510 | 0.8764 | 0.1336 | 0.2938 | 0.2109 |
+
+### Repository Holdout Artifact
+
+The artifact-backed in-domain evaluation contains `14,294` samples: `9,070` legitimate and `5,224` phishing.
+
+| Metric | Value |
+|---|---:|
+| Accuracy | 99.2444% |
+| Balanced accuracy | 99.2658% |
+| Precision | 98.8728% |
+| Recall | 99.0620% |
+| F1 | 98.9673% |
+| Macro-F1 | 99.1900% |
+| ROC-AUC | 99.8400% |
+| PR-AUC | 99.7500% |
+
+|  | Predicted Legitimate | Predicted Phishing |
+|---|---:|---:|
+| Actual Legitimate | 9,011 | 59 |
+| Actual Phishing | 49 | 5,175 |
+
+<details>
+<summary><b>Calibration and operating thresholds</b></summary>
+
+| Setting | Regime T | Regime F |
+|---|---:|---:|
+| Temperature | 1.1348 | 1.2180 |
+| Optimal-F1 threshold | 0.5400 | 0.2550 |
+| 1% FPR threshold | 0.1322 | 0.0331 |
+| Review lower threshold | 0.5000 | 0.2872 |
+| Review upper threshold | 0.9900 | 0.5000 |
+
+`config.json` is the runtime configuration currently used by the service and records the Regime F values.
+
+</details>
+
+### Ablation Snapshot
+
+| Variant | Validation ROC-AUC | Validation Macro-F1 | Worst-source AUC |
+|---|---:|---:|---:|
+| E0 Text-only | 0.9994 | 0.9883 | 0.9972 |
+| E1 Concatenation + MLP | 0.9997 | 0.9924 | 0.9977 |
+| E2 Gated fusion | 0.9997 | 0.9911 | 0.9985 |
+| E5 Full PAHF-Net | 0.9992 | 0.9900 | 0.9974 |
+
+Concatenation improved recorded validation Macro-F1 by `0.0041` over the text-only baseline. The gated model did not exceed the concatenation baseline, and the completed E0–E5 controlled ablation remains incomplete.
+
+<details>
+<summary><b>Recorded gate weights</b></summary>
+
+| Cohort | Text | URL | Structure | Linguistic |
+|---|---:|---:|---:|---:|
+| E2 validation | 0.918 | 0.003 | 0.077 | 0.003 |
+| E5 T validation | 0.961 | 0.003 | 0.033 | 0.004 |
+| E5 held-out TREC07 | 0.711 | 0.004 | 0.281 | 0.003 |
+| Regime F | 0.9882 | 0.0002 | 0.0114 | 0.0003 |
+
+Gate weights show strong text dominance. They do not by themselves prove that low-weight branches are harmful or beneficial.
+
+</details>
+
+---
+
+## Features
+
+### Detection
+
+- PAHF-Net text + structured-feature inference
+- Calibrated phishing probability and risk score
+- Review-band support for uncertain predictions
+- URL, header, sender, reply-to, and `.eml` inspection
+- Correction-score filtering for legitimate financial, billing, subscription, and promotional messages
+- Offline domain verification fused with model output
+
+### Application
+
+- Analyzer with phishing, BEC, and legitimate examples
+- Explainability workspace with branch evidence and gate weights
+- Evaluation dashboard with confusion matrix and ROC visualization
+- Searchable, paginated scan history
+- Landscape forensic PDF export
+- Runtime backend discovery and health checks
+- SQLite-backed profile, sessions, preferences, and account activity
 
 ---
 
 ## Repository Layout
 
 ```text
-PhishIntel/
+phishing-detector/
 ├── backend/
 │   ├── app/
-│   │   ├── api/
-│   │   │   └── routes.py
-│   │   ├── core/
-│   │   │   ├── config.py
-│   │   │   ├── exceptions.py
-│   │   │   └── logging.py
-│   │   ├── schemas/
-│   │   │   ├── evaluation.py
-│   │   │   └── scan.py
-│   │   ├── services/
-│   │   │   ├── evaluation_service.py
-│   │   │   ├── model_service.py
-│   │   │   └── preprocessing.py
-│   │   └── main.py
+│   │   ├── api/routes.py
+│   │   ├── services/model_service.py
+│   │   └── services/evaluation_service.py
 │   ├── saved_models/
+│   │   ├── pahf_net.pt
+│   │   ├── pahf_net_regime_T.pt
+│   │   ├── pahf_net_regime_F.pt
+│   │   ├── features*.joblib
 │   │   ├── tokenizer/
 │   │   ├── config.json
-│   │   ├── features.joblib
-│   │   ├── features_regime_F.joblib
-│   │   ├── features_regime_T.joblib
-│   │   ├── pahf_net.pt
-│   │   ├── pahf_net_regime_F.pt
-│   │   ├── pahf_net_regime_T.pt
-│   │   ├── predict.py
 │   │   └── evaluation_metrics.json
-│   ├── tests/
-│   ├── .env.example
-│   └── requirements.txt
+│   └── tests/
 ├── phishintel-ai/
-│   ├── public/
-│   │   └── runtime-backend.json  # Generated at runtime; excluded from Git
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── (app)/
-│   │   │   │   ├── account/
-│   │   │   │   ├── analytics/
-│   │   │   │   ├── analyzer/
-│   │   │   │   ├── dashboard/
-│   │   │   │   ├── evaluation/
-│   │   │   │   ├── explainability/
-│   │   │   │   ├── history/
-│   │   │   │   ├── profile/
-│   │   │   │   ├── research/
-│   │   │   │   │   ├── architecture/
-│   │   │   │   │   ├── datasets/
-│   │   │   │   │   ├── papers/
-│   │   │   │   │   └── sources/
-│   │   │   │   ├── settings/
-│   │   │   │   └── layout.tsx
-│   │   │   ├── (marketing)/
-│   │   │   │   ├── landing/
-│   │   │   │   └── page.tsx
-│   │   │   ├── api/
-│   │   │   ├── globals.css
-│   │   │   ├── favicon.ico
-│   │   │   └── layout.tsx
-│   │   ├── components/
-│   │   │   ├── analyzer/
-│   │   │   ├── auth/
-│   │   │   ├── dashboard/
-│   │   │   ├── layout/
-│   │   │   ├── marketing/
-│   │   │   ├── theme/
-│   │   │   └── ui/
-│   │   ├── context/
-│   │   ├── data/
-│   │   ├── lib/
-│   │   ├── services/
-│   │   └── types/
-│   ├── next.config.ts
-│   └── package.json
-├── .gitattributes
-├── .gitignore
-└── README.md
+│   ├── src/app/
+│   ├── src/components/
+│   ├── src/context/
+│   ├── src/lib/
+│   └── src/services/
+└── docs/
 ```
 
-> **Runtime note:** `runtime-backend.json` is generated by the backend during local startup. It is shown in the layout to document its role, but it is not intended to be committed as a tracked runtime artifact.
-
 ---
 
-## Requirements
+## Quick Start
 
-- Python 3.10 or later.
-- Node.js 20.9 or later and npm.
-- Git and Git LFS. The `*.pt` checkpoints and dataset files (including `*.parquet` files, if present) are configured for Git LFS in `.gitattributes`.
-- Enough memory for the DeBERTa-v3 model and its loaded checkpoints. A CUDA-capable PyTorch installation is optional; the service uses CPU when CUDA is unavailable.
+### Requirements
 
----
+- Python `3.10+`
+- Node.js `20.9+`
+- npm
+- Git with Git LFS
+- Optional CUDA-capable PyTorch environment
 
-## Getting Started
+### 1. Restore model assets
 
-### 1. Get the Model Assets
-
-From the repository root, install Git LFS and retrieve the checkpoint contents:
-
-```shell
+```bash
 git lfs install
 git lfs pull
 ```
 
-Confirm that `backend/saved_models/pahf_net.pt` and the local `tokenizer/` directory contain the actual model assets, not unresolved LFS pointer files.
+Confirm that `backend/saved_models/pahf_net.pt` and `backend/saved_models/tokenizer/` contain real assets rather than LFS pointer files.
 
-### 2. Backend Setup and Run (FastAPI + PyTorch)
+### 2. Start the backend
 
-From the repository root, run these commands in **PowerShell**:
-
-```powershell
+```bash
 cd backend
-
-# if .venv is not installed
 python -m venv .venv
-.\.venv\Scripts\Activate.ps1
+
+# Linux / macOS
+source .venv/bin/activate
+
+# Windows PowerShell
+# .\.venv\Scripts\Activate.ps1
+
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-
-# if .venv is installed
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-The FastAPI lifespan loads the model service once at startup. Scan requests reuse that initialized singleton; weights are not reloaded per request.
-
-The backend supports local CORS origins on `localhost` and `127.0.0.1` across development ports through `allow_origin_regex`, in addition to the default local origins `http://localhost:3000` and `http://127.0.0.1:3000`. This is intended to prevent browser preflight (`OPTIONS`) failures when the local frontend and backend use different ports.
-
-At startup, the backend also publishes its active host, port, and analysis endpoint to the Next.js `public/runtime-backend.json` file. The frontend reads this file for automatic endpoint discovery and verifies the service through `/health`.
-
-Useful backend URLs:
+Backend URLs:
 
 | URL | Purpose |
 |---|---|
-| `http://127.0.0.1:8000/docs` | Interactive OpenAPI documentation |
-| `http://127.0.0.1:8000/health` | Backend health and active analysis endpoint information |
-| `http://127.0.0.1:8000/healthz` | Backend and model readiness, including analysis endpoint information |
-| `http://127.0.0.1:8000/api/v1/models` | Model service status |
+| `http://127.0.0.1:8000/docs` | OpenAPI documentation |
+| `http://127.0.0.1:8000/health` | Backend and endpoint health |
+| `http://127.0.0.1:8000/healthz` | Service and model readiness |
+| `http://127.0.0.1:8000/api/v1/models` | Model runtime status |
 
-### 3. Frontend Setup and Run (Next.js)
-
-In a second terminal, from the repository root:
+### 3. Start the frontend
 
 ```bash
 cd phishintel-ai
@@ -371,179 +424,127 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:3000`. The frontend supports runtime discovery through `public/runtime-backend.json`; the local API URL `http://127.0.0.1:8000` remains the documented default/manual endpoint for local development.
+Open `http://localhost:3000`.
 
-To override the API URL manually, create `phishintel-ai/.env.local`:
+To configure a manual endpoint:
 
 ```dotenv
+# phishintel-ai/.env.local
 NEXT_PUBLIC_FASTAPI_URL=http://127.0.0.1:8000
 ```
 
-The frontend package includes HeroUI (`@heroui/react`), Tailwind CSS, Framer Motion, jsPDF, and jsPDF AutoTable.
-
-### 4. Configure the Model Service
-
-Open the application's **Settings** page and use the **Model service** controls:
-
-1. Confirm that the discovered endpoint is populated in **Endpoint (POST, JSON)**.
-2. Enable **Use model service** to route scans to the FastAPI backend.
-3. Select **Test connection** to verify connectivity through `/health`.
-4. Select **Save** to persist the settings in `localStorage`.
-
-When the backend restarts on a different local port, the scan client can rediscover the active endpoint and retry once after a network failure. When model-service mode is enabled, backend and response errors are surfaced rather than being hidden by a local preview fallback.
+The backend writes a local `public/runtime-backend.json` descriptor during startup. The file is generated state and is not intended to be committed.
 
 ---
 
-## API Overview
+## API
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `POST` | `/api/v1/analyze` | Analyze an email and return a `ScanResponse` |
-| `POST` | `/api/v1/scan` | Alias for the analyze endpoint |
-| `GET` | `/api/v1/models` | Return model readiness and runtime information |
-| `GET` | `/api/v1/evaluation-metrics` | Return a validated evaluation report or an unavailable status |
-| `GET` | `/health` | Return backend health and active analysis endpoint information |
-| `GET` | `/healthz` | Return service and model readiness, including analysis endpoint information |
+| `POST` | `/api/v1/analyze` | Analyze an email |
+| `POST` | `/api/v1/scan` | Compatibility alias for analyze |
+| `GET` | `/api/v1/models` | Model readiness and runtime information |
+| `GET` | `/api/v1/evaluation-metrics` | Artifact-backed evaluation report |
+| `GET` | `/health` | Backend health and active endpoint |
+| `GET` | `/healthz` | Backend and model readiness |
 
-The API router is also mounted under `/api` for compatibility.
+The router is also mounted under `/api` for compatibility.
 
-### Scan Response Contract
-
-Both scan routes return exactly these fields:
-
-| Field | Type | Meaning |
-|---|---|---|
-| `success` | `boolean` | Whether inference completed |
-| `scan_id` | `string` | Unique identifier for the scan |
-| `is_phishing` | `boolean` | Binary phishing decision |
-| `verdict` | `string` | Human-readable classification |
-| `confidence_score` | `number` | Phishing probability in `[0, 1]` |
-| `risk_score` | `number` | Risk score in `[0, 100]` |
-| `p_phish` | `number` | Calibrated phishing probability in `[0, 1]` |
-| `indicators` | `array` | Threat indicators and their evidence |
-| `explainability` | `object` | Summary and model explanation details |
-
-The Next.js client validates this response before mapping it to the UI. When model-service mode is enabled, a failed HTTP request or invalid response is surfaced as an error instead of being silently replaced with a local preview.
-
----
-
-## Model Evaluation and Metrics
-
-The evaluation page requests:
-
-```http
-GET /api/v1/evaluation-metrics
-```
-
-The endpoint reads `backend/saved_models/evaluation_metrics.json`. The artifact is a **versioned report of measured evaluation results**; the endpoint does not calculate benchmark scores or invent missing values.
-
-If the file is absent, it responds with HTTP 200 and:
+<details>
+<summary><b>Example scan response</b></summary>
 
 ```json
 {
-  "status": "unavailable",
-  "reason": "artifact_not_found",
-  "artifact": "evaluation_metrics.json"
+  "success": true,
+  "scan_id": "scan-example",
+  "is_phishing": true,
+  "verdict": "Phishing",
+  "confidence_score": 0.94,
+  "risk_score": 94,
+  "p_phish": 0.94,
+  "indicators": [],
+  "explainability": {}
 }
 ```
 
-The evaluation page then shows a clear unavailable state. Invalid, unreadable, or inconsistent artifacts are rejected rather than displayed as results.
+The exact fields are validated against `ScanResponse` in `backend/app/schemas/scan.py`.
 
-The following JSONC is a **schema template, not an evaluation result**. Replace every placeholder with the corresponding measured value before saving it as `evaluation_metrics.json`. The `PAHF-Net` entry in `model_ranking` must match the metrics object; classifier names must be unique.
-
-```jsonc
-{
-  "status": "available",
-  "schema_version": 1,
-  "model_name": "PAHF-Net",
-  "model_version": "<checkpoint or release identifier>",
-  "dataset": "<held-out dataset name>",
-  "dataset_version": "<dataset version>",
-  "split": "test",
-  "threshold": "<measured decision threshold, 0 to 1>",
-  "evaluated_at": "<ISO-8601 timestamp>",
-  "sample_count": "<positive integer>",
-  "metrics": {
-    "accuracy": "<measured value, 0 to 1>",
-    "precision": "<measured value, 0 to 1>",
-    "recall": "<measured value, 0 to 1>",
-    "f1_score": "<measured value, 0 to 1>",
-    "auc_roc": "<measured value, 0 to 1>",
-    "inference_latency_ms": "<measured latency in milliseconds>"
-  },
-  "model_ranking": [
-    {
-      "model_name": "PAHF-Net",
-      "rank": "<rank from the documented comparison>",
-      "accuracy": "<same value as metrics.accuracy>",
-      "precision": "<same value as metrics.precision>",
-      "recall": "<same value as metrics.recall>",
-      "f1_score": "<same value as metrics.f1_score>",
-      "auc_roc": "<same value as metrics.auc_roc>",
-      "inference_latency_ms": "<optional measured latency in milliseconds>"
-    },
-    {
-      "model_name": "<baseline classifier name>",
-      "rank": "<rank from the same evaluation protocol>",
-      "accuracy": "<measured value, 0 to 1>",
-      "precision": "<measured value, 0 to 1>",
-      "recall": "<measured value, 0 to 1>",
-      "f1_score": "<measured value, 0 to 1>",
-      "auc_roc": "<measured value, 0 to 1>"
-    }
-  ]
-}
-```
-
-All metric values must come from a documented evaluation protocol using the same dataset split for PAHF-Net and its baseline classifiers. Record the threshold and latency measurement method so comparisons remain interpretable.
-
-No evaluation artifact is committed by default; the dashboard remains unavailable until verified results are supplied. When `backend/saved_models/evaluation_metrics.json` is present, the API serves the validated artifact-backed report.
+</details>
 
 ---
 
-## Development and Tests
+## Evaluation Dashboard
 
-### Backend Tests
+`GET /api/v1/evaluation-metrics` reads `backend/saved_models/evaluation_metrics.json`.
 
-Run backend tests from `backend/`:
+- Missing artifact: HTTP `200` with `status: unavailable`
+- Invalid artifact: rejected by the evaluation service
+- No request-time metric fabrication
+- No baseline ranking is invented when ranking data is absent
 
-```shell
+The UI presents:
+
+- Accuracy, precision, recall, F1, and ROC-AUC
+- Confusion matrix
+- ROC operating curve
+- Dataset support and class distribution
+- Evaluated model metadata
+
+---
+
+## Development
+
+### Backend tests
+
+```bash
+cd backend
 python -m unittest discover -s tests
 ```
 
-### Frontend Checks
+### Frontend checks
 
-Run frontend checks from `phishintel-ai/`:
-
-```shell
+```bash
+cd phishintel-ai
 npm exec tsc -- --noEmit
 npm run lint
 npm run build
+npm test
 ```
 
-### Email Classification Regression Checks
+### Regression samples
 
-Use `phishintel_test_eml_samples.zip` to exercise the Track A V2 correction-score filters against the five included cases:
+Use `phishintel_test_eml_samples.zip` to test:
 
-- Legitimate SaaS invoice.
-- Legitimate bank e-statement.
-- Phishing credential-harvesting email.
-- Spear-phishing / BEC transfer email.
-- Legitimate rewards/promotional edge case.
-
-The expected purpose of this test set is to check both sides of the classification boundary: legitimate messages should not be over-flagged, while malicious messages should remain identifiable as threats.
+- Legitimate SaaS invoice
+- Legitimate bank e-statement
+- Credential-harvesting phishing
+- BEC transfer request
+- Legitimate rewards/promotional edge case
 
 ---
 
-## Privacy and Responsible Use
+## Research Limitations
 
-Email contents may contain personal, financial, or confidential information. Only submit data you are authorized to analyze, protect stored scan records, and avoid committing raw emails or sensitive evaluation data.
+- Qwen3 and DeepSeek-V4 remain a generalization gap: `0.8038` and `0.7488` Macro-F1 in Regime F.
+- Masking alignment between training and inference should be verified.
+- The complete controlled E0–E5 ablation is pending.
+- Missing-feature stress tests and cross-variant robustness tests are pending.
+- Gate weights show strong text dominance.
+- GRL encourages source-independent representations but does not guarantee invariance.
+- Performance depends on the selected corpus, split, threshold, masking pipeline, and generator distribution.
 
-Treat model output as decision support and investigate uncertain or high-impact decisions before taking action.
+This repository is a research and decision-support system, not a completed production security guarantee.
 
 ---
 
-## Project Information
+## Responsible Use
 
-**Institution:** Keshav Memorial Educational Society  
-**Team:** PhishIntel Development Group
+Email content may contain personal, financial, authentication, or confidential information. Analyze only authorized email, protect stored scan records, and review uncertain or high-impact decisions before taking action.
+
+Model output is decision support. It should complement, not replace, SPF/DKIM/DMARC, secure mail gateways, URL filtering, identity controls, and analyst review.
+
+---
+
+## License
+
+No license is currently declared in this repository. Confirm the intended license before distribution or commercial use.
