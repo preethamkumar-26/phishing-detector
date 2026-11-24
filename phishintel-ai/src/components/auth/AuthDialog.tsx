@@ -1,9 +1,9 @@
 "use client";
 
-import React, { FormEvent, useCallback, useState } from "react";
+import React, { FormEvent, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { AlertCircle, CheckCircle2, LockKeyhole, Mail, Shield, UserRound } from "lucide-react";
-import { useAuth } from "@/components/auth/AuthProvider";
+import { AuthRateLimitError, useAuth } from "@/components/auth/AuthProvider";
 import { Button } from "@/components/ui/Button";
 import RubberSegment from "@/components/ui/RubberSegment";
 import { PasswordInput } from "@/components/ui/PasswordInput";
@@ -55,6 +55,26 @@ export function AuthDialog({
   const [confirmationNotice, setConfirmationNotice] = useState(false);
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+  const [cooldownEndsAt, setCooldownEndsAt] = useState<number | null>(null);
+  const [now, setNow] = useState(Date.now());
+
+  const cooldownRemaining = cooldownEndsAt
+    ? Math.max(0, Math.ceil((cooldownEndsAt - now) / 1000))
+    : 0;
+  const cooldownActive = cooldownRemaining > 0;
+
+  useEffect(() => {
+    if (!cooldownActive) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 250);
+    return () => window.clearInterval(interval);
+  }, [cooldownActive]);
+
+  useEffect(() => {
+    if (cooldownEndsAt && cooldownRemaining === 0) setCooldownEndsAt(null);
+  }, [cooldownEndsAt, cooldownRemaining]);
+
+  const formatCooldown = (seconds: number) =>
+    `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
   const { heading, description } = getAuthGateCopy(destination, mode);
   const resolvedDescription = reason?.trim() ? reason : description;
@@ -83,7 +103,7 @@ export function AuthDialog({
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (isSubmitting) return;
+    if (isSubmitting || (mode === "register" && cooldownActive)) return;
     setError("");
 
     if (mode === "register" && password !== confirmPassword) {
@@ -112,7 +132,13 @@ export function AuthDialog({
         router.push("/dashboard");
       }
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Unable to authenticate.");
+      if (submitError instanceof AuthRateLimitError) {
+        setCooldownEndsAt(Date.now() + submitError.retryAfterSeconds * 1000);
+        setNow(Date.now());
+        setError("Too many registration attempts. Please wait for the cooldown to finish.");
+      } else {
+        setError(submitError instanceof Error ? submitError.message : "Unable to authenticate.");
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -335,6 +361,11 @@ export function AuthDialog({
                         {resending ? "Sending activation link..." : "Resend activation email"}
                       </button>
                     )}
+                    {cooldownActive && (
+                      <p className="pl-6 font-semibold tabular-nums text-red-700 dark:text-red-300">
+                        You can try again in {formatCooldown(cooldownRemaining)}.
+                      </p>
+                    )}
                   </div>
                 )}
 
@@ -344,9 +375,11 @@ export function AuthDialog({
                     size="md"
                     className="w-full justify-center"
                     isLoading={isSubmitting}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || (mode === "register" && cooldownActive)}
                   >
-                    {mode === "signIn" ? "Log In" : "Create Account"}
+                    {mode === "register" && cooldownActive
+                      ? `Try again in ${formatCooldown(cooldownRemaining)}`
+                      : mode === "signIn" ? "Log In" : "Create Account"}
                   </Button>
                 </DialogFooter>
               </>

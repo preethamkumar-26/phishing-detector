@@ -7,6 +7,7 @@ import {
 } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { safeNext, getSiteUrl } from "@/lib/authRedirect";
+import { APP_AUTH_COOLDOWN_SECONDS } from "@/lib/authRateLimitConfig";
 
 export interface AuthUser {
   id?: string;
@@ -41,6 +42,13 @@ interface AuthActions {
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
   resendConfirmation: (email: string) => Promise<void>;
+}
+
+export class AuthRateLimitError extends Error {
+  constructor(public readonly retryAfterSeconds = APP_AUTH_COOLDOWN_SECONDS) {
+    super("Too many registration attempts. Please wait before trying again.");
+    this.name = "AuthRateLimitError";
+  }
 }
 
 const SESSION_KEY = "phishintel-session";
@@ -248,6 +256,18 @@ async function register(name: string, email: string, password: string): Promise<
   }
   if (password.length < 8) throw new Error("Use a password with at least 8 characters.");
 
+  // Ask our server before contacting Supabase. The server owns this clock, so
+  // refreshing the page or changing client time cannot bypass the cooldown.
+  const limitResponse = await fetch("/api/auth/rate-limit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action: "registration" }),
+  });
+  const limit = await limitResponse.json().catch(() => null) as { retryAfterSeconds?: number } | null;
+  if (!limitResponse.ok || (limit?.retryAfterSeconds ?? 0) > 0) {
+    throw new AuthRateLimitError(limit?.retryAfterSeconds);
+  }
+
   const { data, error } = await supabase.auth.signUp({
     email: normalizedEmail,
     password,
@@ -269,7 +289,7 @@ async function register(name: string, email: string, password: string): Promise<
       throw new Error("An account with this email already exists. Sign in instead.");
     }
     if ((error as { status?: number }).status === 429 || error.message.toLowerCase().includes("rate limit")) {
-      throw new Error("Too many registration attempts. Please wait a moment before trying again.");
+      throw new AuthRateLimitError();
     }
     throw new Error(error.message || "Unable to create your account.");
   }
