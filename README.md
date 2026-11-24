@@ -1,7 +1,7 @@
 
 
 <div align="center">
-## PhishIntel
+# PhishIntel
 
 **Explainable phishing-email and URL intelligence powered by PAHF-Net**
 
