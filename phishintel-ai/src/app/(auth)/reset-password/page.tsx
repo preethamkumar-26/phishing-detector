@@ -15,6 +15,7 @@ function ResetPasswordForm() {
 
   const [authState, setAuthState] = useState<AuthState>("verifying");
   const [authError, setAuthError] = useState<string | null>(null);
+  const [authorizedUserId, setAuthorizedUserId] = useState<string | null>(null);
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -25,6 +26,9 @@ function ResetPasswordForm() {
 
   // Validate recovery authorization
   useEffect(() => {
+    // If update has already succeeded, do not re-verify
+    if (authState === "success") return;
+
     let isMounted = true;
 
     async function verifyRecoverySession() {
@@ -54,7 +58,8 @@ function ResetPasswordForm() {
             return;
           }
 
-          if (data?.session) {
+          if (data?.session?.user) {
+            setAuthorizedUserId(data.session.user.id);
             setAuthState("authorized");
             return;
           }
@@ -72,6 +77,7 @@ function ResetPasswordForm() {
 
         // Check if there is an active session
         if (session?.user) {
+          setAuthorizedUserId(session.user.id);
           setAuthState("authorized");
           return;
         }
@@ -107,6 +113,9 @@ function ResetPasswordForm() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!isMounted) return;
       if (event === "PASSWORD_RECOVERY" || (session?.user && event === "SIGNED_IN")) {
+        if (session?.user?.id) {
+          setAuthorizedUserId(session.user.id);
+        }
         setAuthState("authorized");
         setAuthError(null);
       }
@@ -118,7 +127,7 @@ function ResetPasswordForm() {
       isMounted = false;
       subscription.unsubscribe();
     };
-  }, [searchParams, authState]);
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,7 +151,8 @@ function ResetPasswordForm() {
     setFormError(null);
 
     try {
-      const { error } = await supabase.auth.updateUser({
+      // 1. Update the password for the current authenticated recovery user
+      const { data, error } = await supabase.auth.updateUser({
         password: newPassword,
       });
 
@@ -150,11 +160,25 @@ function ResetPasswordForm() {
         throw error;
       }
 
-      // Explicitly sign out post-update so the temporary recovery session is cleared
-      // and the user must log in with their newly configured credentials
+      if (!data?.user) {
+        throw new Error("Unable to confirm password update with Supabase Auth.");
+      }
+
+      // 2. Explicitly verify that the updated user ID matches the original recovery user ID
+      if (authorizedUserId && data.user.id !== authorizedUserId) {
+        throw new Error("Security verification failed: User identity mismatch after update.");
+      }
+
+      // 3. Explicitly terminate the temporary recovery session so the user must
+      // authenticate fresh using their newly configured credentials
       try {
         await supabase.auth.signOut();
         window.localStorage.removeItem("phishintel-session");
+        for (const key of Object.keys(window.localStorage)) {
+          if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
+            window.localStorage.removeItem(key);
+          }
+        }
         document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
       } catch {}
 

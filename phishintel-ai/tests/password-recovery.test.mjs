@@ -57,7 +57,9 @@ test("Reset password route and component exist and enforce recovery authorizatio
 
   // Supabase Auth updateUser and cleanup
   assert.ok(content.includes("supabase.auth.updateUser"), "Must use supabase.auth.updateUser");
+  assert.ok(content.includes("authorizedUserId"), "Must verify user ID consistency");
   assert.ok(content.includes("supabase.auth.signOut"), "Must clear recovery session upon password update");
+  assert.ok(content.includes("sb-"), "Must purge sb-* auth tokens on reset completion");
   assert.ok(content.includes("Password Updated Successfully"), "Must display success state");
 });
 
