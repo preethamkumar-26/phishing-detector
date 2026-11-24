@@ -392,7 +392,6 @@ export default function ProfilePage() {
 
     const authHeaders: Record<string, string> = {
       "Content-Type": "application/json",
-      "x-user-email": activeEmail,
     };
 
     try {
@@ -492,7 +491,6 @@ export default function ProfilePage() {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
-          ...(sessionUser ? { "x-user-email": sessionUser } : {}),
         },
         credentials: "include",
         body: JSON.stringify({
@@ -579,7 +577,6 @@ export default function ProfilePage() {
           method: "PATCH",
           headers: {
             "Content-Type": "application/json",
-            "x-user-email": sessionUser,
           },
           credentials: "include",
           body: JSON.stringify({
@@ -652,18 +649,20 @@ export default function ProfilePage() {
       }
 
       // 2. Synchronize new password hash, salt, and activity log to local SQLite WAL database
+      const { data: updatedSessionData } = await supabase.auth.getSession();
       const res = await fetch("/api/account/password", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(activeEmail ? { "x-user-email": activeEmail } : {}),
+          ...(updatedSessionData.session?.access_token
+            ? { Authorization: `Bearer ${updatedSessionData.session.access_token}` }
+            : {}),
         },
         credentials: "include",
         body: JSON.stringify({
           currentPassword,
           newPassword,
           confirmPassword,
-          supabaseVerified: hasSupabaseSession,
         }),
       });
 
@@ -688,7 +687,6 @@ export default function ProfilePage() {
       if (activeEmail) {
         const authHeaders: Record<string, string> = {
           "Content-Type": "application/json",
-          "x-user-email": activeEmail,
         };
         fetch("/api/account/security", { headers: authHeaders, credentials: "include" })
           .then((r) => (r.ok ? r.json() : null))
@@ -756,19 +754,25 @@ export default function ProfilePage() {
       // 3. Sync audit activity & password hash to local WAL database
       const activeEmail = session.user.email;
       if (activeEmail) {
-        await fetch("/api/account/password", {
+        const { data: updatedSessionData } = await supabase.auth.getSession();
+        const passwordSyncResponse = await fetch("/api/account/password", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "x-user-email": activeEmail,
+            ...(updatedSessionData.session?.access_token
+              ? { Authorization: `Bearer ${updatedSessionData.session.access_token}` }
+              : {}),
           },
           credentials: "include",
           body: JSON.stringify({
             newPassword: addPasswordNew,
             confirmPassword: addPasswordConfirm,
-            supabaseVerified: true,
           }),
-        }).catch(() => {});
+        });
+        if (!passwordSyncResponse.ok) {
+          const responseBody = await passwordSyncResponse.json().catch(() => null) as { error?: string } | null;
+          throw new Error(responseBody?.error || "Unable to synchronize the new password.");
+        }
       }
 
       setPasswordSuccess("PhishIntel password created successfully. You can now sign in with either Google or your email and password.");
@@ -786,7 +790,6 @@ export default function ProfilePage() {
       if (activeEmail) {
         const authHeaders: Record<string, string> = {
           "Content-Type": "application/json",
-          "x-user-email": activeEmail,
         };
         fetch("/api/account/security", { headers: authHeaders, credentials: "include" })
           .then((r) => (r.ok ? r.json() : null))
@@ -913,7 +916,6 @@ export default function ProfilePage() {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
-              "x-user-email": activeEmail,
             },
             credentials: "include",
           });

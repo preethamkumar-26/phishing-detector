@@ -3,7 +3,7 @@ import { authenticateRequest, deleteUserAccount } from "@/lib/server/auth";
 
 export async function POST(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const deleted = deleteUserAccount(user.id);
     return NextResponse.json({
       success: deleted,

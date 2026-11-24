@@ -51,6 +51,13 @@ class EmailScanRequestTests(unittest.TestCase):
                 "confidence_score": 0.1,
                 "risk_score": 10,
                 "p_phish": 0.1,
+                "logits": [-2.197225],
+                "extracted_features": {
+                    "url": [],
+                    "structure": [],
+                    "linguistic": [],
+                    "text_token_count": 12,
+                },
                 "indicators": [],
                 "explainability": {"summary": "No threats detected"},
             }
@@ -66,6 +73,8 @@ class EmailScanRequestTests(unittest.TestCase):
                 "confidence_score",
                 "risk_score",
                 "p_phish",
+                "logits",
+                "extracted_features",
                 "indicators",
                 "explainability",
             },

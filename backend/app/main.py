@@ -176,8 +176,8 @@ app.add_middleware(
     allow_origins=settings.CORS_ORIGINS,
     allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
     allow_credentials=True,
-    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
-    allow_headers=["Content-Type", "Accept", "Authorization"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 register_exception_handlers(app)

@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-from typing import Any
 from fastapi import APIRouter, HTTPException, Depends
 from starlette.concurrency import run_in_threadpool
 
@@ -11,6 +10,13 @@ from app.services.evaluation_service import EvaluationArtifactError, evaluation_
 from app.services.model_service import model_service
 
 router = APIRouter()
+
+@router.get("/health")
+async def api_health():
+    if not model_service.is_ready:
+        raise HTTPException(status_code=503, detail="Model is not ready.")
+    return {"status": "healthy", "model_loaded": True}
+
 
 @router.post("/analyze", response_model=ScanResponse)
 @router.post("/scan", response_model=ScanResponse)
@@ -126,7 +132,7 @@ async def delete_user_scan(scan_id: str, user: AuthenticatedUser = Depends(get_c
     """
     try:
         user_client = get_user_supabase_client(user.token)
-        response = user_client.table("scans").delete().eq("id", scan_id).execute()
+        user_client.table("scans").delete().eq("id", scan_id).execute()
         return {"success": True, "deleted": scan_id}
     except Exception as exc:
         logger.error(f"Failed to delete scan {scan_id} for user {user.id}: {exc}")

@@ -2,7 +2,11 @@ export const MODEL_ENDPOINT_STORAGE_KEY = "phishintel_model_endpoint";
 export const USE_MODEL_SERVICE_STORAGE_KEY = "phishintel_use_model_service";
 
 const DEFAULT_ANALYZE_ENDPOINT =
-  (process.env.NEXT_PUBLIC_FASTAPI_URL?.replace(/\/+$/, "") || "http://127.0.0.1:8000") +
+  (
+    process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") ||
+    process.env.NEXT_PUBLIC_FASTAPI_URL?.replace(/\/+$/, "") ||
+    "http://127.0.0.1:8000"
+  ) +
   "/api/v1/analyze";
 
 export interface RuntimeBackendConfig {
@@ -62,7 +66,7 @@ export async function fetchWithBackendAutoRetry(
 }
 
 export function deriveHealthEndpoint(analyzeEndpoint: string): string {
-  return normalizeAnalyzeEndpoint(analyzeEndpoint).replace(/\/api\/v1\/analyze$/, "/health");
+  return normalizeAnalyzeEndpoint(analyzeEndpoint).replace(/\/api\/v1\/analyze$/, "/api/v1/health");
 }
 
 /**

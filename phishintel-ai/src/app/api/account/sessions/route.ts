@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { authenticateRequest, logActivity, DbSession } from "@/lib/server/auth";
+import { AuthenticationError, authenticateRequest, logActivity, DbSession } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 
 export async function GET(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const db = getDb();
 
     let sessions = db.prepare(`
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get("sessionId");
 
@@ -60,6 +60,6 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ success: true, message: "Session revoked successfully." });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to revoke session";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: error instanceof AuthenticationError ? 401 : 400 });
   }
 }

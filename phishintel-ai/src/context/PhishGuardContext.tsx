@@ -165,7 +165,7 @@ interface PhishGuardContextValue {
   usage: { scans: number; calls: number };
   serviceStatus: "ok" | "err" | "none";
   testServiceConnection: (endpoint?: string) => Promise<{ ok: boolean; version?: string; error?: string }>;
-  runScan: (email: ScanEmailInput) => Promise<ScanItem>;
+  runScan: (email: ScanEmailInput, signal?: AbortSignal) => Promise<ScanItem>;
   clearUserScans: () => void;
   deleteScan: (scanId: string) => Promise<{ success: boolean; error?: string }>;
   toasts: ToastItem[];
@@ -1121,7 +1121,7 @@ export function PhishGuardProvider({
 
   // Call Model Service
   const callService = useCallback(
-    async (email: ScanEmailInput) => {
+    async (email: ScanEmailInput, signal?: AbortSignal) => {
       if (!settings.useService) {
         throw new Error("Live PAHF-Net service analysis is disabled. Enable the model service in Settings.");
       }
@@ -1134,43 +1134,36 @@ export function PhishGuardProvider({
           return next;
         });
 
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 8000);
-        try {
-          const response = await analyzeEmailWithBackend(
-            {
-              subject: email.subject,
-              sender: email.from,
-              reply_to: email.replyTo,
-              body: email.body,
-              urls: email.urls.split(/\s+/).filter(Boolean),
-              headers: email.headers,
-            },
-            undefined,
-            controller.signal
-          );
-          setServiceStatus("ok");
-          return {
-            p: response.p_phish,
-            riskScore: response.risk_score,
-            isPhishing: response.is_phishing,
-            indicators: response.indicators,
-            verdict: response.verdict,
-            explainability: response.explainability,
-            processingTimeMs: response.processing_time_ms,
-            version: "PAHF-Net",
-          };
-        } finally {
-          clearTimeout(timeout);
-        }
+        const response = await analyzeEmailWithBackend(
+          {
+            subject: email.subject,
+            sender: email.from,
+            reply_to: email.replyTo,
+            body: email.body,
+            urls: email.urls.split(/\s+/).filter(Boolean),
+            headers: email.headers,
+          },
+          settings.endpoint || undefined,
+          signal
+        );
+        setServiceStatus("ok");
+        return {
+          p: response.p_phish,
+          riskScore: response.risk_score,
+          isPhishing: response.is_phishing,
+          indicators: response.indicators,
+          verdict: response.verdict,
+          explainability: response.explainability,
+          processingTimeMs: response.processing_time_ms,
+          version: "PAHF-Net",
+        };
       } catch (err: unknown) {
         setServiceStatus("err");
+        if (err instanceof Error && err.name === "AbortError") {
+          throw err;
+        }
         throw new Error(
-          err instanceof Error && err.name === "AbortError"
-            ? "PhishIntel backend request timed out."
-            : err instanceof Error
-              ? err.message
-              : String(err)
+          err instanceof Error ? err.message : String(err)
         );
       }
     },
@@ -1179,10 +1172,10 @@ export function PhishGuardProvider({
 
   // Run email analysis (PAHF-Net Native + Offline Verification Fusion)
   const runScan = useCallback(
-    async (email: ScanEmailInput): Promise<ScanItem> => {
+    async (email: ScanEmailInput, signal?: AbortSignal): Promise<ScanItem> => {
       const prior = scans.map((s) => ({ fromReg: s.fromReg }));
       const core = computePahfNetAnalysis(email, prior);
-      const svcRes = await callService(email);
+      const svcRes = await callService(email, signal);
 
       const isService = true;
       const P = svcRes.p;
@@ -1290,8 +1283,6 @@ export function PhishGuardProvider({
 
       // Backend sync
       try {
-        const sessionUser =
-          typeof window !== "undefined" ? localStorage.getItem("phishintel-session") : null;
         const syncPrediction =
           newScan.decision === "PHISHING"
             ? "phishing"
@@ -1302,7 +1293,6 @@ export function PhishGuardProvider({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            ...(sessionUser ? { "x-user-email": sessionUser } : {}),
           },
           body: JSON.stringify({
             scanId: newScan.id,
@@ -1337,9 +1327,6 @@ export function PhishGuardProvider({
       if (sessionUser) {
         fetch("/api/account/scan?clearAll=true", {
           method: "DELETE",
-          headers: {
-            "x-user-email": sessionUser,
-          },
         }).catch(() => {});
       }
     } catch {}
@@ -1363,9 +1350,6 @@ export function PhishGuardProvider({
         if (sessionUser) {
           const res = await fetch(`/api/account/scan?scanId=${encodeURIComponent(scanId)}`, {
             method: "DELETE",
-            headers: {
-              "x-user-email": sessionUser,
-            },
           });
           if (!res.ok) {
             const errData = await res.json().catch(() => ({}));

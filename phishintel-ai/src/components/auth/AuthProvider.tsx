@@ -8,6 +8,7 @@ import {
 import { supabase } from "@/lib/supabaseClient";
 import { safeNext, getSiteUrl } from "@/lib/authRedirect";
 import { APP_AUTH_COOLDOWN_SECONDS } from "@/lib/authRateLimitConfig";
+import { syncServerSession } from "@/lib/syncServerSession";
 
 export interface AuthUser {
   id?: string;
@@ -179,19 +180,22 @@ function initialize() {
   try {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
+        void syncServerSession(session.access_token).catch((error) => {
+          console.error("Unable to synchronize the server account session:", error);
+        });
         const user = mapSessionToUser(session.user);
         window.localStorage.setItem(SESSION_KEY, user.email);
-        try {
-          document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
-        } catch {}
         snapshot = {
           status: "authenticated",
           user,
         };
         notify();
       } else {
-        // No Supabase session — clear any stale keys and cookies
+        // No Supabase session — revoke any stale server-side account session.
         window.localStorage.removeItem(SESSION_KEY);
+        void fetch("/api/account/sync", { method: "DELETE", credentials: "include" }).catch((error) => {
+          console.error("Unable to revoke the stale server account session:", error);
+        });
         try {
           document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
         } catch {}
@@ -205,11 +209,11 @@ function initialize() {
 
     supabase.auth.onAuthStateChange((event, session) => {
       if (session?.user) {
+        void syncServerSession(session.access_token).catch((error) => {
+          console.error("Unable to synchronize the server account session:", error);
+        });
         const user = mapSessionToUser(session.user);
         window.localStorage.setItem(SESSION_KEY, user.email);
-        try {
-          document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
-        } catch {}
         snapshot = {
           status: "authenticated",
           user,
@@ -218,6 +222,9 @@ function initialize() {
       } else if (event === "SIGNED_OUT") {
         window.localStorage.removeItem(SESSION_KEY);
         try { window.localStorage.removeItem(SUPABASE_SESSION_KEY); } catch {}
+        void fetch("/api/account/sync", { method: "DELETE", credentials: "include" }).catch((error) => {
+          console.error("Unable to revoke the server account session:", error);
+        });
         try {
           document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
         } catch {}
@@ -301,11 +308,9 @@ async function register(name: string, email: string, password: string): Promise<
   }
 
   if (data?.session?.user) {
+    await syncServerSession(data.session.access_token);
     const user = mapSessionToUser(data.session.user);
     window.localStorage.setItem(SESSION_KEY, user.email);
-    try {
-      document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
-    } catch {}
     lastManualSignOutAt = 0;
     snapshot = {
       status: "authenticated",
@@ -357,10 +362,11 @@ async function signIn(email: string, password: string) {
   }
 
   const user = mapSessionToUser(data.user);
+  if (!data.session) {
+    throw new Error("No active authentication session was created.");
+  }
+  await syncServerSession(data.session.access_token);
   window.localStorage.setItem(SESSION_KEY, user.email);
-  try {
-    document.cookie = `phishintel_session=${encodeURIComponent(user.email)}; Path=/; SameSite=Lax;`;
-  } catch {}
   lastManualSignOutAt = 0;
   snapshot = {
     status: "authenticated",
@@ -456,7 +462,20 @@ async function signOut() {
       await supabase.auth.signOut();
     } catch {}
 
-    // 2. Clear ALL client-side session storage (belt-and-suspenders)
+    // 2. Revoke the server-side account session and clear its HttpOnly cookie.
+    try {
+      const response = await fetch("/api/account/sync", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!response.ok) {
+        console.error("Unable to revoke the server account session.");
+      }
+    } catch (error) {
+      console.error("Unable to revoke the server account session:", error);
+    }
+
+    // 3. Clear ALL client-side session storage (belt-and-suspenders)
     try {
       window.localStorage.removeItem(SESSION_KEY);
       window.localStorage.removeItem(SUPABASE_SESSION_KEY);

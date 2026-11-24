@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { createClient } from "@supabase/supabase-js";
 import { getDb } from "./db";
 
 export interface DbUser {
@@ -48,6 +49,13 @@ export interface DbSession {
   ip_hint: string | null;
   created_at: string;
   last_active_at: string;
+}
+
+export class AuthenticationError extends Error {
+  constructor(message = "Authentication required. Please sign in to access account data.") {
+    super(message);
+    this.name = "AuthenticationError";
+  }
 }
 
 export function hashPassword(password: string, salt: string): string {
@@ -168,6 +176,70 @@ export function upsertUser(email: string, name: string, salt: string, passwordHa
   return findUserById(id)!;
 }
 
+export function findOrCreateSupabaseUser(email: string, name: string): DbUser {
+  const normalizedEmail = email.trim().toLowerCase();
+  const existing = findUserByEmail(normalizedEmail);
+  if (existing) return existing;
+
+  const db = getDb();
+  const id = generateId("usr");
+  const now = new Date().toISOString();
+  const salt = crypto.randomBytes(16).toString("hex");
+  const passwordHash = hashPassword(crypto.randomBytes(32).toString("hex"), salt);
+  const result = db.prepare(`
+    INSERT OR IGNORE INTO users (id, email, name, password_hash, salt, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, normalizedEmail, name.trim().slice(0, 100) || normalizedEmail.split("@")[0], passwordHash, salt, now, now);
+
+  if (result.changes > 0) {
+    db.prepare(`
+      INSERT OR IGNORE INTO user_preferences (user_id, theme, email_notifications, security_alerts, scan_completion_notifications, product_updates, time_zone, language, default_analysis_view, show_explanatory_details, updated_at)
+      VALUES (?, 'system', 0, 1, 1, 0, 'UTC', 'en', 'side-by-side', 1, ?)
+    `).run(id, now);
+    logActivity(id, "account_created", "Account registered", "success", "Supabase Auth account");
+  }
+
+  const user = findUserByEmail(normalizedEmail);
+  if (!user) throw new Error("Unable to create the account profile.");
+  return user;
+}
+
+export async function verifySupabaseAccessToken(token: string): Promise<{ email: string; name: string }> {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) {
+    throw new Error("Supabase authentication is not configured.");
+  }
+
+  const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { autoRefreshToken: false, persistSession: false, detectSessionInUrl: false },
+  });
+  const { data, error } = await supabase.auth.getUser(token);
+  const email = data.user?.email?.trim().toLowerCase();
+  if (error || !email) throw new Error("Invalid Supabase session.");
+
+  const metadata = data.user.user_metadata ?? {};
+  const metadataName = [metadata.display_name, metadata.full_name, metadata.name]
+    .find((value): value is string => typeof value === "string" && value.trim().length > 0);
+  return { email, name: (metadataName?.trim() || email.split("@")[0]).slice(0, 100) };
+}
+
+export async function getSupabaseIdentityFromRequest(
+  req: Request,
+): Promise<{ email: string; name: string }> {
+  const authorization = req.headers.get("authorization");
+  const bearerMatch = authorization?.match(/^Bearer\s+(\S+)$/i);
+  const accessCookie = req.headers.get("cookie")?.match(/(?:^|;\s*)phishintel_access=([^;]+)/)?.[1];
+  const token = bearerMatch?.[1] || accessCookie;
+  if (!token) throw new AuthenticationError();
+
+  try {
+    return await verifySupabaseAccessToken(token);
+  } catch {
+    throw new AuthenticationError("Supabase session is invalid, expired, or could not be verified.");
+  }
+}
+
 export function createSession(userId: string, userAgent = "Web Browser"): DbSession {
   const db = getDb();
   const id = generateId("ses");
@@ -185,68 +257,24 @@ export function createSession(userId: string, userAgent = "Web Browser"): DbSess
 export function getUserFromSessionCookie(token?: string | null): DbUser | null {
   if (!token) return null;
   const db = getDb();
-  try {
-    const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;
-    if (session) {
-      const user = findUserById(session.user_id);
-      if (user) return user;
-    }
-    const user = findUserByEmail(token);
-    if (user) return user;
-  } catch {}
-  return null;
+  const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;
+  return session ? findUserById(session.user_id) : null;
 }
 
-export function authenticateRequest(req: Request): DbUser {
+export async function authenticateRequest(req: Request): Promise<DbUser> {
+  const identity = await getSupabaseIdentityFromRequest(req);
+  const user = findUserByEmail(identity.email);
+  if (!user) throw new AuthenticationError("Authenticated account profile was not found.");
+
+  const sessionToken = req.headers.get("cookie")?.match(/(?:^|;\s*)phishintel_session=([^;]+)/)?.[1];
+  if (!sessionToken) throw new AuthenticationError();
+
   const db = getDb();
+  const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(sessionToken) as DbSession | undefined;
+  if (!session || session.user_id !== user.id) throw new AuthenticationError();
 
-  // 1. Check Authorization Bearer header
-  const authHeader = req.headers.get("authorization");
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7).trim();
-    const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;
-    if (session) {
-      const user = findUserById(session.user_id);
-      if (user) {
-        db.prepare("UPDATE user_sessions SET last_active_at = ? WHERE id = ?").run(new Date().toISOString(), session.id);
-        return user;
-      }
-    }
-  }
-
-  // 2. Priority check: x-user-email header (explicitly sent by frontend for the current active session)
-  // This takes priority over cookies to prevent stale cookies from restoring a previously authenticated user
-  const emailHeader = req.headers.get("x-user-email");
-  if (emailHeader) {
-    let user = findUserByEmail(emailHeader);
-    if (!user) {
-      // Auto-provision local workstation record for authenticated client email
-      const defaultName = emailHeader.includes("@")
-        ? emailHeader.split("@")[0].replace(/[._-]/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-        : "Analyst";
-      const salt = crypto.randomBytes(16).toString("hex");
-      const passwordHash = hashPassword("workstation_local", salt);
-      user = upsertUser(emailHeader, defaultName, salt, passwordHash);
-    }
-    if (user) return user;
-  }
-
-  // 3. Fallback: Check phishintel_session cookie
-  const cookieHeader = req.headers.get("cookie") || "";
-  const match = cookieHeader.match(/phishintel_session=([^;]+)/);
-  if (match) {
-    const token = decodeURIComponent(match[1].trim());
-    const session = db.prepare("SELECT * FROM user_sessions WHERE token = ?").get(token) as DbSession | undefined;
-    if (session) {
-      const user = findUserById(session.user_id);
-      if (user) return user;
-    }
-    // Check if cookie holds direct email
-    const user = findUserByEmail(token);
-    if (user) return user;
-  }
-
-  throw new Error("Authentication required. Please sign in to access account data.");
+  db.prepare("UPDATE user_sessions SET last_active_at = ? WHERE id = ?").run(new Date().toISOString(), session.id);
+  return user;
 }
 
 export function deleteUserAccount(userIdOrEmail: string): boolean {

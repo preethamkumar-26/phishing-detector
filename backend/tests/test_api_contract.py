@@ -1,5 +1,5 @@
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fastapi.testclient import TestClient
 
@@ -16,12 +16,30 @@ SCAN_RESPONSE = {
     "confidence_score": 0.91,
     "risk_score": 91.0,
     "p_phish": 0.91,
+    "logits": [2.313634],
+    "extracted_features": {
+        "url": [0.1, 0.2],
+        "structure": [0.3],
+        "linguistic": [0.4],
+        "text_token_count": 8,
+    },
     "indicators": [{"title": "Suspicious link", "severity": "high"}],
     "explainability": {"summary": "Model output"},
 }
 
 
 class AnalyzeApiContractTests(unittest.TestCase):
+    def test_versioned_health_route_reports_model_readiness(self) -> None:
+        with (
+            patch.object(model_service, "load_model"),
+            patch.object(model_service, "is_ready", True),
+            TestClient(app) as client,
+        ):
+            response = client.get("/api/v1/health")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "healthy", "model_loaded": True})
+
     def test_analyze_returns_standard_scan_response_for_frontend_aliases(self) -> None:
         mock_user = AuthenticatedUser(
             id="contract-test-user-id",
@@ -35,8 +53,11 @@ class AnalyzeApiContractTests(unittest.TestCase):
                 patch.object(model_service, "load_model"),
                 patch.object(model_service, "is_ready", True),
                 patch.object(model_service, "predict", return_value=SCAN_RESPONSE) as predict,
+                patch("app.api.routes.get_user_supabase_client") as mock_user_client_factory,
                 TestClient(app) as client,
             ):
+                mock_table = mock_user_client_factory.return_value.table.return_value
+                mock_table.upsert.return_value.execute.return_value = MagicMock(data=[])
                 response = client.post(
                     "/api/v1/analyze",
                     headers={"Authorization": "Bearer contract-mock-token"},
@@ -64,6 +85,8 @@ class AnalyzeApiContractTests(unittest.TestCase):
                 "confidence_score",
                 "risk_score",
                 "p_phish",
+                "logits",
+                "extracted_features",
                 "indicators",
                 "explainability",
             },

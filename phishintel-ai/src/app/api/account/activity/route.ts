@@ -4,7 +4,7 @@ import { getDb } from "@/lib/server/db";
 
 export async function GET(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const { searchParams } = new URL(req.url);
     const category = searchParams.get("category") || "all";
     const limit = Math.min(50, Math.max(1, Number(searchParams.get("limit")) || 20));

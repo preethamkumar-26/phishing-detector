@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { authenticateRequest, logActivity } from "@/lib/server/auth";
+import { AuthenticationError, authenticateRequest, logActivity } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 
 interface PreferenceRow {
@@ -18,7 +18,7 @@ interface PreferenceRow {
 
 export async function GET(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const db = getDb();
 
     let pref = db.prepare(`
@@ -57,7 +57,7 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const body = await req.json();
     const db = getDb();
 
@@ -149,6 +149,6 @@ export async function PATCH(req: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update preferences";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: error instanceof AuthenticationError ? 401 : 400 });
   }
 }

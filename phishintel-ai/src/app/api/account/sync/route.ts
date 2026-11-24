@@ -1,106 +1,76 @@
 import { NextResponse } from "next/server";
-import { upsertUser, createSession, logActivity, findUserByEmail, verifyPassword } from "@/lib/server/auth";
+import {
+  createSession,
+  findOrCreateSupabaseUser,
+  getUserFromSessionCookie,
+  verifySupabaseAccessToken,
+} from "@/lib/server/auth";
+import { getDb } from "@/lib/server/db";
+
+function getSessionCookie(req: Request): string | null {
+  return req.headers.get("cookie")?.match(/(?:^|;\s*)phishintel_session=([^;]+)/)?.[1] ?? null;
+}
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { action, name, email, salt, passwordHash, password } = body;
-
-    if (!email || typeof email !== "string") {
-      return NextResponse.json({ error: "Email is required." }, { status: 400 });
+    const authorization = req.headers.get("authorization");
+    const token = authorization?.match(/^Bearer\s+(\S+)$/i)?.[1];
+    if (!token) {
+      return NextResponse.json({ error: "A valid Supabase session is required." }, { status: 401 });
     }
 
-    const normalizedEmail = email.trim().toLowerCase();
+    const identity = await verifySupabaseAccessToken(token);
+    const user = findOrCreateSupabaseUser(identity.email, identity.name);
+    const existingCookie = getSessionCookie(req);
+    const existingUser = getUserFromSessionCookie(existingCookie);
+    const sessionToken = existingCookie && existingUser?.id === user.id
+      ? existingCookie
+      : createSession(user.id).token;
 
-    if (action === "register") {
-      if (!name || !salt || !passwordHash) {
-        return NextResponse.json({ error: "Missing registration credentials." }, { status: 400 });
-      }
-      const user = upsertUser(normalizedEmail, name, salt, passwordHash);
-      const session = createSession(user.id);
-
-      const response = NextResponse.json({
-        success: true,
-        user: { id: user.id, name: user.name, email: user.email },
-        token: session.token,
-      });
-
-      response.cookies.set("phishintel_session", session.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30, // 30 days
-      });
-
-      return response;
-    }
-
-    if (action === "login") {
-      const user = findUserByEmail(normalizedEmail);
-      if (!user) {
-        return NextResponse.json({ error: "Account not found." }, { status: 404 });
-      }
-
-      if (password) {
-        const isValid = verifyPassword(password, user.salt, user.password_hash);
-        if (!isValid) {
-          logActivity(user.id, "login_failed", "Failed sign-in attempt", "failure", "Password mismatch");
-          return NextResponse.json({ error: "Email or password is incorrect." }, { status: 401 });
-        }
-      }
-
-      const session = createSession(user.id);
-      logActivity(user.id, "login_success", "Signed in successfully", "success", "Workstation session created");
-
-      const response = NextResponse.json({
-        success: true,
-        user: { id: user.id, name: user.name, email: user.email },
-        token: session.token,
-      });
-
-      response.cookies.set("phishintel_session", session.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30,
-      });
-
-      return response;
-    }
-
-    if (action === "logout") {
-      const response = NextResponse.json({ success: true });
-      response.cookies.delete("phishintel_session");
-      return response;
-    }
-
-    // Default sync of current user identity
-    let existing = findUserByEmail(normalizedEmail);
-    if (!existing && name && salt && passwordHash) {
-      existing = upsertUser(normalizedEmail, name, salt, passwordHash);
-    }
-    if (existing) {
-      const session = createSession(existing.id);
-      const response = NextResponse.json({
-        success: true,
-        user: { id: existing.id, name: existing.name, email: existing.email },
-        token: session.token,
-      });
-      response.cookies.set("phishintel_session", session.token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 24 * 30,
-      });
-      return response;
-    }
-
-    return NextResponse.json({ error: "User not found" }, { status: 404 });
+    const response = NextResponse.json({
+      success: true,
+      user: { id: user.id, name: user.name, email: user.email },
+    });
+    response.cookies.set("phishintel_session", sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 30,
+    });
+    response.cookies.set("phishintel_access", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+    });
+    return response;
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Sync error";
-    return NextResponse.json({ error: message }, { status: 400 });
+    const message = error instanceof Error ? error.message : "Unable to synchronize the authenticated account.";
+    return NextResponse.json({ error: message }, { status: 401 });
   }
+}
+
+export async function DELETE(req: Request) {
+  const token = getSessionCookie(req);
+  if (token) {
+    getDb().prepare("DELETE FROM user_sessions WHERE token = ?").run(token);
+  }
+
+  const response = NextResponse.json({ success: true });
+  response.cookies.set("phishintel_session", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+  response.cookies.set("phishintel_access", "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+  return response;
 }

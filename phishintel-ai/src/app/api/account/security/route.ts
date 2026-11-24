@@ -4,7 +4,7 @@ import { getDb } from "@/lib/server/db";
 
 export async function GET(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const db = getDb();
 
     const sessionCountRow = db.prepare(`

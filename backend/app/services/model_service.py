@@ -399,6 +399,13 @@ class ModelService:
             "confidence_score": p_phish,
             "risk_score": risk_score,
             "p_phish": p_phish,
+            "logits": [float(value) for value in logits.detach().float().cpu().reshape(-1).tolist()],
+            "extracted_features": {
+                "url": [float(value) for value in x_url.reshape(-1).tolist()],
+                "structure": [float(value) for value in x_struct.reshape(-1).tolist()],
+                "linguistic": [float(value) for value in x_ling.reshape(-1).tolist()],
+                "text_token_count": len(token_ids),
+            },
             "indicators": indicators,
             "explainability": {
                 "summary": summary,

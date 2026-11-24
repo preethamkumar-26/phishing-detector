@@ -3,7 +3,7 @@ import { authenticateRequest } from "@/lib/server/auth";
 
 export async function GET(req: Request) {
   try {
-    authenticateRequest(req);
+    await authenticateRequest(req);
 
     return NextResponse.json({
       plan: {

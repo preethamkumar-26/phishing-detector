@@ -220,7 +220,7 @@ export function TopBar() {
             suppressHydrationWarning
             style={{ overflow: "hidden", padding: 0 }}
           >
-            {authUser?.avatarUrl ? (
+            {mounted && authUser?.avatarUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={authUser.avatarUrl}

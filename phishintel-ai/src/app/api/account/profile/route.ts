@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
-import { authenticateRequest, logActivity } from "@/lib/server/auth";
+import { AuthenticationError, authenticateRequest, logActivity } from "@/lib/server/auth";
 import { getDb } from "@/lib/server/db";
 
 export async function GET(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     return NextResponse.json({
       profile: {
         id: user.id,
@@ -27,7 +27,7 @@ export async function GET(req: Request) {
 
 export async function PATCH(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const body = await req.json();
 
     // Whitelist allowed fields
@@ -77,6 +77,6 @@ export async function PATCH(req: Request) {
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to update profile";
-    return NextResponse.json({ error: message }, { status: 400 });
+    return NextResponse.json({ error: message }, { status: error instanceof AuthenticationError ? 401 : 400 });
   }
 }

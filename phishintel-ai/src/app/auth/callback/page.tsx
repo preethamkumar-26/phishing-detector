@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Shield, AlertCircle, RefreshCw } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { safeNext } from "@/lib/authRedirect";
+import { syncServerSession } from "@/lib/syncServerSession";
 
 function CallbackContent() {
   const router = useRouter();
@@ -36,10 +37,7 @@ function CallbackContent() {
         }
 
         if (session?.user) {
-          try {
-            window.localStorage.setItem("phishintel-session", session.user.email || "");
-            document.cookie = `phishintel_session=${encodeURIComponent(session.user.email || "")}; Path=/; SameSite=Lax;`;
-          } catch {}
+          await syncServerSession(session.access_token);
           router.replace(next);
           return;
         }
@@ -56,11 +54,13 @@ function CallbackContent() {
         return;
       }
       if (session?.user && (event === "SIGNED_IN" || event === "INITIAL_SESSION" || event === "TOKEN_REFRESHED")) {
-        try {
-          window.localStorage.setItem("phishintel-session", session.user.email || "");
-          document.cookie = `phishintel_session=${encodeURIComponent(session.user.email || "")}; Path=/; SameSite=Lax;`;
-        } catch {}
-        router.replace(next);
+        void syncServerSession(session.access_token)
+          .then(() => {
+            if (active) router.replace(next);
+          })
+          .catch((error) => {
+            if (active) setErrorMsg(error instanceof Error ? error.message : "Failed to establish the account session.");
+          });
       }
     });
 
@@ -71,11 +71,15 @@ function CallbackContent() {
       if (active) {
         supabase.auth.getSession().then(({ data: { session } }) => {
           if (session?.user) {
-            router.replace(next);
+            return syncServerSession(session.access_token).then(() => {
+              if (active) router.replace(next);
+            });
           } else {
             setErrorMsg("Authentication timed out. No active session was established.");
           }
-        }).catch(() => {});
+        }).catch((error) => {
+          if (active) setErrorMsg(error instanceof Error ? error.message : "Failed to establish the account session.");
+        });
       }
     }, 5000);
 

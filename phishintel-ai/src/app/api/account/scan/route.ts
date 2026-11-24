@@ -4,14 +4,21 @@ import { getDb } from "@/lib/server/db";
 
 export async function GET(req: Request) {
   try {
+    let user: Awaited<ReturnType<typeof authenticateRequest>>;
+    try {
+      user = await authenticateRequest(req);
+    } catch {
+      return NextResponse.json({ error: "Authentication required." }, { status: 401 });
+    }
+
     const { searchParams } = new URL(req.url);
     const scanId = searchParams.get("scanId");
     const db = getDb();
 
     if (scanId) {
       const row = db
-        .prepare("SELECT * FROM user_scans WHERE scan_id = ? ORDER BY created_at DESC LIMIT 1")
-        .get(scanId) as any;
+        .prepare("SELECT * FROM user_scans WHERE scan_id = ? AND user_id = ? ORDER BY created_at DESC LIMIT 1")
+        .get(scanId, user.id) as any;
 
       if (!row) {
         return NextResponse.json({ scan: null }, { status: 404 });
@@ -62,14 +69,6 @@ export async function GET(req: Request) {
       };
 
       return NextResponse.json({ scan });
-    }
-
-    // Retrieve all scans for authenticated session
-    let user;
-    try {
-      user = authenticateRequest(req);
-    } catch {
-      return NextResponse.json({ scans: [] });
     }
 
     const rows = db
@@ -128,7 +127,7 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
-    const user = authenticateRequest(req);
+    const user = await authenticateRequest(req);
     const body = await req.json();
 
     const {
@@ -196,7 +195,7 @@ export async function DELETE(req: Request) {
   try {
     let user;
     try {
-      user = authenticateRequest(req);
+      user = await authenticateRequest(req);
     } catch {
       return NextResponse.json(
         { error: "Authentication required to delete scan records." },

@@ -275,6 +275,12 @@ function AnalyzerContent() {
     setLoadNotice(null);
     setCurrentStep(0);
 
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
+    const progressId = setInterval(() => {
+      setCurrentStep((step) => Math.min(step + 1, STEPS.length - 1));
+    }, 900);
+
     try {
       const result = await runScan({
         subject,
@@ -283,18 +289,32 @@ function AnalyzerContent() {
         body,
         urls,
         headers,
-      });
+      }, controller.signal);
+      clearInterval(progressId);
+      setCurrentStep(STEPS.length - 1);
       setScanResult(result);
       if (settings.jump) {
         setSelectedScanId(result.id);
         router.push("/explainability");
       }
     } catch (error: unknown) {
+      clearInterval(progressId);
+      const message =
+        error instanceof Error && error.name === "AbortError"
+          ? "Request timed out. Model inference took longer than 30 seconds."
+          : error instanceof Error
+            ? error.message
+            : "Analysis encountered an error.";
       showToast(
-        error instanceof Error ? error.message : "Analysis encountered an error.",
+        message.includes("Backend Offline") || message.includes("Unable to reach")
+          ? `Backend Offline: ${message}`
+          : message,
         true
       );
+      setCurrentStep(-1);
     } finally {
+      clearTimeout(timeoutId);
+      clearInterval(progressId);
       setRunning(false);
       setCurrentStep(-1);
     }

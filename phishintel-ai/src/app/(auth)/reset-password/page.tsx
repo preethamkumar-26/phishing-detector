@@ -171,16 +171,20 @@ function ResetPasswordForm() {
 
       // 3. Explicitly terminate the temporary recovery session so the user must
       // authenticate fresh using their newly configured credentials
-      try {
-        await supabase.auth.signOut();
-        window.localStorage.removeItem("phishintel-session");
-        for (const key of Object.keys(window.localStorage)) {
-          if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
-            window.localStorage.removeItem(key);
-          }
+      await supabase.auth.signOut();
+      const sessionResponse = await fetch("/api/account/sync", {
+        method: "DELETE",
+        credentials: "include",
+      });
+      if (!sessionResponse.ok) {
+        throw new Error("Unable to revoke the server account session.");
+      }
+      window.localStorage.removeItem("phishintel-session");
+      for (const key of Object.keys(window.localStorage)) {
+        if (key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          window.localStorage.removeItem(key);
         }
-        document.cookie = "phishintel_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT; SameSite=Lax;";
-      } catch {}
+      }
 
       setAuthState("success");
     } catch (err) {

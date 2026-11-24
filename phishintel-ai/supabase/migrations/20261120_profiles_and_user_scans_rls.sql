@@ -68,28 +68,32 @@ alter table public.scans
 create index if not exists scans_user_id_created_at_idx
   on public.scans (user_id, created_at desc);
 
--- Update RLS policies on public.scans to isolate scans per user
+alter table public.scans enable row level security;
+grant select, insert, update, delete on table public.scans to authenticated;
+grant all on table public.scans to service_role;
+revoke all on table public.scans from anon;
+revoke all on table public.scans from public;
+
 drop policy if exists "Allow all scan access" on public.scans;
 drop policy if exists "scans_select_own" on public.scans;
 drop policy if exists "scans_insert_own" on public.scans;
 drop policy if exists "scans_update_own" on public.scans;
 drop policy if exists "scans_delete_own" on public.scans;
 
--- Allow users to read their own scans (and null user_id scans during migration)
+-- Rows without an owner remain inaccessible until they can be safely reassigned.
 create policy "scans_select_own"
-on public.scans for select to public
-using ((select auth.uid()) = user_id or user_id is null);
+on public.scans for select to authenticated
+using ((select auth.uid()) = user_id);
 
--- Allow authenticated users and anonymous local testing to insert scans with their user_id
 create policy "scans_insert_own"
-on public.scans for insert to public
-with check ((select auth.uid()) = user_id or user_id is null);
+on public.scans for insert to authenticated
+with check ((select auth.uid()) = user_id);
 
 create policy "scans_update_own"
-on public.scans for update to public
-using ((select auth.uid()) = user_id or user_id is null)
-with check ((select auth.uid()) = user_id or user_id is null);
+on public.scans for update to authenticated
+using ((select auth.uid()) = user_id)
+with check ((select auth.uid()) = user_id);
 
 create policy "scans_delete_own"
-on public.scans for delete to public
-using ((select auth.uid()) = user_id or user_id is null);
+on public.scans for delete to authenticated
+using ((select auth.uid()) = user_id);

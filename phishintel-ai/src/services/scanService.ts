@@ -2,6 +2,7 @@ import { ScanResult, ScanRecord, PredictionType, EvidenceItem } from "@/types/sc
 import { EvaluationMetricsResponse } from "@/types/evaluation";
 import { DEMO_RECENT_SCANS } from "@/data/demo-data";
 import {
+  checkBackendConnection,
   fetchWithBackendAutoRetry,
   getActiveAnalyzeEndpoint,
 } from "@/lib/backendDiscovery";
@@ -11,7 +12,11 @@ import { supabase } from "@/lib/supabaseClient";
 let sessionScans: ScanRecord[] = [...DEMO_RECENT_SCANS];
 
 const FASTAPI_BASE_URL =
-  (process.env.NEXT_PUBLIC_FASTAPI_URL || "http://127.0.0.1:8000").replace(/\/+$/, "");
+  (
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_FASTAPI_URL ||
+    "http://127.0.0.1:8000"
+  ).replace(/\/+$/, "");
 export const FASTAPI_ANALYZE_URL = `${FASTAPI_BASE_URL}/api/v1/analyze`;
 export const FASTAPI_EVALUATION_METRICS_URL =
   `${FASTAPI_BASE_URL}/api/v1/evaluation-metrics`;
@@ -76,6 +81,13 @@ export interface FastAPIAnalysisResponse {
   confidence_score: number;
   risk_score: number;
   p_phish: number;
+  logits: number[];
+  extracted_features: {
+    url: number[];
+    structure: number[];
+    linguistic: number[];
+    text_token_count: number;
+  };
   indicators: Array<{
     id?: string;
     category?: string;
@@ -130,6 +142,24 @@ export function mapVerdictToPrediction(
 function isFastAPIAnalysisResponse(value: unknown): value is FastAPIAnalysisResponse {
   if (!value || typeof value !== "object") return false;
   const data = value as Record<string, unknown>;
+  if (
+    !Array.isArray(data.logits) ||
+    !data.logits.every((logit) => typeof logit === "number" && Number.isFinite(logit))
+  ) return false;
+  const features = data.extracted_features;
+  if (!features || typeof features !== "object") return false;
+  const extracted = features as Record<string, unknown>;
+  if (
+    !["url", "structure", "linguistic"].every((name) =>
+      Array.isArray(extracted[name]) &&
+      (extracted[name] as unknown[]).every((feature) =>
+        typeof feature === "number" && Number.isFinite(feature)
+      )
+    ) ||
+    typeof extracted.text_token_count !== "number" ||
+    !Number.isInteger(extracted.text_token_count) ||
+    extracted.text_token_count < 0
+  ) return false;
   const indicatorsValid =
     Array.isArray(data.indicators) &&
     data.indicators.every(
@@ -307,6 +337,11 @@ export async function analyzeEmailWithBackend(
   const activeEndpoint = endpoint
     ? endpoint
     : await getActiveAnalyzeEndpoint();
+  const health = await checkBackendConnection(activeEndpoint);
+  if (!health.ok) {
+    throw new Error(`Backend Offline: ${health.error || `Unable to reach ${health.endpoint}.`}`);
+  }
+
   let response: Response;
   try {
     response = await fetchWithBackendAutoRetry(activeEndpoint, {
@@ -339,17 +374,20 @@ export async function analyzeEmailWithBackend(
     );
   }
 
-  const data: unknown = await response.json();
+  let data: unknown;
+  try {
+    data = await response.json();
+  } catch {
+    throw new Error(`Inference service returned an invalid response (HTTP ${response.status}).`);
+  }
 
   if (!response.ok) {
-    const detail =
+    const body =
       data && typeof data === "object" && "detail" in data
         ? (data as { detail?: unknown }).detail
         : undefined;
     throw new Error(
-      typeof detail === "string"
-        ? detail
-        : "Failed to analyze email via PhishIntel FastAPI Backend"
+      `Inference service error: HTTP ${response.status}${typeof body === "string" ? ` — ${body}` : ""}`
     );
   }
 
@@ -432,15 +470,10 @@ export function saveScanToHistory(result: ScanResult): ScanRecord {
 
   // Async record scan in backend account activity
   try {
-    const userEmail =
-      typeof window !== "undefined"
-        ? window.localStorage.getItem("phishintel-session")
-        : null;
     fetch("/api/account/scan", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(userEmail ? { "x-user-email": userEmail } : {}),
       },
       body: JSON.stringify({
         scanId: result.scanId,

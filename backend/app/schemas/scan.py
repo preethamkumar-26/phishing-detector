@@ -86,3 +86,5 @@ class ScanResponse(BaseModel):
     p_phish: float = Field(ge=0.0, le=1.0)
     indicators: list[dict[str, Any]] = Field(default_factory=list)
     explainability: dict[str, Any] = Field(default_factory=dict)
+    logits: list[float] = Field(default_factory=list)
+    extracted_features: dict[str, Any] = Field(default_factory=dict)
