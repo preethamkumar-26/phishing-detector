@@ -4,6 +4,73 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
+class SummaryMetrics(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    accuracy: float = Field(ge=0.0, le=1.0)
+    balanced_accuracy: float = Field(ge=0.0, le=1.0)
+    precision: float = Field(ge=0.0, le=1.0)
+    recall: float = Field(ge=0.0, le=1.0)
+    f1_score: float = Field(ge=0.0, le=1.0)
+    roc_auc: float = Field(ge=0.0, le=1.0)
+    pr_auc: float = Field(ge=0.0, le=1.0)
+
+
+class ClassMetrics(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    precision: float = Field(ge=0.0, le=1.0)
+    recall: float = Field(ge=0.0, le=1.0)
+    f1_score: float = Field(ge=0.0, le=1.0)
+    support: int = Field(ge=0)
+
+
+class AccuracyReportItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    value: float = Field(ge=0.0, le=1.0)
+    support: int = Field(ge=0)
+
+
+class ClassificationReport(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    Legitimate: ClassMetrics
+    Phishing: ClassMetrics
+    accuracy: AccuracyReportItem
+    macro_avg: ClassMetrics
+    weighted_avg: ClassMetrics
+
+
+class ConfusionMatrix(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    values: list[list[int]] = Field(min_length=2, max_length=2)
+    label_order: list[str] = Field(min_length=2, max_length=2)
+    row_axis: str = "actual"
+    column_axis: str = "predicted"
+
+
+class EvaluationDetails(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    status: str = "completed_successfully"
+    total_samples: int = Field(ge=1)
+    class_support: dict[str, int]
+    summary_metrics: SummaryMetrics
+    classification_report: ClassificationReport
+    confusion_matrix: ConfusionMatrix
+
+
+class PAHFNetEvaluationReport(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+
+    status: Literal["available"] = "available"
+    model: str = "PAHF-Net"
+    evaluation: EvaluationDetails
+    data_notes: list[str] = Field(default_factory=list)
+
+
 class EvaluationScores(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -72,4 +139,6 @@ class EvaluationMetricsUnavailable(BaseModel):
     artifact: Literal["evaluation_metrics.json"] = "evaluation_metrics.json"
 
 
-EvaluationMetricsResponse = EvaluationMetricsReport | EvaluationMetricsUnavailable
+EvaluationMetricsResponse = (
+    PAHFNetEvaluationReport | EvaluationMetricsReport | EvaluationMetricsUnavailable
+)

@@ -6,19 +6,22 @@ import Link from "next/link";
 import { Shield, Lock, Mail, ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import { GoogleIcon } from "@/components/ui/BrandIcons";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { safeNext } from "@/lib/authRedirect";
 
 function SignInForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"), "/dashboard");
-  const { status, signIn, signInWithGoogle } = useAuth();
+  const { status, signIn, signInWithGoogle, resendConfirmation } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   // If already authenticated, redirect immediately
   useEffect(() => {
@@ -35,6 +38,7 @@ function SignInForm() {
     }
     setLoading(true);
     setError(null);
+    setResendMessage(null);
 
     try {
       await signIn(email.trim(), password);
@@ -45,9 +49,24 @@ function SignInForm() {
     }
   };
 
+  const handleResendConfirmation = async () => {
+    if (!email.trim()) return;
+    setResending(true);
+    setResendMessage(null);
+    try {
+      await resendConfirmation(email.trim());
+      setResendMessage("Verification email resent. Please check your inbox or spam folder.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to resend confirmation email.");
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     setError(null);
+    setResendMessage(null);
     try {
       await signInWithGoogle(next);
     } catch (err) {
@@ -83,12 +102,30 @@ function SignInForm() {
             Access your private threat-analysis workspace and retained scan evidence.
           </p>
 
-          {/* Error Announcement */}
+          {/* Error & Resend Announcement */}
           <div aria-live="polite">
             {error && (
-              <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-xs flex items-start gap-2.5">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{error}</span>
+              <div className="mb-5 p-3.5 rounded-xl bg-red-500/10 border border-red-500/20 text-red-700 text-xs flex flex-col gap-2">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                  <span>{error}</span>
+                </div>
+                {error.toLowerCase().includes("not been confirmed") && (
+                  <button
+                    type="button"
+                    onClick={handleResendConfirmation}
+                    disabled={resending}
+                    className="text-left text-xs font-semibold text-[#f8761b] hover:underline pl-6"
+                  >
+                    {resending ? "Sending activation link..." : "Resend activation email"}
+                  </button>
+                )}
+              </div>
+            )}
+            {resendMessage && (
+              <div className="mb-5 p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 text-xs flex items-start gap-2.5">
+                <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 text-emerald-600" />
+                <span>{resendMessage}</span>
               </div>
             )}
           </div>
@@ -147,19 +184,16 @@ function SignInForm() {
               >
                 Password
               </label>
-              <div className="relative">
-                <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6f796e]" />
-                <input
-                  id="signin-password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••••••"
-                  className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[rgba(23,33,27,0.18)] bg-white text-sm text-[#17211b] placeholder:text-[#6f796e]/60 focus:outline-none focus:ring-2 focus:ring-[#f8761b] focus:border-[#f8761b] transition-all"
-                />
-              </div>
+              <PasswordInput
+                id="signin-password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••••••"
+                leftIcon={<Lock className="w-4 h-4" />}
+                className="w-full py-2.5 rounded-xl border border-[rgba(23,33,27,0.18)] bg-white text-sm text-[#17211b] placeholder:text-[#6f796e]/60 focus:outline-none focus:ring-2 focus:ring-[#f8761b] focus:border-[#f8761b] transition-all"
+              />
             </div>
 
             <button

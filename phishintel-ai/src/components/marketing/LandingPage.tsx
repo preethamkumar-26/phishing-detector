@@ -39,11 +39,15 @@ export function LandingPage({ className = "" }: LandingPageProps) {
   const { theme } = useTheme();
   const isLight = theme === "light";
   const [contactOpen, setContactOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     recordPathTransition("/");
     markFromLanding();
   }, []);
+
+  const isAuthenticated = mounted && status === "authenticated";
 
   const handleProtectedNav = (
     e: React.MouseEvent<HTMLElement>,
@@ -148,7 +152,7 @@ export function LandingPage({ className = "" }: LandingPageProps) {
           </p>
 
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            {status === "authenticated" ? (
+            {isAuthenticated ? (
               <>
                 <Link
                   href="/dashboard"

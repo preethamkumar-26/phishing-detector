@@ -35,11 +35,12 @@ interface AuthSnapshot {
 }
 
 interface AuthActions {
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string) => Promise<{ requiresConfirmation?: boolean }>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: (next?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  resendConfirmation: (email: string) => Promise<void>;
 }
 
 const SESSION_KEY = "phishintel-session";
@@ -238,7 +239,7 @@ function subscribe(listener: () => void) {
  * Register a new user account exclusively in Supabase Auth.
  * Never stores credentials or password hashes in local storage or SQLite.
  */
-async function register(name: string, email: string, password: string) {
+async function register(name: string, email: string, password: string): Promise<{ requiresConfirmation?: boolean }> {
   const normalizedName = name.trim();
   const normalizedEmail = email.trim().toLowerCase();
   if (!normalizedName) throw new Error("Enter your name.");
@@ -262,11 +263,20 @@ async function register(name: string, email: string, password: string) {
   if (error) {
     if (
       error.message.toLowerCase().includes("already registered") ||
-      error.message.toLowerCase().includes("already exists")
+      error.message.toLowerCase().includes("already exists") ||
+      (error as { code?: string }).code === "user_already_exists"
     ) {
       throw new Error("An account with this email already exists. Sign in instead.");
     }
+    if ((error as { status?: number }).status === 429 || error.message.toLowerCase().includes("rate limit")) {
+      throw new Error("Too many registration attempts. Please wait a moment before trying again.");
+    }
     throw new Error(error.message || "Unable to create your account.");
+  }
+
+  // Supabase returns identities: [] when the user already exists (enumeration protection)
+  if (data?.user?.identities && data.user.identities.length === 0) {
+    throw new Error("An account with this email already exists. Sign in instead.");
   }
 
   if (data?.session?.user) {
@@ -281,13 +291,16 @@ async function register(name: string, email: string, password: string) {
       user,
     };
     notify();
+    return { requiresConfirmation: false };
   } else if (data?.user && !data.session) {
-    throw new Error("Check your inbox for a confirmation link to activate your workspace.");
+    return { requiresConfirmation: true };
   }
+
+  return { requiresConfirmation: false };
 }
 
 /**
- * Sign in exclusively against Supabase Auth.
+ * Sign in exclusively against Supabase Auth with detailed diagnostic error reporting.
  */
 async function signIn(email: string, password: string) {
   const normalizedEmail = email.trim().toLowerCase();
@@ -299,7 +312,23 @@ async function signIn(email: string, password: string) {
   });
 
   if (error) {
-    throw new Error("Email or password is incorrect.");
+    const code = (error as { code?: string }).code;
+    const lower = (error.message || "").toLowerCase();
+
+    if (code === "email_not_confirmed" || lower.includes("email not confirmed")) {
+      throw new Error("Your email address has not been confirmed yet. Please check your inbox for the activation link.");
+    }
+    if (
+      code === "invalid_credentials" ||
+      lower.includes("invalid login credentials") ||
+      lower.includes("invalid email or password")
+    ) {
+      throw new Error("Invalid email or password. Please verify your credentials and try again.");
+    }
+    if ((error as { status?: number }).status === 429 || lower.includes("rate limit")) {
+      throw new Error("Too many login attempts. Please wait a moment before trying again.");
+    }
+    throw new Error(error.message || "Email or password is incorrect.");
   }
 
   if (!data?.user) {
@@ -317,6 +346,25 @@ async function signIn(email: string, password: string) {
     user,
   };
   notify();
+}
+
+/**
+ * Resend sign-up confirmation email via Supabase Auth.
+ */
+async function resendConfirmation(email: string) {
+  const normalizedEmail = email.trim().toLowerCase();
+  if (!normalizedEmail) throw new Error("Enter your email address.");
+  const { error } = await supabase.auth.resend({
+    type: "signup",
+    email: normalizedEmail,
+  });
+  if (error) {
+    const lower = (error.message || "").toLowerCase();
+    if ((error as { status?: number }).status === 429 || lower.includes("rate limit") || lower.includes("seconds")) {
+      throw new Error("Confirmation email was recently sent. Please check your inbox or wait 30 seconds before requesting another.");
+    }
+    throw new Error(error.message || "Failed to resend confirmation email.");
+  }
 }
 
 /**
@@ -403,7 +451,7 @@ async function refreshUser() {
   } catch {}
 }
 
-const actions: AuthActions = { register, signIn, signInWithGoogle, signOut, refreshUser };
+const actions: AuthActions = { register, signIn, signInWithGoogle, signOut, refreshUser, resendConfirmation };
 
 export function AuthProvider({
   children,

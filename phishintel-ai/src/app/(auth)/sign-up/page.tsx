@@ -6,13 +6,14 @@ import Link from "next/link";
 import { Shield, Lock, Mail, User, ArrowRight, AlertCircle, CheckCircle2 } from "lucide-react";
 import { GoogleIcon } from "@/components/ui/BrandIcons";
 import { useAuth } from "@/components/auth/AuthProvider";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 import { safeNext } from "@/lib/authRedirect";
 
 function SignUpForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const next = safeNext(searchParams.get("next"), "/dashboard");
-  const { status, register, signInWithGoogle } = useAuth();
+  const { status, register, signInWithGoogle, resendConfirmation } = useAuth();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -22,6 +23,8 @@ function SignUpForm() {
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [confirmationNotice, setConfirmationNotice] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendMessage, setResendMessage] = useState<string | null>(null);
 
   // If already authenticated, redirect immediately
   useEffect(() => {
@@ -51,11 +54,15 @@ function SignUpForm() {
 
     setLoading(true);
     setError(null);
+    setResendMessage(null);
 
     try {
-      await register(name.trim(), email.trim(), password);
-      // If registration completed and session is established, navigate
-      router.replace(next);
+      const result = await register(name.trim(), email.trim(), password);
+      if (result?.requiresConfirmation) {
+        setConfirmationNotice(true);
+      } else {
+        router.replace(next);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Unable to complete registration.";
       // Check if email confirmation is required by Supabase project settings
@@ -64,7 +71,22 @@ function SignUpForm() {
       } else {
         setError(msg);
       }
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (!email.trim()) return;
+    setResending(true);
+    setResendMessage(null);
+    try {
+      await resendConfirmation(email.trim());
+      setResendMessage("Verification email resent. Please check your inbox or spam folder.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to resend confirmation email.");
+    } finally {
+      setResending(false);
     }
   };
 
@@ -90,13 +112,31 @@ function SignUpForm() {
           <p className="text-sm text-[#6f796e] mb-6 leading-relaxed">
             We sent a verification link to <strong className="text-[#17211b]">{email}</strong>. Click the link in the message to activate your workspace and complete setup.
           </p>
-          <div className="pt-4 border-t border-[rgba(23,33,27,0.08)]">
-            <Link
-              href={`/sign-in?next=${encodeURIComponent(next)}`}
-              className="text-xs font-semibold text-[#f8761b] hover:underline"
+
+          {resendMessage && (
+            <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-800 text-xs">
+              {resendMessage}
+            </div>
+          )}
+
+          <div className="space-y-3 pt-4 border-t border-[rgba(23,33,27,0.08)]">
+            <button
+              type="button"
+              onClick={handleResend}
+              disabled={resending}
+              className="w-full py-2.5 px-4 rounded-xl border border-[rgba(23,33,27,0.18)] bg-white hover:bg-neutral-50 text-xs font-semibold text-[#17211b] transition-all disabled:opacity-50"
             >
-              Already confirmed? Sign in to workspace
-            </Link>
+              {resending ? "Sending verification email..." : "Resend verification email"}
+            </button>
+
+            <div>
+              <Link
+                href={`/sign-in?next=${encodeURIComponent(next)}`}
+                className="text-xs font-semibold text-[#f8761b] hover:underline"
+              >
+                Already confirmed? Sign in to workspace
+              </Link>
+            </div>
           </div>
         </div>
       </div>
@@ -216,19 +256,17 @@ function SignUpForm() {
                 >
                   Password (8+ chars)
                 </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6f796e]" />
-                  <input
-                    id="signup-password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[rgba(23,33,27,0.18)] bg-white text-sm text-[#17211b] placeholder:text-[#6f796e]/60 focus:outline-none focus:ring-2 focus:ring-[#f8761b] focus:border-[#f8761b] transition-all"
-                  />
-                </div>
+                <PasswordInput
+                  id="signup-password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  leftIcon={<Lock className="w-4 h-4" />}
+                  className="w-full py-2.5 rounded-xl border border-[rgba(23,33,27,0.18)] bg-white text-sm text-[#17211b] placeholder:text-[#6f796e]/60 focus:outline-none focus:ring-2 focus:ring-[#f8761b] focus:border-[#f8761b] transition-all"
+                />
               </div>
 
               <div>
@@ -238,19 +276,17 @@ function SignUpForm() {
                 >
                   Confirm Password
                 </label>
-                <div className="relative">
-                  <Lock className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6f796e]" />
-                  <input
-                    id="signup-confirm-password"
-                    type="password"
-                    autoComplete="new-password"
-                    required
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-[rgba(23,33,27,0.18)] bg-white text-sm text-[#17211b] placeholder:text-[#6f796e]/60 focus:outline-none focus:ring-2 focus:ring-[#f8761b] focus:border-[#f8761b] transition-all"
-                  />
-                </div>
+                <PasswordInput
+                  id="signup-confirm-password"
+                  autoComplete="new-password"
+                  required
+                  minLength={8}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="••••••••••••"
+                  leftIcon={<Lock className="w-4 h-4" />}
+                  className="w-full py-2.5 rounded-xl border border-[rgba(23,33,27,0.18)] bg-white text-sm text-[#17211b] placeholder:text-[#6f796e]/60 focus:outline-none focus:ring-2 focus:ring-[#f8761b] focus:border-[#f8761b] transition-all"
+                />
               </div>
             </div>
 

@@ -172,6 +172,38 @@ function isEvaluationMetricsResponse(value: unknown): value is EvaluationMetrics
       data.artifact === "evaluation_metrics.json"
     );
   }
+
+  // PAHF-Net full evaluation artifact format
+  if ("evaluation" in data && data.evaluation && typeof data.evaluation === "object") {
+    const evalObj = data.evaluation as Record<string, unknown>;
+    const summary = evalObj.summary_metrics as Record<string, unknown> | undefined;
+    const report = evalObj.classification_report as Record<string, unknown> | undefined;
+    const cm = evalObj.confusion_matrix as Record<string, unknown> | undefined;
+    const hasSummary =
+      !!summary &&
+      typeof summary.accuracy === "number" &&
+      typeof summary.balanced_accuracy === "number" &&
+      typeof summary.precision === "number" &&
+      typeof summary.recall === "number" &&
+      typeof summary.f1_score === "number" &&
+      typeof summary.roc_auc === "number" &&
+      typeof summary.pr_auc === "number";
+    const hasReport =
+      !!report &&
+      !!report.Legitimate &&
+      !!report.Phishing &&
+      !!report.accuracy &&
+      !!report.macro_avg &&
+      !!report.weighted_avg;
+    const hasCM =
+      !!cm &&
+      Array.isArray(cm.values) &&
+      cm.values.length === 2 &&
+      Array.isArray(cm.label_order) &&
+      cm.label_order.length === 2;
+    return Boolean(hasSummary && hasReport && hasCM);
+  }
+
   if (data.status !== "available" || !data.metrics || typeof data.metrics !== "object") {
     return false;
   }

@@ -11,7 +11,7 @@
     "check:legacy": "node scripts/check-no-legacy.mjs",
     "lint": "eslint",
     "test:supabase": "node scripts/test-supabase.mjs",
-    "test": "node scripts/check-no-legacy.mjs && node --experimental-strip-types tests/prohibited-legacy-codes.test.mjs && node --experimental-strip-types tests/eval-artifact.test.mjs && node --experimental-strip-types tests/mail-source.test.mjs"
+    "test": "node scripts/check-no-legacy.mjs && node --experimental-strip-types tests/prohibited-legacy-codes.test.mjs && node --experimental-strip-types tests/eval-artifact.test.mjs && node --experimental-strip-types tests/mail-source.test.mjs && node tests/pahfnet-evaluation-metrics.test.mjs"
   },
   "dependencies": {
     "@heroui/react": "^3.2.7",

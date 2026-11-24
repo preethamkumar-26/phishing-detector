@@ -9,6 +9,7 @@ from app.schemas.evaluation import (
     EvaluationMetricsReport,
     EvaluationMetricsResponse,
     EvaluationMetricsUnavailable,
+    PAHFNetEvaluationReport,
 )
 
 
@@ -33,6 +34,8 @@ class EvaluationService:
         try:
             with self.artifact_path.open(encoding="utf-8") as artifact_file:
                 artifact = json.load(artifact_file)
+            if "evaluation" in artifact and "summary_metrics" in artifact.get("evaluation", {}):
+                return PAHFNetEvaluationReport.model_validate(artifact)
             return EvaluationMetricsReport.model_validate(artifact)
         except (OSError, ValueError, ValidationError) as exc:
             logger.error(

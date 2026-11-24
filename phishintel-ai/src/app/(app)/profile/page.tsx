@@ -6,6 +6,7 @@ import { useAuth } from "@/components/auth/AuthProvider";
 import { AuthDialog } from "@/components/auth/AuthDialog";
 import { supabase } from "@/lib/supabaseClient";
 import { AlertTriangle, Trash2, X, ExternalLink, KeyRound, ShieldCheck } from "lucide-react";
+import { PasswordInput } from "@/components/ui/PasswordInput";
 
 interface UserProfileData {
   id: string;
@@ -1707,10 +1708,9 @@ export default function ProfilePage() {
                             <div className="grid g2" style={{ gap: 14 }}>
                               <div className="field">
                                 <label htmlFor="add-sec-new-pwd">New password (min 8 chars)</label>
-                                <input
+                                <PasswordInput
                                   className="input"
                                   id="add-sec-new-pwd"
-                                  type="password"
                                   required
                                   minLength={8}
                                   value={addPasswordNew}
@@ -1720,10 +1720,9 @@ export default function ProfilePage() {
                               </div>
                               <div className="field">
                                 <label htmlFor="add-sec-cnf-pwd">Confirm new password</label>
-                                <input
+                                <PasswordInput
                                   className="input"
                                   id="add-sec-cnf-pwd"
-                                  type="password"
                                   required
                                   minLength={8}
                                   value={addPasswordConfirm}
@@ -1801,10 +1800,9 @@ export default function ProfilePage() {
                       <div className="grid g3" style={{ gap: 14 }}>
                         <div className="field">
                           <label htmlFor="sec-cur-pwd">Current password</label>
-                          <input
+                          <PasswordInput
                             className="input"
                             id="sec-cur-pwd"
-                            type="password"
                             required
                             value={currentPassword}
                             placeholder="••••••••"
@@ -1813,10 +1811,9 @@ export default function ProfilePage() {
                         </div>
                         <div className="field">
                           <label htmlFor="sec-new-pwd">New password (min 8 chars)</label>
-                          <input
+                          <PasswordInput
                             className="input"
                             id="sec-new-pwd"
-                            type="password"
                             required
                             minLength={8}
                             value={newPassword}
@@ -1826,10 +1823,9 @@ export default function ProfilePage() {
                         </div>
                         <div className="field">
                           <label htmlFor="sec-cnf-pwd">Confirm new password</label>
-                          <input
+                          <PasswordInput
                             className="input"
                             id="sec-cnf-pwd"
-                            type="password"
                             required
                             minLength={8}
                             value={confirmPassword}
